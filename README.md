@@ -106,3 +106,25 @@ Nest is an MIT-licensed open source project. It can grow thanks to the sponsors 
 ## License
 
 Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+
+## Docker / CI-CD
+
+### Local Docker Compose
+
+```bash
+cp .env.example .env
+yarn docker:up
+```
+
+Stop containers:
+
+```bash
+yarn docker:down
+```
+
+### GitHub Actions
+
+- `CI`: lint, unit/e2e test, build, docker build check
+- `CD`: push to `main` -> build/push image to GHCR
+  - `ghcr.io/<owner>/ddd-be:latest`
+  - `ghcr.io/<owner>/ddd-be:<commit_sha>`

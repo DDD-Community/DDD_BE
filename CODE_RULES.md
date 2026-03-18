@@ -238,7 +238,7 @@ type PaginationMeta = {
 ## 9) 환경변수 규칙 (MUST)
 
 1. 시크릿, DB 접속 정보, 외부 API 키 등 모든 환경 의존 값은 환경변수로 관리한다. 코드에 하드코딩하지 않는다.
-2. 환경변수는 NestJS `ConfigModule`을 통해 접근하고, 직접 `process.env`를 참조하지 않는다.
+2. 환경변수는 NestJS `ConfigModule`을 통해 접근하고, 직접 `process.env`를 참조하지 않는다. 단, TypeORM CLI 등 NestJS DI 컨텍스트 밖에서 실행되는 경우(`data-source.ts`)는 `dotenv` + `process.env` 직접 접근을 허용한다.
 3. 환경변수는 `config/` 에서 스키마(`class-validator` 기반)로 검증한다. 앱 구동 시 필수 환경변수가 없으면 즉시 실패한다.
 4. `.env` 파일은 git에 커밋하지 않는다. `.env.example`만 커밋해 필요한 키 목록을 관리한다.
 5. 환경변수 이름은 `UPPER_SNAKE_CASE`를 사용한다.
