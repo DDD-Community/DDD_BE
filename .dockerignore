@@ -1,0 +1,13 @@
+node_modules
+dist
+.git
+.github
+.omc
+coverage
+*.log
+*.md
+test
+docker-compose*.yml
+.env
+.env.local
+.env.*.local
