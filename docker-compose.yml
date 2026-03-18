@@ -3,7 +3,7 @@ services:
     image: ${APP_IMAGE:-ddd-be:local}
     container_name: ddd-be-app
     env_file:
-      - .env
+      - ${APP_ENV_FILE:-.env.development}
     environment:
       DB_HOST: postgres
     ports:

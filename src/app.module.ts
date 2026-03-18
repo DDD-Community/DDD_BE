@@ -8,8 +8,10 @@ import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
+    // Prefer env-specific files and keep .env as a fallback for compatibility.
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: [`.env.${process.env.NODE_ENV ?? 'development'}`, '.env'],
       validate,
     }),
     TypeOrmModule.forRootAsync({

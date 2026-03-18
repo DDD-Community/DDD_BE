@@ -19,6 +19,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set image name
+        id: image
+        run: |
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "name=ghcr.io/$OWNER/ddd-be:latest" >> "$GITHUB_OUTPUT"
+
       - name: Upload docker-compose
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -41,14 +47,15 @@ jobs:
             sudo docker pull "$APP_IMAGE"
             cd /opt/ddd-be
             umask 077
-            printf 'PORT=%s\n'        "$APP_PORT"   > .env
-            printf 'NODE_ENV=%s\n'    "production"  >> .env
-            printf 'DB_PORT=%s\n'     "$DB_PORT"    >> .env
-            printf 'DB_USERNAME=%s\n' "$DB_USERNAME" >> .env
-            printf 'DB_PASSWORD=%s\n' "$DB_PASSWORD" >> .env
-            printf 'DB_NAME=%s\n'     "$DB_NAME"    >> .env
-            printf 'APP_IMAGE=%s\n'   "$APP_IMAGE"  >> .env
-            sudo docker compose up -d --no-deps app
+            printf 'PORT=%s\n'        "$APP_PORT"    > .env.production
+            printf 'NODE_ENV=%s\n'    "production"   >> .env.production
+            printf 'DB_HOST=%s\n'     "postgres"     >> .env.production
+            printf 'DB_PORT=%s\n'     "$DB_PORT"     >> .env.production
+            printf 'DB_USERNAME=%s\n' "$DB_USERNAME" >> .env.production
+            printf 'DB_PASSWORD=%s\n' "$DB_PASSWORD" >> .env.production
+            printf 'DB_NAME=%s\n'     "$DB_NAME"     >> .env.production
+            printf 'APP_IMAGE=%s\n'   "$APP_IMAGE"   >> .env.production
+            APP_ENV_FILE=.env.production sudo docker compose --env-file .env.production up -d --no-deps app
             for i in $(seq 1 12); do
               curl -sf "http://localhost:$APP_PORT/v1/health" && break
               [ "$i" -eq 12 ] && exit 1
@@ -57,7 +64,7 @@ jobs:
         env:
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
-          APP_IMAGE: ghcr.io/${{ github.repository_owner }}/ddd-be:latest
+          APP_IMAGE: ${{ steps.image.outputs.name }}
           APP_PORT: ${{ secrets.APP_PORT }}
           DB_PORT: ${{ secrets.DB_PORT }}
           DB_USERNAME: ${{ secrets.DB_USERNAME }}
