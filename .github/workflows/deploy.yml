@@ -35,24 +35,31 @@ jobs:
           host: ${{ secrets.GCP_VM_HOST }}
           username: ${{ secrets.GCP_VM_USER }}
           key: ${{ secrets.GCP_VM_SSH_KEY }}
-          envs: GHCR_TOKEN,GITHUB_ACTOR,APP_IMAGE,APP_PORT
+          envs: GHCR_TOKEN,GITHUB_ACTOR,APP_IMAGE,APP_PORT,DB_PORT,DB_USERNAME,DB_PASSWORD,DB_NAME
           script: |
-            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-            docker pull "$APP_IMAGE"
+            echo "$GHCR_TOKEN" | sudo docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+            sudo docker pull "$APP_IMAGE"
             cd /opt/ddd-be
-            echo "PORT=$APP_PORT" > .env
-            echo "NODE_ENV=production" >> .env
-            echo "DB_PORT=${{ secrets.DB_PORT }}" >> .env
-            echo "DB_USERNAME=${{ secrets.DB_USERNAME }}" >> .env
-            echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
-            echo "DB_NAME=${{ secrets.DB_NAME }}" >> .env
-            echo "APP_IMAGE=$APP_IMAGE" >> .env
-            sudo docker compose down
-            sudo docker compose up -d
-            sleep 10
-            curl -sf http://localhost:$APP_PORT/v1/health
+            umask 077
+            printf 'PORT=%s\n'        "$APP_PORT"   > .env
+            printf 'NODE_ENV=%s\n'    "production"  >> .env
+            printf 'DB_PORT=%s\n'     "$DB_PORT"    >> .env
+            printf 'DB_USERNAME=%s\n' "$DB_USERNAME" >> .env
+            printf 'DB_PASSWORD=%s\n' "$DB_PASSWORD" >> .env
+            printf 'DB_NAME=%s\n'     "$DB_NAME"    >> .env
+            printf 'APP_IMAGE=%s\n'   "$APP_IMAGE"  >> .env
+            sudo docker compose up -d --no-deps app
+            for i in $(seq 1 12); do
+              curl -sf "http://localhost:$APP_PORT/v1/health" && break
+              [ "$i" -eq 12 ] && exit 1
+              sleep 5
+            done
         env:
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
           APP_IMAGE: ghcr.io/${{ github.repository_owner }}/ddd-be:latest
           APP_PORT: ${{ secrets.APP_PORT }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}

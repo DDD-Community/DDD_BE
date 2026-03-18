@@ -1,9 +1,6 @@
 services:
   app:
     image: ${APP_IMAGE:-ddd-be:local}
-    build:
-      context: .
-      dockerfile: Dockerfile
     container_name: ddd-be-app
     env_file:
       - .env
