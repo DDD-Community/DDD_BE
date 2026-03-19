@@ -1,14 +1,17 @@
-import { Module } from '@nestjs/common';
+import { Module, OnModuleInit } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { APP_FILTER } from '@nestjs/core';
+import { InjectDataSource, TypeOrmModule } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
+import { addTransactionalDataSource } from 'typeorm-transactional';
 
+import { HttpExceptionFilter } from './common/exception/http-exception.filter';
 import { validate } from './config/env.validation';
 import { createTypeOrmModuleOptions } from './config/typeorm.config';
 import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
-    // Prefer env-specific files and keep .env as a fallback for compatibility.
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: [`.env.${process.env.NODE_ENV ?? 'development'}`, '.env'],
@@ -21,5 +24,12 @@ import { HealthModule } from './health/health.module';
     }),
     HealthModule,
   ],
+  providers: [{ provide: APP_FILTER, useClass: HttpExceptionFilter }],
 })
-export class AppModule {}
+export class AppModule implements OnModuleInit {
+  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
+
+  onModuleInit(): void {
+    addTransactionalDataSource(this.dataSource);
+  }
+}

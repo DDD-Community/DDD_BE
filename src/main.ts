@@ -1,16 +1,19 @@
 import { Logger, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import { initializeTransactionalContext } from 'typeorm-transactional';
 
 import { AppModule } from './app.module';
 
 const bootstrap = async (): Promise<void> => {
+  initializeTransactionalContext();
+
   const app = await NestFactory.create(AppModule);
 
   app.enableVersioning({ type: VersioningType.URI });
 
   const configService = app.get(ConfigService);
-  const port = configService.get<number>('PORT') ?? 3000;
+  const port = configService.getOrThrow<number>('PORT');
 
   await app.listen(port);
 
