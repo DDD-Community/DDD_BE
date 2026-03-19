@@ -57,8 +57,12 @@ jobs:
             printf 'APP_IMAGE=%s\n'   "$APP_IMAGE"   >> .env.production
             sudo APP_ENV_FILE=.env.production docker compose --env-file .env.production up -d --no-deps app
             for i in $(seq 1 12); do
-              curl -sf "http://localhost:$APP_PORT/v1/health" && break
-              [ "$i" -eq 12 ] && exit 1
+              curl -sf "http://localhost:${APP_PORT:-3000}/v1/health" && break
+              if [ "$i" -eq 12 ]; then
+                echo "Health check failed. Showing app logs:"
+                sudo docker logs ddd-be-app
+                exit 1
+              fi
               sleep 5
             done
         env:
