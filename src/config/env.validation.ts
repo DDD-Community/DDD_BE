@@ -1,12 +1,5 @@
 import { plainToInstance } from 'class-transformer';
-import {
-  IsNumber,
-  IsOptional,
-  IsString,
-  Max,
-  Min,
-  validateSync,
-} from 'class-validator';
+import { IsNumber, IsOptional, IsString, Max, Min, validateSync } from 'class-validator';
 
 class EnvironmentVariables {
   @IsNumber()

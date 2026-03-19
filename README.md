@@ -112,7 +112,6 @@ Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
 ### Local Docker Compose
 
 ```bash
-cp .env.example .env
 yarn docker:up
 ```
 
@@ -121,6 +120,12 @@ Stop containers:
 ```bash
 yarn docker:down
 ```
+
+### Environment files
+
+- local/dev: `.env.development` (create manually)
+- production: `.env.production` (created by deploy workflow on VM)
+- fallback(legacy): `.env` (used only when env-specific file is missing)
 
 ### GitHub Actions
 
