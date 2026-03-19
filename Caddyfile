@@ -1,0 +1,3 @@
+admin.dddstudy.site {
+    reverse_proxy app:3000
+}
