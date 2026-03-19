@@ -27,8 +27,8 @@ jobs:
       - name: Set image name
         id: image
         run: |
-          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          echo "name=ghcr.io/$OWNER/ddd-be" >> "$GITHUB_OUTPUT"
+          OWNER="${{ github.repository_owner }}"
+          echo "name=ghcr.io/${OWNER,,}/ddd-be" >> "$GITHUB_OUTPUT"
 
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3

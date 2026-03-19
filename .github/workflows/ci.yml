@@ -61,5 +61,20 @@ jobs:
       - name: Build
         run: yarn build
 
+      - name: Set image name
+        id: image
+        run: |
+          OWNER="${{ github.repository_owner }}"
+          echo "tag=ghcr.io/${OWNER,,}/ddd-be:ci" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Docker build check
-        run: docker build -t ddd-be:ci .
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: ${{ steps.image.outputs.tag }}
+          cache-from: type=registry,ref=${{ steps.image.outputs.tag }}
+          cache-to: type=inline

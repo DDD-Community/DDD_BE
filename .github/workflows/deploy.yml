@@ -22,8 +22,8 @@ jobs:
       - name: Set image name
         id: image
         run: |
-          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          echo "name=ghcr.io/$OWNER/ddd-be:latest" >> "$GITHUB_OUTPUT"
+          OWNER="${{ github.repository_owner }}"
+          echo "name=ghcr.io/${OWNER,,}/ddd-be:latest" >> "$GITHUB_OUTPUT"
 
       - name: Upload docker-compose
         uses: appleboy/scp-action@v0.1.7
