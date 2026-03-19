@@ -1,8 +1,16 @@
 import { BadRequestException } from '@nestjs/common';
-import { DeepPartial, FindOptionsWhere, Repository, SelectQueryBuilder } from 'typeorm';
+import {
+  DeepPartial,
+  FindOptionsWhere,
+  QueryFailedError,
+  Repository,
+  SelectQueryBuilder,
+} from 'typeorm';
 
 import { BaseEntity } from './base.entity';
 import { CursorPage, CursorPageOptions } from './cursor-page.type';
+
+const CURSOR_MAX_LIMIT = 100;
 
 export abstract class BaseRepository<T extends BaseEntity> {
   constructor(protected readonly repo: Repository<T>) {}
@@ -21,12 +29,27 @@ export abstract class BaseRepository<T extends BaseEntity> {
       return found;
     }
 
-    const created = this.repo.create(defaults);
-    return this.repo.save(created);
+    try {
+      const created = this.repo.create(defaults);
+      return await this.repo.save(created);
+    } catch (error) {
+      if (
+        error instanceof QueryFailedError &&
+        (error.driverError as { code?: string }).code === '23505'
+      ) {
+        const record = await this.repo.findOne({ where });
+        if (record) {
+          return record;
+        }
+      }
+
+      throw error;
+    }
   }
 
   async findByCursor(options: CursorPageOptions<T>): Promise<CursorPage<T>> {
     const { cursor, limit = 20, where, order = 'DESC', relations = [] } = options;
+    const clampedLimit = Math.min(Math.max(limit, 1), CURSOR_MAX_LIMIT);
 
     const qb = this.createBaseQueryBuilder();
 
@@ -50,10 +73,10 @@ export abstract class BaseRepository<T extends BaseEntity> {
 
     qb.orderBy('e.createdAt', order)
       .addOrderBy('e.id', order)
-      .take(limit + 1);
+      .take(clampedLimit + 1);
 
     const rows = await qb.getMany();
-    const hasNext = rows.length > limit;
+    const hasNext = rows.length > clampedLimit;
 
     if (hasNext) {
       rows.pop();
@@ -63,7 +86,7 @@ export abstract class BaseRepository<T extends BaseEntity> {
     const nextCursor =
       hasNext && lastItem
         ? Buffer.from(JSON.stringify({ id: lastItem.id, createdAt: lastItem.createdAt })).toString(
-            'base64',
+            'base64url',
           )
         : null;
 
@@ -74,10 +97,19 @@ export abstract class BaseRepository<T extends BaseEntity> {
     return this.repo.createQueryBuilder('e');
   }
 
-  private decodeCursor(cursor: string): { id: number; createdAt: string } {
+  private decodeCursor(cursor: string): { id: number; createdAt: Date } {
     try {
-      const decoded = Buffer.from(cursor, 'base64').toString('utf-8');
-      return JSON.parse(decoded) as { id: number; createdAt: string };
+      const decoded = Buffer.from(cursor, 'base64url').toString('utf-8');
+      const parsed = JSON.parse(decoded) as { id: unknown; createdAt: unknown };
+
+      const id = Number(parsed.id);
+      const createdAt = new Date(parsed.createdAt as string);
+
+      if (!Number.isFinite(id) || isNaN(createdAt.getTime())) {
+        throw new Error();
+      }
+
+      return { id, createdAt };
     } catch {
       throw new BadRequestException('유효하지 않은 커서값입니다.');
     }

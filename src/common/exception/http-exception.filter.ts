@@ -38,9 +38,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
           : Array.isArray(raw)
             ? raw.join(', ')
             : (raw?.toString() ?? exception.message);
-      const statusName = HttpStatus[status];
-      const code: ErrorMessageKey =
-        statusName in ErrorMessage ? (statusName as ErrorMessageKey) : 'INTERNAL_SERVER_ERROR';
+      const code = this.resolveCode(HttpStatus[status], status);
 
       response.status(status).json(ApiResponse.fail(code, message));
       return;
@@ -54,5 +52,15 @@ export class HttpExceptionFilter implements ExceptionFilter {
     response
       .status(HttpStatus.INTERNAL_SERVER_ERROR)
       .json(ApiResponse.fail('INTERNAL_SERVER_ERROR', ErrorMessage.INTERNAL_SERVER_ERROR));
+  }
+
+  private resolveCode(statusName: string | undefined, status: number): ErrorMessageKey {
+    if (statusName && statusName in ErrorMessage) {
+      return statusName as ErrorMessageKey;
+    }
+    if (status >= 500) {
+      return 'INTERNAL_SERVER_ERROR';
+    }
+    return 'BAD_REQUEST';
   }
 }
