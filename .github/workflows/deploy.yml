@@ -31,7 +31,7 @@ jobs:
           host: ${{ secrets.GCP_VM_HOST }}
           username: ${{ secrets.GCP_VM_USER }}
           key: ${{ secrets.GCP_VM_SSH_KEY }}
-          source: "docker-compose.yml"
+          source: "docker-compose.yml,Caddyfile"
           target: "/opt/ddd-be/"
           overwrite: true
 
