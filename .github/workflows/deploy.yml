@@ -55,7 +55,7 @@ jobs:
             printf 'DB_PASSWORD=%s\n' "$DB_PASSWORD" >> .env.production
             printf 'DB_NAME=%s\n'     "$DB_NAME"     >> .env.production
             printf 'APP_IMAGE=%s\n'   "$APP_IMAGE"   >> .env.production
-            sudo APP_ENV_FILE=.env.production docker compose --env-file .env.production up -d --no-deps app
+            sudo APP_ENV_FILE=.env.production docker compose --env-file .env.production up -d
             for i in $(seq 1 12); do
               curl -sf "http://localhost:${APP_PORT:-3000}/v1/health" && break
               if [ "$i" -eq 12 ]; then
