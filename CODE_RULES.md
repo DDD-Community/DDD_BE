@@ -46,7 +46,8 @@
 7. Prettier/ESLint 규칙을 로컬에서 통과하지 못하는 코드는 커밋하지 않는다.
 8. 반환 타입은 인라인 객체(`{ data: string }`) 대신 `type`/`interface`로 명시해 재사용 가능하게 관리한다.
 9. `Pick`/`Omit`/중첩 유틸리티 타입 등 복잡한 타입 조합은 지양하고, 의도가 드러나는 명시 타입을 우선한다.
-10. `try-catch` 블록 밖에서는 `return await`를 생략한다. `try-catch` 블록 안에서는 rejection이 catch에서 잡히도록 반드시 `return await`를 사용한다.
+10. `if` 문은 단일 라인이더라도 항상 중괄호(`{}`)를 사용한다. (❌ `if (x) return;` → ✅ `if (x) { return; }`)
+11. `try-catch` 블록 밖에서는 `return await`를 생략한다. `try-catch` 블록 안에서는 rejection이 catch에서 잡히도록 반드시 `return await`를 사용한다.
 
     ```ts
     // ❌ try-catch 안에서 await 생략 — rejection이 catch에서 잡히지 않음
@@ -78,6 +79,10 @@
 | 파일명 | kebab-case | `user-repository.ts` |
 | NestJS 파일 | `{name}.{role}.ts` | `user.service.ts`, `order.controller.ts` |
 | 테스트 파일 | `{name}.spec.ts` / `{name}.e2e-spec.ts` | `user.service.spec.ts` |
+
+### 변수 네이밍 주의사항
+
+1. 변수명에 진행형(-ing)을 사용하지 않는다. 조회된 엔티티/값은 명사형을 사용한다. (❌ `existing` → ✅ `found`, `record`, `target`)
 
 ### 폴더 구조
 
