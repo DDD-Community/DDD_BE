@@ -8,7 +8,7 @@ export class AuthService {
   constructor(private readonly jwtService: JwtService) {}
 
   signToken({ id, email, userRoles }: User): string {
-    const roles = userRoles ? userRoles.map((ur) => ur.role) : [];
+    const roles = userRoles ? userRoles.map((userRole) => userRole.role) : [];
     const payload = { sub: id, email, roles };
     return this.jwtService.sign(payload);
   }

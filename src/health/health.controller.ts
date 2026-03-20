@@ -12,6 +12,6 @@ export class HealthController {
   @HealthCheck()
   async check() {
     const checks = [() => this.db.pingCheck('database')];
-    return await this.health.check(checks);
+    return this.health.check(checks);
   }
 }
