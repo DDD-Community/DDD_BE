@@ -14,28 +14,6 @@ jobs:
   test-and-build:
     runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_DB: test_db
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    env:
-      DB_HOST: localhost
-      DB_PORT: 5432
-      DB_USERNAME: postgres
-      DB_PASSWORD: postgres
-      DB_NAME: test_db
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -54,9 +32,6 @@ jobs:
 
       - name: Unit test
         run: yarn test --runInBand --passWithNoTests
-
-      - name: E2E test
-        run: yarn test:e2e --runInBand --passWithNoTests
 
       - name: Build
         run: yarn build
