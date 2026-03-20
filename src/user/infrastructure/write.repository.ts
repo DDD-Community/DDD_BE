@@ -6,18 +6,18 @@ import { UserType } from '../domain/user.type';
 
 @Injectable()
 export class WriteRepository {
-  private readonly repo: Repository<User>;
+  private readonly repository: Repository<User>;
 
   constructor(dataSource: DataSource) {
-    this.repo = dataSource.getRepository(User);
+    this.repository = dataSource.getRepository(User);
   }
 
   async create({ user }: { user: UserType }) {
-    return this.repo.save(user);
+    return this.repository.save(user);
   }
 
   async findOne({ email }: { email: string }) {
-    return this.repo
+    return this.repository
       .createQueryBuilder('user')
       .leftJoinAndSelect('user.userRoles', 'userRoles')
       .where('user.email = :email', { email })

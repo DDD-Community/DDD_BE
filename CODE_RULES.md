@@ -101,7 +101,7 @@
     ```ts
     // ✅
     async findOne({ email }: { email: string }): Promise<User | null> {
-      return this.repo.findOne({ where: { email } });
+      return this.repository.findOne({ where: { email } });
     }
     ```
 *   **Domain Repository**: 비즈니스 의미가 드러나는 함수명을 사용한다. (`findByEmail`, `register` 등)
@@ -120,6 +120,8 @@
 ### 변수 네이밍 주의사항
 
 1. 변수명에 진행형(-ing)을 사용하지 않는다. 조회된 엔티티/값은 명사형을 사용한다. (❌ `existing` → ✅ `found`, `record`, `target`)
+2. 변수명에 줄임말을 사용하지 않는다. (❌ `repo`, `req`, `res`, `err` → ✅ `repository`, `request`, `response`, `error`)
+3. 도메인 용어의 경우 영문 풀네임이 오히려 의미 전달을 해친다면 한글 명칭을 사용하는 것도 고려한다.
 
 ### 폴더 구조
 
