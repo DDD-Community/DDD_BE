@@ -15,7 +15,7 @@ export class User extends BaseEntity {
   firstName: string;
 
   @Column({ nullable: true })
-  lastName: string | null;
+  lastName?: string;
 
   @Column({ unique: true })
   sub: string;
