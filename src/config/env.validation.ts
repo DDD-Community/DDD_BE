@@ -28,6 +28,25 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   NODE_ENV: string = 'development';
+
+  @IsString()
+  JWT_SECRET: string;
+
+  @IsString()
+  @IsOptional()
+  JWT_EXPIRES_IN: string = '1d';
+
+  @IsString()
+  GOOGLE_CLIENT_ID: string;
+
+  @IsString()
+  GOOGLE_CLIENT_SECRET: string;
+
+  @IsString()
+  GOOGLE_CALLBACK_URL: string;
+
+  @IsString()
+  CLIENT_REDIRECT_URL: string;
 }
 
 export const validate = (config: Record<string, unknown>) => {

@@ -6,6 +6,7 @@ export const ErrorMessage = {
   BAD_REQUEST: '잘못된 요청입니다.',
 
   USER_NOT_FOUND: '사용자를 찾을 수 없습니다.',
+  GOOGLE_AUTH_FAILED: '구글 인증 정보를 가져올 수 없습니다.',
 
   COHORT_NOT_FOUND: '기수를 찾을 수 없습니다.',
 

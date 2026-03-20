@@ -10,7 +10,7 @@ export const createTypeOrmModuleOptions = (config: ConfigService): TypeOrmModule
   password: config.getOrThrow<string>('DB_PASSWORD'),
   database: config.getOrThrow<string>('DB_NAME'),
   autoLoadEntities: true,
-  synchronize: false,
+  synchronize: true,
   migrationsRun: false,
 });
 

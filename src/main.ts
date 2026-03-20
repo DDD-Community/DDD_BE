@@ -10,6 +10,7 @@ const bootstrap = async (): Promise<void> => {
 
   const app = await NestFactory.create(AppModule);
 
+  app.setGlobalPrefix('api');
   app.enableVersioning({ type: VersioningType.URI });
 
   const configService = app.get(ConfigService);
