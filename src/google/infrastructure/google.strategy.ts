@@ -16,7 +16,8 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     });
   }
 
-  validate({ accessToken, profile }: { accessToken: string; profile: Profile }): GoogleProfile {
+  // MEMO :: Passport가 위치 인자(positional arguments)를 강제하므로 구조 분해 예외 적용
+  validate(accessToken: string, _refreshToken: string, profile: Profile): GoogleProfile {
     const { id: sub, name, emails } = profile;
 
     return {

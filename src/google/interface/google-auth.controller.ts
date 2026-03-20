@@ -7,7 +7,7 @@ import { AuthUser } from '../../common/decorator/auth-user.decorator';
 import type { GoogleProfile } from '../application/google.type';
 import { GoogleAuthService } from '../application/google-auth.service';
 
-@Controller('v1/auth')
+@Controller({ path: 'auth', version: '1' })
 export class GoogleAuthController {
   private readonly isProduction: boolean;
   private readonly clientRedirectUrl: string;

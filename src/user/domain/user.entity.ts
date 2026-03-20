@@ -15,11 +15,11 @@ export class User extends BaseEntity {
   firstName: string;
 
   @Column({ nullable: true })
-  lastName: string;
+  lastName: string | null;
 
-  @Column({ unique: true, nullable: true })
+  @Column({ unique: true })
   sub: string;
 
   @OneToMany(() => UserRoleEntity, (userRole) => userRole.user)
-  userRoles: UserRoleEntity[];
+  userRoles?: UserRoleEntity[];
 }

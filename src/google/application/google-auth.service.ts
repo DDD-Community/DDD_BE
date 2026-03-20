@@ -19,7 +19,7 @@ export class GoogleAuthService {
 
     const { user, isNew } = await this.userService.register({ email, firstName, lastName, sub });
     const accessToken = this.authService.signToken(user);
-    const roles = user.userRoles.map((ur) => ur.role);
+    const roles = (user.userRoles ?? []).map((ur) => ur.role);
 
     return {
       user: {
