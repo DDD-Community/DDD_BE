@@ -76,9 +76,17 @@
 | 클래스/인터페이스/타입/Enum | PascalCase | `UserService`, `OrderStatus` |
 | 변수/함수/메서드 | camelCase | `findUserById`, `isActive` |
 | 상수 (모듈 스코프) | UPPER_SNAKE_CASE | `MAX_RETRY_COUNT` |
-| 파일명 | kebab-case | `user-repository.ts` |
+| 파일명 | kebab-case | `user.repository.ts` |
 | NestJS 파일 | `{name}.{role}.ts` | `user.service.ts`, `order.controller.ts` |
 | 테스트 파일 | `{name}.spec.ts` / `{name}.e2e-spec.ts` | `user.service.spec.ts` |
+
+#### Repository 계층 네이밍 규칙
+*   **Domain Repository**: 도메인 이름을 포함하여 작성한다.
+    *   **파일명**: `[도메인명].repository.ts` (예: `user.repository.ts`)
+    *   **클래스명**: `[도메인명]Repository` (예: `UserRepository`)
+*   **Write Repository (인프라)**: 도메인 이름 접두사를 생략한다.
+    *   **파일명**: `write.repository.ts`
+    *   **클래스명**: `WriteRepository`
 
 ### 변수 네이밍 주의사항
 
