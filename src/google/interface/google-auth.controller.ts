@@ -4,8 +4,8 @@ import { AuthGuard } from '@nestjs/passport';
 import type { Response } from 'express';
 
 import { AuthUser } from '../../common/decorator/auth-user.decorator';
-import { GoogleAuthService } from '../application/google-auth.service';
 import type { GoogleProfile } from '../application/google.type';
+import { GoogleAuthService } from '../application/google-auth.service';
 
 @Controller('v1/auth')
 export class GoogleAuthController {

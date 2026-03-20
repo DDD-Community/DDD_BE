@@ -7,9 +7,9 @@ import type { User } from '../../user/domain/user.entity';
 export class AuthService {
   constructor(private readonly jwtService: JwtService) {}
 
-  signToken(user: User): string {
-    const roles = user.userRoles ? user.userRoles.map((ur) => ur.role) : [];
-    const payload = { sub: user.id, email: user.email, roles };
+  signToken({ id, email, userRoles }: User): string {
+    const roles = userRoles ? userRoles.map((ur) => ur.role) : [];
+    const payload = { sub: id, email, roles };
     return this.jwtService.sign(payload);
   }
 }

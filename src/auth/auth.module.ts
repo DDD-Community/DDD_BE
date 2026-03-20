@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
-import type { StringValue } from 'ms';
 import { PassportModule } from '@nestjs/passport';
+import type { StringValue } from 'ms';
 
 import { AuthService } from './application/auth.service';
 import { JwtStrategy } from './infrastructure/jwt.strategy';

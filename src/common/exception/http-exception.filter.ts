@@ -6,7 +6,7 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
-import { Request, Response } from 'express';
+import type { Request, Response } from 'express';
 
 import { ErrorMessage, ErrorMessageKey } from '../error/error-message';
 import { ApiResponse } from '../response/api-response';
@@ -31,13 +31,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
       const exceptionResponse = exception.getResponse();
-      const raw = (exceptionResponse as Record<string, unknown>).message;
-      const message =
-        typeof exceptionResponse === 'string'
-          ? exceptionResponse
-          : Array.isArray(raw)
-            ? raw.join(', ')
-            : (raw?.toString() ?? exception.message);
+      const message = this.resolveMessage(exceptionResponse, exception);
       const code = this.resolveCode(HttpStatus[status], status);
 
       response.status(status).json(ApiResponse.fail(code, message));
@@ -52,6 +46,20 @@ export class HttpExceptionFilter implements ExceptionFilter {
     response
       .status(HttpStatus.INTERNAL_SERVER_ERROR)
       .json(ApiResponse.fail('INTERNAL_SERVER_ERROR', ErrorMessage.INTERNAL_SERVER_ERROR));
+  }
+
+  private resolveMessage(exceptionResponse: string | object, exception: HttpException): string {
+    if (typeof exceptionResponse === 'string') {
+      return exceptionResponse;
+    }
+
+    const raw = (exceptionResponse as Record<string, unknown>).message;
+
+    if (Array.isArray(raw)) {
+      return raw.join(', ');
+    }
+
+    return raw?.toString() ?? exception.message;
   }
 
   private resolveCode(statusName: string | undefined, status: number): ErrorMessageKey {
