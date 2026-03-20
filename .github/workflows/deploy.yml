@@ -41,7 +41,7 @@ jobs:
           host: ${{ secrets.GCP_VM_HOST }}
           username: ${{ secrets.GCP_VM_USER }}
           key: ${{ secrets.GCP_VM_SSH_KEY }}
-          envs: GHCR_TOKEN,GITHUB_ACTOR,APP_IMAGE,APP_PORT,DB_PORT,DB_USERNAME,DB_PASSWORD,DB_NAME
+          envs: GHCR_TOKEN,GITHUB_ACTOR,APP_IMAGE,APP_PORT,DB_PORT,DB_USERNAME,DB_PASSWORD,DB_NAME,JWT_SECRET,JWT_EXPIRES_IN,GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET,GOOGLE_CALLBACK_URL,CLIENT_REDIRECT_URL
           script: |
             echo "$GHCR_TOKEN" | sudo docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
             sudo docker pull "$APP_IMAGE"
@@ -55,6 +55,12 @@ jobs:
             printf 'DB_PASSWORD=%s\n' "$DB_PASSWORD" >> .env.production
             printf 'DB_NAME=%s\n'     "$DB_NAME"     >> .env.production
             printf 'APP_IMAGE=%s\n'   "$APP_IMAGE"   >> .env.production
+            printf 'JWT_SECRET=%s\n'         "$JWT_SECRET"           >> .env.production
+            printf 'JWT_EXPIRES_IN=%s\n'     "$JWT_EXPIRES_IN"       >> .env.production
+            printf 'GOOGLE_CLIENT_ID=%s\n'   "$GOOGLE_CLIENT_ID"     >> .env.production
+            printf 'GOOGLE_CLIENT_SECRET=%s\n' "$GOOGLE_CLIENT_SECRET" >> .env.production
+            printf 'GOOGLE_CALLBACK_URL=%s\n' "$GOOGLE_CALLBACK_URL" >> .env.production
+            printf 'CLIENT_REDIRECT_URL=%s\n' "$CLIENT_REDIRECT_URL" >> .env.production
             sudo APP_ENV_FILE=.env.production docker compose --env-file .env.production up -d
             for i in $(seq 1 12); do
               curl -sf "http://localhost:${APP_PORT:-3000}/v1/health" && break
@@ -74,3 +80,9 @@ jobs:
           DB_USERNAME: ${{ secrets.DB_USERNAME }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           DB_NAME: ${{ secrets.DB_NAME }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_EXPIRES_IN: ${{ secrets.JWT_EXPIRES_IN }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_CALLBACK_URL: ${{ secrets.GOOGLE_CALLBACK_URL }}
+          CLIENT_REDIRECT_URL: ${{ secrets.CLIENT_REDIRECT_URL }}
