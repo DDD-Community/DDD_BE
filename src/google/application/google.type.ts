@@ -17,3 +17,7 @@ export type GoogleLoginResult = {
   };
   isNew: boolean;
 };
+
+export type GoogleAuthCallbackResult = {
+  accessToken: string;
+};

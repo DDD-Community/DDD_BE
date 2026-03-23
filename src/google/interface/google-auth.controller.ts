@@ -4,7 +4,8 @@ import { AuthGuard } from '@nestjs/passport';
 import type { Response } from 'express';
 
 import { AuthUser } from '../../common/decorator/auth-user.decorator';
-import type { GoogleProfile } from '../application/google.type';
+import { ApiResponse } from '../../common/response/api-response';
+import type { GoogleAuthCallbackResult, GoogleProfile } from '../application/google.type';
 import { GoogleAuthService } from '../application/google-auth.service';
 
 @Controller({ path: 'auth', version: '1' })
@@ -29,7 +30,7 @@ export class GoogleAuthController {
   async googleAuthRedirect(
     @AuthUser() profile: GoogleProfile,
     @Res({ passthrough: true }) response: Response,
-  ): Promise<{ message: string; access_token: string } | void> {
+  ) {
     const { user } = await this.googleAuthService.googleLogin(profile);
 
     response.cookie('access_token', user.accessToken, {
@@ -41,10 +42,7 @@ export class GoogleAuthController {
     // 로컬 테스트 환경에서는 바로 토큰을 복사할 수 있도록 화면에 JSON으로 띄워줍니다.
     if (!this.isProduction) {
       // NOTE: 디버그용 — 프로덕션에서는 실행되지 않음
-      return {
-        message: '로그인 성공! 아래 access_token을 복사해서 Postman에 붙여넣으세요.',
-        access_token: user.accessToken,
-      };
+      return ApiResponse.ok<GoogleAuthCallbackResult>({ accessToken: user.accessToken });
     }
 
     response.redirect(this.clientRedirectUrl);
