@@ -6,6 +6,7 @@ export type GoogleProfile = {
   lastName: string;
   sub: string;
   accessToken: string;
+  refreshToken?: string;
 };
 
 export type GoogleLoginResult = {
@@ -14,10 +15,20 @@ export type GoogleLoginResult = {
     email: string;
     roles: UserRole[];
     accessToken: string;
+    refreshToken: string;
   };
   isNew: boolean;
 };
 
 export type GoogleAuthCallbackResult = {
+  accessToken: string;
+};
+
+export type RefreshResult = {
+  accessToken: string;
+  refreshToken: string;
+};
+
+export type GoogleRefreshResult = {
   accessToken: string;
 };

@@ -11,3 +11,8 @@ export type JwtUser = {
   email: string;
   roles: UserRole[];
 };
+
+export type RefreshTokenResult = {
+  token: string;
+  hash: string;
+};

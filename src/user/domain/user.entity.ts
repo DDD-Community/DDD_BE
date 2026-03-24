@@ -20,6 +20,15 @@ export class User extends BaseEntity {
   @Column({ unique: true })
   sub: string;
 
+  @Column({ nullable: true, type: 'text' })
+  refreshToken: string | null;
+
+  @Column({ nullable: true })
+  googleAccessToken?: string;
+
+  @Column({ nullable: true })
+  googleRefreshToken?: string;
+
   @OneToMany(() => UserRoleEntity, (userRole) => userRole.user)
   userRoles?: UserRoleEntity[];
 }

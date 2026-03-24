@@ -1,20 +1,68 @@
 import { Injectable } from '@nestjs/common';
 
+import { User } from '../domain/user.entity';
 import { UserRepository } from '../domain/user.repository';
-import { UserType } from '../domain/user.type';
+import { RegisterResult, UserType } from '../domain/user.type';
 
 @Injectable()
 export class UserService {
   constructor(private readonly userRepository: UserRepository) {}
 
-  async register({ email, firstName, lastName, sub }: UserType) {
-    const found = await this.userRepository.findByEmail({ email });
+  async register({
+    email,
+    firstName,
+    lastName,
+    sub,
+    googleAccessToken,
+    googleRefreshToken,
+  }: UserType): Promise<RegisterResult> {
+    const found = await this.userRepository.findByEmail({ email, withDeleted: true });
 
     if (found) {
-      return { user: found, isNew: false };
+      if (found.deletedAt) {
+        await this.userRepository.restore({ id: found.id });
+      }
+
+      if (googleAccessToken || googleRefreshToken) {
+        await this.userRepository.updateGoogleTokens({
+          id: found.id,
+          googleAccessToken,
+          googleRefreshToken,
+        });
+      }
+      return { user: found, isNew: !!found.deletedAt };
     }
 
-    const user = await this.userRepository.register({ email, firstName, lastName, sub });
+    const user = await this.userRepository.register({
+      email,
+      firstName,
+      lastName,
+      sub,
+      googleAccessToken,
+      googleRefreshToken,
+    });
     return { user, isNew: true };
+  }
+
+  async findById({ id }: { id: number }): Promise<User | null> {
+    return this.userRepository.findById({ id });
+  }
+
+  async findByRefreshToken({ hash }: { hash: string }): Promise<User | null> {
+    return this.userRepository.findByRefreshToken({ hash });
+  }
+
+  async saveRefreshToken({
+    id,
+    refreshToken,
+  }: {
+    id: number;
+    refreshToken: string | null;
+  }): Promise<void> {
+    await this.userRepository.saveRefreshToken({ id, refreshToken });
+  }
+
+  async withdraw({ id }: { id: number }): Promise<void> {
+    await this.userRepository.withdraw({ id });
   }
 }
