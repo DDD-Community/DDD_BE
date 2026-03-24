@@ -8,6 +8,7 @@ import { addTransactionalDataSource } from 'typeorm-transactional';
 import { HttpExceptionFilter } from './common/exception/http-exception.filter';
 import { validate } from './config/env.validation';
 import { createTypeOrmModuleOptions } from './config/typeorm.config';
+import { GoogleModule } from './google/google.module';
 import { HealthModule } from './health/health.module';
 
 @Module({
@@ -23,6 +24,7 @@ import { HealthModule } from './health/health.module';
       inject: [ConfigService],
     }),
     HealthModule,
+    GoogleModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: HttpExceptionFilter }],
 })

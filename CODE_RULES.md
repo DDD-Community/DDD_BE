@@ -65,6 +65,10 @@
     }
     ```
 
+12. 함수 파라미터는 읽기 쉽고 확장이 용이하도록 **객체 구조 분해 할당(`{}`) 방식**을 권장한다.
+
+    단, Passport의 `validate` 메서드처럼 라이브러리에서 인자 순서(Positional Arguments)를 강제하는 경우는 예외로 한다.
+
 ---
 
 ## 4) 네이밍/파일 구조 규칙 (MUST)
@@ -88,9 +92,36 @@
     *   **파일명**: `write.repository.ts`
     *   **클래스명**: `WriteRepository`
 
+#### Repository 계층별 역할 규칙
+
+*   **Write Repository (인프라)**: 실제 DB 접근만 담당한다.
+    *   함수명에 비즈니스 의미를 담지 않는다. (`save`, `findOne`, `delete` 등)
+    *   파라미터는 구조분해 할당으로 받아, TypeORM 타입(`FindOneOptions` 등)이 외부로 노출되지 않게 한다.
+    *   `where` 조건 조합은 Write Repository 내부에서 처리한다.
+    ```ts
+    // ✅
+    async findOne({ email }: { email: string }): Promise<User | null> {
+      return this.repository.findOne({ where: { email } });
+    }
+    ```
+*   **Domain Repository**: 비즈니스 의미가 드러나는 함수명을 사용한다. (`findByEmail`, `register` 등)
+    *   파라미터는 구조분해 할당으로 받는다. `where` 객체를 직접 조립하지 않고, 분해된 필드를 그대로 넘긴다.
+    ```ts
+    // ✅
+    async findByEmail({ email }: { email: string }): Promise<User | null> {
+      return this.writeRepository.findOne({ email });
+    }
+
+    async register({ email, name, picture }: Pick<User, 'email' | 'name' | 'picture'>): Promise<User> {
+      return this.writeRepository.create({ email, name, picture });
+    }
+    ```
+
 ### 변수 네이밍 주의사항
 
 1. 변수명에 진행형(-ing)을 사용하지 않는다. 조회된 엔티티/값은 명사형을 사용한다. (❌ `existing` → ✅ `found`, `record`, `target`)
+2. 변수명에 줄임말을 사용하지 않는다. (❌ `repo`, `req`, `res`, `err` → ✅ `repository`, `request`, `response`, `error`)
+3. 도메인 용어의 경우 영문 풀네임이 오히려 의미 전달을 해친다면 한글 명칭을 사용하는 것도 고려한다.
 
 ### 폴더 구조
 
