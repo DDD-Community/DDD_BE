@@ -183,7 +183,12 @@ describe('GoogleAuthService', () => {
     describe('Google 토큰이 있는 사용자일 때', () => {
       it('Google 토큰을 revoke하고 탈퇴 처리한다', async () => {
         // Given
-        const user = { id: 1, email: 'test@example.com', googleRefreshToken: 'google-refresh', googleAccessToken: 'google-access' };
+        const user = {
+          id: 1,
+          email: 'test@example.com',
+          googleRefreshToken: 'google-refresh',
+          googleAccessToken: 'google-access',
+        };
         mockUserService.findById.mockResolvedValue(user);
         mockGoogleApiClient.revokeToken.mockResolvedValue(undefined);
         mockUserService.withdraw.mockResolvedValue(undefined);
@@ -195,12 +200,20 @@ describe('GoogleAuthService', () => {
         // Then
         expect(mockGoogleApiClient.revokeToken).toHaveBeenCalledWith({ token: 'google-refresh' });
         expect(mockUserService.withdraw).toHaveBeenCalledWith({ id: 1 });
-        expect(mockUserService.saveRefreshToken).toHaveBeenCalledWith({ id: 1, refreshToken: null });
+        expect(mockUserService.saveRefreshToken).toHaveBeenCalledWith({
+          id: 1,
+          refreshToken: null,
+        });
       });
 
       it('Google revoke 실패 시에도 탈퇴 처리를 계속 진행한다', async () => {
         // Given
-        const user = { id: 1, email: 'test@example.com', googleRefreshToken: 'google-refresh', googleAccessToken: null };
+        const user = {
+          id: 1,
+          email: 'test@example.com',
+          googleRefreshToken: 'google-refresh',
+          googleAccessToken: null,
+        };
         mockUserService.findById.mockResolvedValue(user);
         mockGoogleApiClient.revokeToken.mockRejectedValue(new Error('network error'));
         mockUserService.withdraw.mockResolvedValue(undefined);
@@ -211,14 +224,22 @@ describe('GoogleAuthService', () => {
 
         // Then
         expect(mockUserService.withdraw).toHaveBeenCalledWith({ id: 1 });
-        expect(mockUserService.saveRefreshToken).toHaveBeenCalledWith({ id: 1, refreshToken: null });
+        expect(mockUserService.saveRefreshToken).toHaveBeenCalledWith({
+          id: 1,
+          refreshToken: null,
+        });
       });
     });
 
     describe('Google 토큰이 없는 사용자일 때', () => {
       it('revoke 없이 탈퇴 처리한다', async () => {
         // Given
-        const user = { id: 1, email: 'test@example.com', googleRefreshToken: null, googleAccessToken: null };
+        const user = {
+          id: 1,
+          email: 'test@example.com',
+          googleRefreshToken: null,
+          googleAccessToken: null,
+        };
         mockUserService.findById.mockResolvedValue(user);
         mockUserService.withdraw.mockResolvedValue(undefined);
         mockUserService.saveRefreshToken.mockResolvedValue(undefined);

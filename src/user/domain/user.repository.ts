@@ -8,7 +8,13 @@ import { UserType } from './user.type';
 export class UserRepository {
   constructor(private readonly writeRepository: WriteRepository) {}
 
-  async findByEmail({ email, withDeleted = false }: { email: string; withDeleted?: boolean }): Promise<User | null> {
+  async findByEmail({
+    email,
+    withDeleted = false,
+  }: {
+    email: string;
+    withDeleted?: boolean;
+  }): Promise<User | null> {
     return this.writeRepository.findOne({ email }, withDeleted);
   }
 
@@ -20,8 +26,17 @@ export class UserRepository {
     return this.writeRepository.findOne({ refreshToken: hash });
   }
 
-  async register({ email, firstName, lastName, sub, googleAccessToken, googleRefreshToken }: UserType): Promise<User> {
-    return this.writeRepository.create({ user: { email, firstName, lastName, sub, googleAccessToken, googleRefreshToken } });
+  async register({
+    email,
+    firstName,
+    lastName,
+    sub,
+    googleAccessToken,
+    googleRefreshToken,
+  }: UserType): Promise<User> {
+    return this.writeRepository.create({
+      user: { email, firstName, lastName, sub, googleAccessToken, googleRefreshToken },
+    });
   }
 
   async saveRefreshToken({

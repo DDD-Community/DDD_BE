@@ -69,7 +69,11 @@ describe('UserService', () => {
     describe('기존 사용자에게 Google 토큰이 전달될 때', () => {
       it('Google 토큰을 업데이트한다', async () => {
         // Given
-        const inputWithTokens = { ...userInput, googleAccessToken: 'access', googleRefreshToken: 'refresh' };
+        const inputWithTokens = {
+          ...userInput,
+          googleAccessToken: 'access',
+          googleRefreshToken: 'refresh',
+        };
         mockUserRepository.findByEmail.mockResolvedValue(savedUser);
         mockUserRepository.updateGoogleTokens.mockResolvedValue(undefined);
 
