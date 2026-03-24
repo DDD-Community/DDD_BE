@@ -19,8 +19,10 @@ export class UserService {
     const found = await this.userRepository.findByEmail({ email, withDeleted: true });
 
     if (found) {
+      const isNew = !!found.deletedAt;
       if (found.deletedAt) {
         await this.userRepository.restore({ id: found.id });
+        found.deletedAt = null;
       }
 
       if (googleAccessToken || googleRefreshToken) {
@@ -30,7 +32,7 @@ export class UserService {
           googleRefreshToken,
         });
       }
-      return { user: found, isNew: !!found.deletedAt };
+      return { user: found, isNew };
     }
 
     const user = await this.userRepository.register({
