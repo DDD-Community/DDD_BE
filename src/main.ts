@@ -5,6 +5,7 @@ import cookieParser from 'cookie-parser';
 import { initializeTransactionalContext } from 'typeorm-transactional';
 
 import { AppModule } from './app.module';
+import { setupSwagger } from './config/swagger.config';
 
 const bootstrap = async (): Promise<void> => {
   initializeTransactionalContext();
@@ -14,6 +15,10 @@ const bootstrap = async (): Promise<void> => {
 
   app.setGlobalPrefix('api');
   app.enableVersioning({ type: VersioningType.URI });
+
+  if (process.env.NODE_ENV !== 'production') {
+    setupSwagger(app);
+  }
 
   const configService = app.get(ConfigService);
   const port = configService.getOrThrow<number>('PORT');
