@@ -4,7 +4,8 @@ import { UserRepository } from '../domain/user.repository';
 import { UserService } from './user.service';
 
 jest.mock('typeorm-transactional', () => ({
-  Transactional: () => (_target: unknown, _key: string, descriptor: PropertyDescriptor) => descriptor,
+  Transactional: () => (_target: unknown, _key: string, descriptor: PropertyDescriptor) =>
+    descriptor,
   initializeTransactionalContext: jest.fn(),
 }));
 
