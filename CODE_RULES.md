@@ -71,6 +71,22 @@
 
 13. 함수/메서드 선언 시 명시적으로 `return` 타입을 작성하지 않는다. 불필요한 타이핑을 줄이고 TypeScript의 타입 자동 추론(Type Inference)을 적극 활용한다.
 
+14. TypeORM `@Column()`의 `type` 옵션은 생략을 기본으로 한다. TypeScript 필드 타입(`Date`, `string`, `number` 등)으로 자동 추론되며, PostgreSQL 전용 타입이 필요한 경우에만 명시한다.
+
+    ```ts
+    // ✅ 타입 생략 (TypeScript 타입으로 추론)
+    @Column()
+    recruitStartAt: Date;
+
+    // ✅ PostgreSQL 전용 타입이 필요한 경우에만 명시
+    @Column({ type: 'jsonb' })
+    metadata: Record<string, unknown>;
+
+    // ❌ 불필요하게 장황한 타입 명시
+    @Column({ type: 'timestamp with time zone' })
+    recruitStartAt: Date;
+    ```
+
 ---
 
 ## 4) 네이밍/파일 구조 규칙 (MUST)
