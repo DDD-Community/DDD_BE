@@ -20,7 +20,7 @@ export class User extends BaseEntity {
   @Column({ unique: true })
   sub: string;
 
-  @Column({ nullable: true, type: 'text' })
+  @Column({ nullable: true })
   refreshToken: string | null;
 
   @Column({ nullable: true })

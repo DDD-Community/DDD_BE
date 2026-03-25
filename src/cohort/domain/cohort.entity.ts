@@ -1,7 +1,8 @@
-import { Column, Entity } from 'typeorm';
+import { Column, Entity, OneToMany } from 'typeorm';
 
 import { BaseEntity } from '../../common/core/base.entity';
 import { CohortStatus } from './cohort.status';
+import { CohortPart } from './cohort-part.entity';
 
 @Entity('cohorts')
 export class Cohort extends BaseEntity {
@@ -20,4 +21,9 @@ export class Cohort extends BaseEntity {
     default: CohortStatus.PLANNED,
   })
   status: CohortStatus;
+
+  @OneToMany(() => CohortPart, (part) => part.cohort, {
+    cascade: true,
+  })
+  parts: CohortPart[];
 }
