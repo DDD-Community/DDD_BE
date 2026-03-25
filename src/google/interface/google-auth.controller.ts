@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AuthGuard } from '@nestjs/passport';
+import { ApiExtraModels, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 
 import type { JwtUser } from '../../auth/application/auth.type';
@@ -17,6 +18,7 @@ import { AuthUser } from '../../common/decorator/auth-user.decorator';
 import { Cookie } from '../../common/decorator/cookie.decorator';
 import { AppException } from '../../common/exception/app.exception';
 import { ApiResponse } from '../../common/response/api-response';
+import { ApiDoc } from '../../common/swagger/api-doc.decorator';
 import type {
   GoogleAuthCallbackResult,
   GoogleProfile,
@@ -24,10 +26,14 @@ import type {
   RefreshResult,
 } from '../application/google.type';
 import { GoogleAuthService } from '../application/google-auth.service';
+import { GoogleAuthCallbackResponseDto, GoogleRefreshResponseDto } from './dto/google-auth.dto';
+import { GoogleAuthSwagger } from './google-auth.swagger';
 
 const ACCESS_TOKEN_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const REFRESH_TOKEN_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
+@ApiTags('Auth')
+@ApiExtraModels(GoogleAuthCallbackResponseDto, GoogleRefreshResponseDto)
 @Controller({ path: 'auth', version: '1' })
 export class GoogleAuthController {
   private readonly isProduction: boolean;
@@ -41,10 +47,19 @@ export class GoogleAuthController {
     this.clientRedirectUrl = configService.getOrThrow<string>('CLIENT_REDIRECT_URL');
   }
 
+  @ApiDoc({
+    summary: 'Google OAuth 로그인 시작',
+    description: 'Google 로그인 페이지로 리다이렉트됩니다.',
+  })
   @Get('google')
   @UseGuards(AuthGuard('google'))
   googleAuth(): void {}
 
+  @ApiDoc({
+    summary: 'Google OAuth 콜백',
+    description: '로그인 성공 시 access_token · refresh_token 쿠키가 발급됩니다.',
+    responses: [GoogleAuthSwagger.googleCallback.success],
+  })
   @Get('google/callback')
   @UseGuards(AuthGuard('google'))
   async googleAuthRedirect(
@@ -68,6 +83,12 @@ export class GoogleAuthController {
     response.redirect(this.clientRedirectUrl);
   }
 
+  @ApiDoc({
+    summary: 'Access Token 재발급',
+    description: 'refresh_token 쿠키를 사용해 새 토큰을 발급합니다. 두 쿠키 모두 갱신됩니다.',
+    responses: [GoogleAuthSwagger.refresh.success, GoogleAuthSwagger.refresh.unauthorized],
+  })
+  @HttpCode(HttpStatus.OK)
   @Post('refresh')
   async refreshToken(
     @Cookie('refresh_token') refreshToken: string | undefined,
@@ -89,6 +110,12 @@ export class GoogleAuthController {
     return ApiResponse.ok<GoogleRefreshResult>({ accessToken: result.accessToken });
   }
 
+  @ApiDoc({
+    summary: '로그아웃',
+    description: 'access_token · refresh_token 쿠키를 삭제합니다.',
+    auth: true,
+    responses: [GoogleAuthSwagger.logout.noContent, GoogleAuthSwagger.logout.unauthorized],
+  })
   @Post('logout')
   @HttpCode(HttpStatus.NO_CONTENT)
   @UseGuards(AuthGuard('jwt'))
@@ -102,6 +129,16 @@ export class GoogleAuthController {
     response.clearCookie('refresh_token', { path: '/api/v1/auth/refresh' });
   }
 
+  @ApiDoc({
+    summary: '회원 탈퇴',
+    description: 'Google 토큰 revoke 후 계정을 소프트 삭제합니다.',
+    auth: true,
+    responses: [
+      GoogleAuthSwagger.withdrawal.noContent,
+      GoogleAuthSwagger.withdrawal.unauthorized,
+      GoogleAuthSwagger.withdrawal.notFound,
+    ],
+  })
   @Delete('withdrawal')
   @HttpCode(HttpStatus.NO_CONTENT)
   @UseGuards(AuthGuard('jwt'))
