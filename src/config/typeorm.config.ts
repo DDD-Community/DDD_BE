@@ -14,7 +14,7 @@ export const createTypeOrmModuleOptions = (config: ConfigService): TypeOrmModule
   migrationsRun: false,
 });
 
-// CLI/마이그레이션 컨텍스트는 NestJS DI 밖에서 실행되므로 process.env 직접 접근을 허용한다.
+// NOTE :: CLI/마이그레이션 컨텍스트는 NestJS DI 밖에서 실행되므로 process.env 직접 접근을 허용한다.
 export const createTypeOrmDataSourceOptions = (): DataSourceOptions => ({
   type: 'postgres',
   host: process.env.DB_HOST!,
