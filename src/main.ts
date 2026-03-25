@@ -1,4 +1,4 @@
-import { Logger, VersioningType } from '@nestjs/common';
+import { Logger, ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import cookieParser from 'cookie-parser';
@@ -7,12 +7,13 @@ import { initializeTransactionalContext } from 'typeorm-transactional';
 import { AppModule } from './app.module';
 import { setupSwagger } from './config/swagger.config';
 
-const bootstrap = async (): Promise<void> => {
+const bootstrap = async () => {
   initializeTransactionalContext();
 
   const app = await NestFactory.create(AppModule);
   app.use(cookieParser());
 
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   app.setGlobalPrefix('api');
   app.enableVersioning({ type: VersioningType.URI });
 

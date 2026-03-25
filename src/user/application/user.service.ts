@@ -1,13 +1,14 @@
 import { Injectable } from '@nestjs/common';
+import { Transactional } from 'typeorm-transactional';
 
-import { User } from '../domain/user.entity';
 import { UserRepository } from '../domain/user.repository';
-import { RegisterResult, UserType } from '../domain/user.type';
+import type { RegisterResult, UserType } from '../domain/user.type';
 
 @Injectable()
 export class UserService {
   constructor(private readonly userRepository: UserRepository) {}
 
+  @Transactional()
   async register({
     email,
     firstName,
@@ -46,25 +47,19 @@ export class UserService {
     return { user, isNew: true };
   }
 
-  async findById({ id }: { id: number }): Promise<User | null> {
+  async findById({ id }: { id: number }) {
     return this.userRepository.findById({ id });
   }
 
-  async findByRefreshToken({ hash }: { hash: string }): Promise<User | null> {
+  async findByRefreshToken({ hash }: { hash: string }) {
     return this.userRepository.findByRefreshToken({ hash });
   }
 
-  async saveRefreshToken({
-    id,
-    refreshToken,
-  }: {
-    id: number;
-    refreshToken: string | null;
-  }): Promise<void> {
+  async saveRefreshToken({ id, refreshToken }: { id: number; refreshToken: string | null }) {
     await this.userRepository.saveRefreshToken({ id, refreshToken });
   }
 
-  async withdraw({ id }: { id: number }): Promise<void> {
+  async withdraw({ id }: { id: number }) {
     await this.userRepository.withdraw({ id });
   }
 }

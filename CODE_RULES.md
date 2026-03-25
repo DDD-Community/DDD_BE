@@ -26,7 +26,8 @@
 ## 2) 아키텍처/레이어 규칙 (MUST)
 
 1. Domain Layer는 프레임워크/외부 라이브러리에 의존하지 않는다.
-2. Application Layer는 유스케이스를 조합하며 트랜잭션 경계를 가진다. 트랜잭션 시작/커밋/롤백은 Application Layer에서 선언하고, 실제 구현은 Infrastructure Layer(Unit of Work 등)에 위임한다.
+2. Application Layer는 유스케이스를 조합하며 트랜잭션 경계를 가진다.
+   트랜잭션의 시작/커밋/롤백은 Application Layer에서 선언하고, 실제 구현은 Infrastructure Layer(Unit of Work 등)에 위임한다.
 3. Infrastructure Layer는 DB, 외부 API, 메시징 등 구현 세부사항을 담당한다.
 4. Controller(Interface Layer)에는 비즈니스 로직을 넣지 않는다.
 5. Repository는 영속성 책임만 가지며, 도메인 정책 판단을 하지 않는다.
@@ -38,16 +39,15 @@
 ## 3) TypeScript/NestJS 규칙 (SHOULD)
 
 1. `any` 사용은 금지에 가깝게 관리하고, 불가피할 때만 범위를 최소화한다.
-2. DTO/Request 입력 검증은 명시적으로 수행한다(타입만 믿지 않는다).
+2. DTO/Request 입력 검증은 명시적으로 수행한다(형식, 범위, 필수값).
 3. 예외는 도메인/애플리케이션 의미를 담은 커스텀 예외로 던지고, 응답 변환은 전역 레벨에서 일괄 처리한다.
 4. `Promise` 반환 함수는 `async/await` 스타일을 일관되게 유지한다.
 5. 의존성 생성은 DI 컨테이너를 사용하고 `new` 직접 생성은 최소화한다.
 6. Import 순서는 자동 정렬 규칙(`simple-import-sort`)을 따른다.
-7. Prettier/ESLint 규칙을 로컬에서 통과하지 못하는 코드는 커밋하지 않는다.
-8. 반환 타입은 인라인 객체(`{ data: string }`) 대신 `type`/`interface`로 명시해 재사용 가능하게 관리한다.
-9. `Pick`/`Omit`/중첩 유틸리티 타입 등 복잡한 타입 조합은 지양하고, 의도가 드러나는 명시 타입을 우선한다.
-10. `if` 문은 단일 라인이더라도 항상 중괄호(`{}`)를 사용한다. (❌ `if (x) return;` → ✅ `if (x) { return; }`)
-11. `try-catch` 블록 밖에서는 `return await`를 생략한다. `try-catch` 블록 안에서는 rejection이 catch에서 잡히도록 반드시 `return await`를 사용한다.
+7. 반환 타입은 인라인 객체(`{ data: string }`) 대신 `type`/`interface`로 명시해 재사용 가능하게 관리한다.
+8. `Pick`/`Omit`/중첩 유틸리티 타입 등 복잡한 타입 조합은 지양하고, 의도가 드러나는 명시 타입을 우선한다.
+9. `if` 문은 단일 라인이더라도 항상 중괄호(`{}`)를 사용한다. (❌ `if (x) return;` → ✅ `if (x) { return; }`)
+10. `try-catch` 블록 밖에서는 `return await`를 생략한다. `try-catch` 블록 안에서는 rejection이 catch에서 잡히도록 반드시 `return await`를 사용한다.
 
     ```ts
     // ❌ try-catch 안에서 await 생략 — rejection이 catch에서 잡히지 않음
@@ -65,9 +65,32 @@
     }
     ```
 
-12. 함수 파라미터는 읽기 쉽고 확장이 용이하도록 **객체 구조 분해 할당(`{}`) 방식**을 권장한다.
+11. 함수 파라미터는 읽기 쉽고 확장이 용이하도록 **객체 구조 분해 할당(`{}`) 방식**을 권장한다.
 
     단, Passport의 `validate` 메서드처럼 라이브러리에서 인자 순서(Positional Arguments)를 강제하는 경우는 예외로 한다.
+
+12. 함수/메서드가 값을 반환한다면 원칙적으로 반환 타입을 명시해 인터페이스(계약)를 명확히 한다.
+
+    - **명시 대상**: `Promise<RegisterResult>`, `Promise<ApiResponse<T>>`, `Promise<DTO>` 등 **사용자 정의 복합 타입(Custom Type)** 반환.
+    - **생략 허용**: `void`/`Promise<void>`, `boolean`/`number`/`string` 등 **원시 타입(Primitive Type)** 반환.
+    - **생략 허용**: `Promise<User>`, `Promise<Cohort>`, `Promise<User | null>`처럼 도메인 **엔티티(Entity)**를 그대로 반환하는 Repository/Service 메서드(추론이 자명한 경우).
+    - **생략 허용**: `Controller` (Interface Layer) 엔드포인트 라우터 핸들러 메서드(추론 및 Swagger 데코레이터 명세 우선).
+
+13. TypeORM `@Column()`의 `type` 옵션은 생략을 기본으로 한다. TypeScript 필드 타입(`Date`, `string`, `number` 등)으로 자동 추론되며, PostgreSQL 전용 타입이 필요한 경우에만 명시한다.
+
+    ```ts
+    // ✅ 타입 생략 (TypeScript 타입으로 추론)
+    @Column()
+    recruitStartAt: Date;
+
+    // ✅ PostgreSQL 전용 타입이 필요한 경우에만 명시
+    @Column({ type: 'jsonb' })
+    metadata: Record<string, unknown>;
+
+    // ❌ 불필요하게 장황한 타입 명시
+    @Column({ type: 'timestamp with time zone' })
+    recruitStartAt: Date;
+    ```
 
 ---
 
@@ -137,6 +160,18 @@ src/
   config/                 # 환경 설정
 ```
 
+### BaseEntity 사용 기준
+
+프로젝트에는 목적이 다른 두 가지 BaseEntity가 존재한다. 새 도메인 엔티티를 추가할 때 아래 기준으로 선택한다.
+
+| 클래스 | 위치 | 포함 필드 | 사용 기준 |
+|---|---|---|---|
+| `BaseEntity` | `common/entity/base.entity.ts` | `createdAt`, `updatedAt`, `deletedAt` | `id`를 도메인 엔티티에서 직접 선언하는 경우 |
+| `BaseEntity` (확장) | `common/core/base.entity.ts` | `id`, `uuid`, `createdAt`, `updatedAt`, `deletedAt` + 복합 인덱스 | `id`/`uuid`를 공통으로 관리하고 커서 기반 조회 인덱스가 필요한 경우 |
+
+> 하나의 프로젝트에서 두 BaseEntity가 혼재하면 테이블 컬럼 구성과 소프트 삭제 정책이 도메인마다 달라진다.
+> 새 도메인은 `common/core/base.entity.ts`를 기본으로 사용하고, 기존 도메인(`user`, `user-role`)은 현행 유지한다.
+
 ---
 
 ## 5) 테스트/품질 규칙 (SHOULD)
@@ -205,6 +240,7 @@ type ApiResponse<T> = {
 1. URI는 리소스 중심 명사로 설계하고, 동작은 HTTP Method로 표현한다.
 2. URI는 소문자 kebab-case를 사용한다. (`/user-profiles`, `/order-items`)
 3. HTTP Status Code는 의미에 맞게 사용한다.
+4. 엔드포인트/DTO 네이밍은 일관된 REST 규칙을 따른다.
 
 | 상황 | Status Code |
 |---|---|
@@ -240,13 +276,6 @@ type PaginationMeta = {
   hasNext: boolean;
 };
 ```
-
-### 기타
-
-1. NestJS 표준 구조(Controller, Provider, Module, DI, Decorator)를 우선 사용한다.
-2. 엔드포인트/DTO 네이밍은 일관된 REST 규칙을 따른다.
-
----
 
 ## 8) Git 커밋 규칙 (MUST)
 

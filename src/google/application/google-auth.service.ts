@@ -1,4 +1,5 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
+import { Transactional } from 'typeorm-transactional';
 
 import { AuthService } from '../../auth/application/auth.service';
 import { AppException } from '../../common/exception/app.exception';
@@ -14,6 +15,7 @@ export class GoogleAuthService {
     private readonly googleApiClient: GoogleApiClient,
   ) {}
 
+  @Transactional()
   async googleLogin({
     email,
     firstName,
@@ -68,11 +70,12 @@ export class GoogleAuthService {
     return { accessToken, refreshToken: newRefreshToken };
   }
 
-  async logout({ userId }: { userId: number }): Promise<void> {
+  async logout({ userId }: { userId: number }) {
     await this.userService.saveRefreshToken({ id: userId, refreshToken: null });
   }
 
-  async withdrawal({ userId }: { userId: number }): Promise<void> {
+  // MEMO: @Transactional()을 의도적으로 제외합니다. (외부 API, 단일쿼리: 원자성 보장)
+  async withdrawal({ userId }: { userId: number }) {
     const user = await this.userService.findById({ id: userId });
     if (!user) {
       throw new AppException('USER_NOT_FOUND', HttpStatus.NOT_FOUND);

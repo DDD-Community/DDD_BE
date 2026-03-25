@@ -2,6 +2,12 @@ import { HttpStatus } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 
 import { AuthService } from '../../auth/application/auth.service';
+
+jest.mock('typeorm-transactional', () => ({
+  Transactional: () => (_target: unknown, _key: string, descriptor: PropertyDescriptor) =>
+    descriptor,
+  initializeTransactionalContext: jest.fn(),
+}));
 import { AppException } from '../../common/exception/app.exception';
 import { UserService } from '../../user/application/user.service';
 import { GoogleApiClient } from '../infrastructure/google-api.client';

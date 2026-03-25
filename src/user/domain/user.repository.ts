@@ -1,28 +1,21 @@
 import { Injectable } from '@nestjs/common';
 
 import { WriteRepository } from '../infrastructure/write.repository';
-import type { User } from './user.entity';
 import { UserType } from './user.type';
 
 @Injectable()
 export class UserRepository {
   constructor(private readonly writeRepository: WriteRepository) {}
 
-  async findByEmail({
-    email,
-    withDeleted = false,
-  }: {
-    email: string;
-    withDeleted?: boolean;
-  }): Promise<User | null> {
+  async findByEmail({ email, withDeleted = false }: { email: string; withDeleted?: boolean }) {
     return this.writeRepository.findOne({ email }, withDeleted);
   }
 
-  async findById({ id }: { id: number }): Promise<User | null> {
+  async findById({ id }: { id: number }) {
     return this.writeRepository.findOne({ id });
   }
 
-  async findByRefreshToken({ hash }: { hash: string }): Promise<User | null> {
+  async findByRefreshToken({ hash }: { hash: string }) {
     return this.writeRepository.findOne({ refreshToken: hash });
   }
 
@@ -33,27 +26,21 @@ export class UserRepository {
     sub,
     googleAccessToken,
     googleRefreshToken,
-  }: UserType): Promise<User> {
+  }: UserType) {
     return this.writeRepository.create({
       user: { email, firstName, lastName, sub, googleAccessToken, googleRefreshToken },
     });
   }
 
-  async saveRefreshToken({
-    id,
-    refreshToken,
-  }: {
-    id: number;
-    refreshToken: string | null;
-  }): Promise<void> {
+  async saveRefreshToken({ id, refreshToken }: { id: number; refreshToken: string | null }) {
     await this.writeRepository.update({ id, refreshToken });
   }
 
-  async withdraw({ id }: { id: number }): Promise<void> {
+  async withdraw({ id }: { id: number }) {
     await this.writeRepository.softDelete({ id });
   }
 
-  async restore({ id }: { id: number }): Promise<void> {
+  async restore({ id }: { id: number }) {
     await this.writeRepository.restore({ id });
   }
 
@@ -65,7 +52,7 @@ export class UserRepository {
     id: number;
     googleAccessToken?: string;
     googleRefreshToken?: string;
-  }): Promise<void> {
+  }) {
     await this.writeRepository.updateGoogleTokens({ id, googleAccessToken, googleRefreshToken });
   }
 }

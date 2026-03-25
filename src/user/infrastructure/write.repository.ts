@@ -18,19 +18,19 @@ export class WriteRepository {
     this.repository = dataSource.getRepository(User);
   }
 
-  async create({ user }: { user: UserType }): Promise<User> {
+  async create({ user }: { user: UserType }) {
     return this.repository.save(user);
   }
 
-  async softDelete({ id }: { id: number }): Promise<void> {
+  async softDelete({ id }: { id: number }) {
     await this.repository.softDelete(id);
   }
 
-  async restore({ id }: { id: number }): Promise<void> {
+  async restore({ id }: { id: number }) {
     await this.repository.restore(id);
   }
 
-  async findOne(condition: UserFindCondition, withDeleted = false): Promise<User | null> {
+  async findOne(condition: UserFindCondition, withDeleted = false) {
     return this.repository.findOne({
       where: condition,
       relations: { userRoles: true },
@@ -38,7 +38,7 @@ export class WriteRepository {
     });
   }
 
-  async update({ id, refreshToken }: { id: number; refreshToken: string | null }): Promise<void> {
+  async update({ id, refreshToken }: { id: number; refreshToken: string | null }) {
     await this.repository.update(id, { refreshToken });
   }
 
@@ -50,7 +50,7 @@ export class WriteRepository {
     id: number;
     googleAccessToken?: string;
     googleRefreshToken?: string;
-  }): Promise<void> {
+  }) {
     const updateData: Partial<User> = {};
     if (googleAccessToken !== undefined) {
       updateData.googleAccessToken = googleAccessToken;
