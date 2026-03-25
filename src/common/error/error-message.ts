@@ -9,6 +9,7 @@ export const ErrorMessage = {
   GOOGLE_AUTH_FAILED: '구글 인증 정보를 가져올 수 없습니다.',
 
   COHORT_NOT_FOUND: '기수를 찾을 수 없습니다.',
+  COHORT_ALREADY_EXISTS: '이미 진행 중인 기수가 존재합니다.',
 
   APPLICATION_FORM_NOT_FOUND: '지원서를 찾을 수 없습니다.',
 

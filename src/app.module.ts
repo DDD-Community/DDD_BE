@@ -5,6 +5,7 @@ import { InjectDataSource, TypeOrmModule } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { addTransactionalDataSource } from 'typeorm-transactional';
 
+import { CohortModule } from './cohort/cohort.module';
 import { HttpExceptionFilter } from './common/exception/http-exception.filter';
 import { validate } from './config/env.validation';
 import { createTypeOrmModuleOptions } from './config/typeorm.config';
@@ -25,6 +26,7 @@ import { HealthModule } from './health/health.module';
     }),
     HealthModule,
     GoogleModule,
+    CohortModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: HttpExceptionFilter }],
 })
