@@ -1,7 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
-export function setupSwagger(app: INestApplication): void {
+export function setupSwagger(app: INestApplication) {
   const config = new DocumentBuilder()
     .setTitle('DDD API')
     .setDescription(
