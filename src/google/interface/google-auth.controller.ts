@@ -65,7 +65,7 @@ export class GoogleAuthController {
   async googleAuthRedirect(
     @AuthUser() profile: GoogleProfile,
     @Res({ passthrough: true }) response: Response,
-  ): Promise<ApiResponse<GoogleAuthCallbackResult> | void> {
+  ) {
     const { user } = await this.googleAuthService.googleLogin(profile);
 
     this.setAuthCookies({
@@ -93,7 +93,7 @@ export class GoogleAuthController {
   async refreshToken(
     @Cookie('refresh_token') refreshToken: string | undefined,
     @Res({ passthrough: true }) response: Response,
-  ): Promise<ApiResponse<GoogleRefreshResult>> {
+  ) {
     if (!refreshToken) {
       throw new AppException('UNAUTHORIZED', HttpStatus.UNAUTHORIZED);
     }
@@ -119,10 +119,7 @@ export class GoogleAuthController {
   @Post('logout')
   @HttpCode(HttpStatus.NO_CONTENT)
   @UseGuards(AuthGuard('jwt'))
-  async logout(
-    @AuthUser() jwtUser: JwtUser,
-    @Res({ passthrough: true }) response: Response,
-  ): Promise<void> {
+  async logout(@AuthUser() jwtUser: JwtUser, @Res({ passthrough: true }) response: Response) {
     await this.googleAuthService.logout({ userId: jwtUser.id });
 
     response.clearCookie('access_token');
@@ -142,10 +139,7 @@ export class GoogleAuthController {
   @Delete('withdrawal')
   @HttpCode(HttpStatus.NO_CONTENT)
   @UseGuards(AuthGuard('jwt'))
-  async withdrawal(
-    @AuthUser() jwtUser: JwtUser,
-    @Res({ passthrough: true }) response: Response,
-  ): Promise<void> {
+  async withdrawal(@AuthUser() jwtUser: JwtUser, @Res({ passthrough: true }) response: Response) {
     await this.googleAuthService.withdrawal({ userId: jwtUser.id });
 
     response.clearCookie('access_token');

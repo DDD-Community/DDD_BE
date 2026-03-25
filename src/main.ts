@@ -7,7 +7,7 @@ import { initializeTransactionalContext } from 'typeorm-transactional';
 import { AppModule } from './app.module';
 import { setupSwagger } from './config/swagger.config';
 
-const bootstrap = async (): Promise<void> => {
+const bootstrap = async () => {
   initializeTransactionalContext();
 
   const app = await NestFactory.create(AppModule);
