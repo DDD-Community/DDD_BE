@@ -16,11 +16,12 @@ const bootstrap = async (): Promise<void> => {
   app.setGlobalPrefix('api');
   app.enableVersioning({ type: VersioningType.URI });
 
-  if (process.env.NODE_ENV !== 'production') {
+  const configService = app.get(ConfigService);
+
+  if (configService.get('NODE_ENV') !== 'production') {
     setupSwagger(app);
   }
 
-  const configService = app.get(ConfigService);
   const port = configService.getOrThrow<number>('PORT');
 
   await app.listen(port);
