@@ -18,7 +18,7 @@ export class CohortRepository {
     });
   }
 
-  async findById({ cohortId }: { cohortId: number }) {
-    return this.writeRepository.findOne({ id: cohortId });
+  async findById({ id }: { id: number }) {
+    return this.writeRepository.findOne({ id });
   }
 }

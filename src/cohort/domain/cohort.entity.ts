@@ -25,5 +25,5 @@ export class Cohort extends BaseEntity {
   @OneToMany(() => CohortPart, (part) => part.cohort, {
     cascade: true,
   })
-  parts: CohortPart[];
+  parts?: CohortPart[];
 }

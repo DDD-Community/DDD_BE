@@ -24,6 +24,6 @@ export class WriteRepository {
   }
 
   async findOne({ id }: { id: number }) {
-    return this.repository.findOne({ where: { id }, relations: ['parts'] });
+    return this.repository.findOne({ where: { id }, relations: { parts: true } });
   }
 }

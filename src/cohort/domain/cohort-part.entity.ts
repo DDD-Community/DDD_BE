@@ -15,6 +15,7 @@ export class CohortPart extends BaseEntity {
   applicationSchema: Record<string, unknown>;
 
   @ManyToOne(() => Cohort, (cohort) => cohort.parts, {
+    nullable: false,
     onDelete: 'CASCADE',
   })
   cohort: Cohort;
