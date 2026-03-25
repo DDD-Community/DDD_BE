@@ -1,13 +1,15 @@
 import { Injectable } from '@nestjs/common';
+import { Transactional } from 'typeorm-transactional';
 
-import { User } from '../domain/user.entity';
+import type { User } from '../domain/user.entity';
 import { UserRepository } from '../domain/user.repository';
-import { RegisterResult, UserType } from '../domain/user.type';
+import type { RegisterResult, UserType } from '../domain/user.type';
 
 @Injectable()
 export class UserService {
   constructor(private readonly userRepository: UserRepository) {}
 
+  @Transactional()
   async register({
     email,
     firstName,

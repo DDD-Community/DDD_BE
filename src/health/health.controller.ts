@@ -5,13 +5,13 @@ import { HealthCheck, HealthCheckService, TypeOrmHealthIndicator } from '@nestjs
 export class HealthController {
   constructor(
     private readonly health: HealthCheckService,
-    private readonly db: TypeOrmHealthIndicator,
+    private readonly database: TypeOrmHealthIndicator,
   ) {}
 
   @Get()
   @HealthCheck()
   async check() {
-    const checks = [() => this.db.pingCheck('database')];
+    const checks = [() => this.database.pingCheck('database')];
     return this.health.check(checks);
   }
 }
