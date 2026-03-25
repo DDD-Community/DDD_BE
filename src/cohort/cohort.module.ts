@@ -4,10 +4,11 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { CohortService } from './application/cohort.service';
 import { Cohort } from './domain/cohort.entity';
 import { CohortRepository } from './domain/cohort.repository';
+import { CohortPart } from './domain/cohort-part.entity';
 import { WriteRepository } from './infrastructure/write.repository';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Cohort])],
+  imports: [TypeOrmModule.forFeature([Cohort, CohortPart])],
   providers: [CohortService, CohortRepository, WriteRepository],
   exports: [CohortService],
 })

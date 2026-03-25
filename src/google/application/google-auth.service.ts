@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 
 import { AuthService } from '../../auth/application/auth.service';
@@ -9,6 +9,8 @@ import type { GoogleLoginResult, GoogleProfile, RefreshResult } from './google.t
 
 @Injectable()
 export class GoogleAuthService {
+  private readonly logger = new Logger(GoogleAuthService.name);
+
   constructor(
     private readonly userService: UserService,
     private readonly authService: AuthService,
@@ -85,12 +87,16 @@ export class GoogleAuthService {
     if (revokeToken) {
       try {
         await this.googleApiClient.revokeToken({ token: revokeToken });
-      } catch {
+      } catch (error) {
         // MEMO: 구글 서버와의 통신 실패 시에도 자체 회원의 논리적 탈퇴(Soft Delete)는 계속 진행합니다.
+        this.logger.warn(
+          `Google token revoke failed for userId=${userId}`,
+          error instanceof Error ? error.stack : String(error),
+        );
       }
     }
 
-    await this.userService.withdraw({ id: userId });
     await this.userService.saveRefreshToken({ id: userId, refreshToken: null });
+    await this.userService.withdraw({ id: userId });
   }
 }

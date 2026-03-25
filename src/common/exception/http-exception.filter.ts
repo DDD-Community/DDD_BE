@@ -7,6 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import { match } from 'ts-pattern';
 
 import { ErrorMessage, ErrorMessageKey } from '../error/error-message';
 import { ApiResponse } from '../response/api-response';
@@ -66,9 +67,16 @@ export class HttpExceptionFilter implements ExceptionFilter {
     if (statusName && statusName in ErrorMessage) {
       return statusName as ErrorMessageKey;
     }
-    if (status >= 500) {
-      return 'INTERNAL_SERVER_ERROR';
-    }
-    return 'BAD_REQUEST';
+
+    return match(status)
+      .returnType<ErrorMessageKey>()
+      .when(
+        (s) => s >= 500,
+        () => 'INTERNAL_SERVER_ERROR',
+      )
+      .with(401, () => 'UNAUTHORIZED')
+      .with(403, () => 'FORBIDDEN')
+      .with(404, () => 'NOT_FOUND')
+      .otherwise(() => 'BAD_REQUEST');
   }
 }

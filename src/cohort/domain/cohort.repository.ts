@@ -17,4 +17,8 @@ export class CohortRepository {
       statuses: [CohortStatus.PLANNED, CohortStatus.RECRUITING],
     });
   }
+
+  async findById({ id }: { id: number }) {
+    return this.writeRepository.findOne({ id });
+  }
 }

@@ -22,4 +22,8 @@ export class WriteRepository {
       where: statuses && statuses.length > 0 ? { status: In(statuses) } : {},
     });
   }
+
+  async findOne({ id }: { id: number }) {
+    return this.repository.findOne({ where: { id }, relations: { parts: true } });
+  }
 }
