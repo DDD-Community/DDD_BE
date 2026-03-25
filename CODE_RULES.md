@@ -69,6 +69,8 @@
 
     단, Passport의 `validate` 메서드처럼 라이브러리에서 인자 순서(Positional Arguments)를 강제하는 경우는 예외로 한다.
 
+13. 함수/메서드 선언 시 명시적으로 `return` 타입을 작성하지 않는다. 불필요한 타이핑을 줄이고 TypeScript의 타입 자동 추론(Type Inference)을 적극 활용한다.
+
 ---
 
 ## 4) 네이밍/파일 구조 규칙 (MUST)
