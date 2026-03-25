@@ -36,4 +36,4 @@ export const setupSwagger = (app: INestApplication): void => {
       persistAuthorization: true,
     },
   });
-}
+};
