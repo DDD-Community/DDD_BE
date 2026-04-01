@@ -13,7 +13,7 @@ jest.mock('typeorm-transactional', () => ({
 }));
 
 const mockCohortRepository = {
-  create: jest.fn(),
+  register: jest.fn(),
   checkActiveCohortExists: jest.fn(),
 };
 
@@ -46,7 +46,7 @@ describe('CohortService', () => {
         await expect(cohortService.createCohort({ cohort: cohortInput })).rejects.toThrow(
           new AppException('COHORT_ALREADY_EXISTS', HttpStatus.CONFLICT),
         );
-        expect(mockCohortRepository.create).not.toHaveBeenCalled();
+        expect(mockCohortRepository.register).not.toHaveBeenCalled();
       });
     });
 
@@ -55,14 +55,14 @@ describe('CohortService', () => {
         // Given
         const createdCohort = { id: 1, ...cohortInput };
         mockCohortRepository.checkActiveCohortExists.mockResolvedValue(false);
-        mockCohortRepository.create.mockResolvedValue(createdCohort);
+        mockCohortRepository.register.mockResolvedValue(createdCohort);
 
         // When
         const result = await cohortService.createCohort({ cohort: cohortInput });
 
         // Then
         expect(result).toEqual(createdCohort);
-        expect(mockCohortRepository.create).toHaveBeenCalledWith({ cohort: cohortInput });
+        expect(mockCohortRepository.register).toHaveBeenCalledWith({ cohort: cohortInput });
       });
     });
   });
