@@ -33,7 +33,7 @@ export class Cohort extends BaseEntity {
     this.parts = parts.map((part) => {
       const foundPart = this.parts?.find((p) => p.partName === part.partName);
       if (foundPart) {
-        foundPart.isOpen = part.isOpen ?? foundPart.isOpen;
+        foundPart.isOpen = part.isOpen ?? false;
         foundPart.applicationSchema = part.applicationSchema;
         return foundPart;
       }

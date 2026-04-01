@@ -3,7 +3,12 @@ import { DataSource, In, LessThan, Repository } from 'typeorm';
 
 import { Cohort } from '../domain/cohort.entity';
 import { CohortStatus } from '../domain/cohort.status';
-import type { CohortCreateType, CohortUpdateType } from '../domain/cohort.type';
+import type { CohortCreateType } from '../domain/cohort.type';
+
+type CohortFindCondition = {
+  id?: number;
+  status?: CohortStatus;
+};
 
 @Injectable()
 export class WriteRepository {
@@ -25,12 +30,12 @@ export class WriteRepository {
     return this.repository.exists({ where: { status: In(statuses) } });
   }
 
-  async find() {
-    return this.repository.find({ relations: { parts: true } });
+  async find(condition: CohortFindCondition = {}) {
+    return this.repository.find({ where: condition, relations: { parts: true } });
   }
 
-  async findOne({ id }: { id?: number }) {
-    return this.repository.findOne({ where: { id }, relations: { parts: true } });
+  async findOne(condition: CohortFindCondition) {
+    return this.repository.findOne({ where: condition, relations: { parts: true } });
   }
 
   async findOneByStatuses({ statuses }: { statuses: CohortStatus[] }) {
@@ -40,17 +45,24 @@ export class WriteRepository {
     });
   }
 
-  async findExpiredRecruiting() {
-    return this.repository.find({
-      where: {
-        status: CohortStatus.RECRUITING,
-        recruitEndAt: LessThan(new Date()),
-      },
-    });
+  async findByStatusBefore({ status, date }: { status: CohortStatus; date: Date }) {
+    return this.repository.find({ where: { status, recruitEndAt: LessThan(date) } });
   }
 
-  async update({ id, ...data }: { id: number } & CohortUpdateType) {
-    await this.repository.update(id, data);
+  async update({
+    id,
+    name,
+    recruitStartAt,
+    recruitEndAt,
+    status,
+  }: {
+    id: number;
+    name?: string;
+    recruitStartAt?: Date;
+    recruitEndAt?: Date;
+    status?: CohortStatus;
+  }) {
+    await this.repository.update(id, { name, recruitStartAt, recruitEndAt, status });
   }
 
   async softDelete({ id }: { id: number }) {

@@ -3,7 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { WriteRepository } from '../infrastructure/write.repository';
 import { Cohort } from './cohort.entity';
 import { CohortStatus } from './cohort.status';
-import type { CohortCreateType, CohortUpdateType } from './cohort.type';
+import type { CohortCreateType } from './cohort.type';
 
 @Injectable()
 export class CohortRepository {
@@ -30,15 +30,30 @@ export class CohortRepository {
   }
 
   async findExpiredRecruiting() {
-    return this.writeRepository.findExpiredRecruiting();
+    return this.writeRepository.findByStatusBefore({
+      status: CohortStatus.RECRUITING,
+      date: new Date(),
+    });
   }
 
   async findAll() {
     return this.writeRepository.find();
   }
 
-  async update({ id, ...data }: { id: number } & CohortUpdateType) {
-    await this.writeRepository.update({ id, ...data });
+  async update({
+    id,
+    name,
+    recruitStartAt,
+    recruitEndAt,
+    status,
+  }: {
+    id: number;
+    name?: string;
+    recruitStartAt?: Date;
+    recruitEndAt?: Date;
+    status?: CohortStatus;
+  }) {
+    await this.writeRepository.update({ id, name, recruitStartAt, recruitEndAt, status });
   }
 
   async save({ cohort }: { cohort: Cohort }) {
