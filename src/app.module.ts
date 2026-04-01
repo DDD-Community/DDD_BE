@@ -1,6 +1,7 @@
 import { Module, OnModuleInit } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER } from '@nestjs/core';
+import { ScheduleModule } from '@nestjs/schedule';
 import { InjectDataSource, TypeOrmModule } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { addTransactionalDataSource } from 'typeorm-transactional';
@@ -24,6 +25,7 @@ import { HealthModule } from './health/health.module';
       useFactory: createTypeOrmModuleOptions,
       inject: [ConfigService],
     }),
+    ScheduleModule.forRoot(),
     HealthModule,
     GoogleModule,
     CohortModule,

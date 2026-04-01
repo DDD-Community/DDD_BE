@@ -13,3 +13,10 @@ export type CohortCreateType = {
   status?: CohortStatus;
   parts?: CohortPartCreateType[];
 };
+
+export type CohortUpdateType = {
+  name?: string;
+  recruitStartAt?: Date;
+  recruitEndAt?: Date;
+  status?: CohortStatus;
+};
