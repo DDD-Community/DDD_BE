@@ -11,7 +11,7 @@ export class CohortPart extends BaseEntity {
   @Column({ default: false })
   isOpen: boolean;
 
-  @Column({ type: 'json' })
+  @Column({ type: 'jsonb' })
   applicationSchema: Record<string, unknown>;
 
   @ManyToOne(() => Cohort, (cohort) => cohort.parts, {
@@ -19,4 +19,23 @@ export class CohortPart extends BaseEntity {
     onDelete: 'CASCADE',
   })
   cohort: Cohort;
+
+  static create({
+    partName,
+    isOpen,
+    applicationSchema,
+    cohort,
+  }: {
+    partName: string;
+    isOpen?: boolean;
+    applicationSchema: Record<string, unknown>;
+    cohort: Cohort;
+  }): CohortPart {
+    const part = new CohortPart();
+    part.partName = partName;
+    part.isOpen = isOpen ?? false;
+    part.applicationSchema = applicationSchema;
+    part.cohort = cohort;
+    return part;
+  }
 }

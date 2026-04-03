@@ -19,9 +19,7 @@ const bootstrap = async () => {
 
   const configService = app.get(ConfigService);
 
-  if (configService.get('NODE_ENV') !== 'production') {
-    setupSwagger(app);
-  }
+  setupSwagger(app);
 
   const port = configService.getOrThrow<number>('PORT');
 
