@@ -1,4 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
+import { ApiOperation } from '@nestjs/swagger';
 import { HealthCheck, HealthCheckService, TypeOrmHealthIndicator } from '@nestjs/terminus';
 
 @Controller({ path: 'health', version: '1' })
@@ -8,6 +9,7 @@ export class HealthController {
     private readonly database: TypeOrmHealthIndicator,
   ) {}
 
+  @ApiOperation({ summary: 'Health check', operationId: 'getHealth' })
   @Get()
   @HealthCheck()
   async check() {
