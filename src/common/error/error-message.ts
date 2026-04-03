@@ -12,6 +12,11 @@ export const ErrorMessage = {
   COHORT_ALREADY_EXISTS: '이미 진행 중인 기수가 존재합니다.',
 
   APPLICATION_FORM_NOT_FOUND: '지원서를 찾을 수 없습니다.',
+  COHORT_PART_CLOSED: '모집이 마감되었거나 존재하지 않는 파트입니다.',
+  PRIVACY_AGREEMENT_REQUIRED: '개인정보 수집 및 이용에 동의해야 합니다.',
+  ALREADY_SUBMITTED: '이미 제출된 지원서가 존재합니다.',
+  APPLICATION_NOT_FOUND: '해당 지원서를 찾을 수 없습니다.',
+  INVALID_STATUS_TRANSITION: '올바르지 않은 상태 변경입니다.',
 
   EVALUATION_NOT_FOUND: '평가 정보를 찾을 수 없습니다.',
 

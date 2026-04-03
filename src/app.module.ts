@@ -1,11 +1,13 @@
 import { Module, OnModuleInit } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER } from '@nestjs/core';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { InjectDataSource, TypeOrmModule } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { addTransactionalDataSource } from 'typeorm-transactional';
 
+import { ApplicationModule } from './application/application.module';
 import { CohortModule } from './cohort/cohort.module';
 import { HttpExceptionFilter } from './common/exception/http-exception.filter';
 import { validate } from './config/env.validation';
@@ -25,10 +27,12 @@ import { HealthModule } from './health/health.module';
       useFactory: createTypeOrmModuleOptions,
       inject: [ConfigService],
     }),
+    EventEmitterModule.forRoot(),
     ScheduleModule.forRoot(),
     HealthModule,
     GoogleModule,
     CohortModule,
+    ApplicationModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: HttpExceptionFilter }],
 })

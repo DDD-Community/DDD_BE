@@ -70,6 +70,10 @@ export class CohortService {
     await this.cohortRepository.deleteById({ id });
   }
 
+  async findPartById(id: number) {
+    return this.cohortRepository.findPartById(id);
+  }
+
   async transitionExpiredToActive() {
     const expired = await this.cohortRepository.findExpiredRecruiting();
     await Promise.all(

@@ -9,7 +9,7 @@ export class HealthController {
     private readonly database: TypeOrmHealthIndicator,
   ) {}
 
-  @ApiOperation({ summary: 'Health check', operationId: 'getHealth' })
+  @ApiOperation({ summary: 'Health check', operationId: 'health_getHealth' })
   @Get()
   @HealthCheck()
   async check() {

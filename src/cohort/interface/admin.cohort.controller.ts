@@ -34,7 +34,7 @@ export class AdminCohortController {
   @ApiDoc({
     summary: '새 기수 생성',
     description: '새로운 기수를 생성합니다. 모집 파트 설정도 함께 포함할 수 있습니다.',
-    operationId: 'createAdminCohort',
+    operationId: 'cohort_createAdmin',
     auth: true,
   })
   @Post()
@@ -55,7 +55,7 @@ export class AdminCohortController {
   @ApiDoc({
     summary: '기수 전체 목록 조회',
     description: '모든 기수와 각 기수별 파트 설정 정보를 조회합니다.',
-    operationId: 'getAdminCohorts',
+    operationId: 'cohort_getAdminList',
     auth: true,
   })
   @Get()
@@ -67,7 +67,7 @@ export class AdminCohortController {
   @ApiDoc({
     summary: '기수 정보 및 상태 수정',
     description: '기수의 명칭, 일정, 상태 등을 수동으로 수정합니다.',
-    operationId: 'updateAdminCohortById',
+    operationId: 'cohort_updateAdminById',
     auth: true,
   })
   @Patch(':id')
@@ -80,7 +80,7 @@ export class AdminCohortController {
     summary: '기수별 파트 모집 설정',
     description:
       '기수별로 모집할 파트와 각 파트별 지원서 스키마(JSON)를 설정합니다. 전체 교체 방식으로 동작합니다.',
-    operationId: 'updateAdminCohortPartsById',
+    operationId: 'cohort_updateAdminPartsById',
     auth: true,
   })
   @Put(':id/parts')
@@ -102,7 +102,7 @@ export class AdminCohortController {
   @ApiDoc({
     summary: '기수 삭제',
     description: '기수를 소프트 삭제합니다.',
-    operationId: 'deleteAdminCohortById',
+    operationId: 'cohort_deleteAdminById',
     auth: true,
   })
   @Delete(':id')
