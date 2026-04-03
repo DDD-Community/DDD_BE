@@ -10,7 +10,13 @@ interface ApiDocOptions {
   responses?: ApiResponseOptions[];
 }
 
-export const ApiDoc = ({ summary, description, operationId, auth = false, responses = [] }: ApiDocOptions) =>
+export const ApiDoc = ({
+  summary,
+  description,
+  operationId,
+  auth = false,
+  responses = [],
+}: ApiDocOptions) =>
   applyDecorators(
     ApiOperation({ summary, description, operationId }),
     ...(auth ? [ApiCookieAuth('access_token')] : []),
