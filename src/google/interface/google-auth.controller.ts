@@ -50,6 +50,7 @@ export class GoogleAuthController {
   @ApiDoc({
     summary: 'Google OAuth 로그인 시작',
     description: 'Google 로그인 페이지로 리다이렉트됩니다.',
+    operationId: 'getAuthGoogle',
   })
   @Get('google')
   @UseGuards(AuthGuard('google'))
@@ -58,6 +59,7 @@ export class GoogleAuthController {
   @ApiDoc({
     summary: 'Google OAuth 콜백',
     description: '로그인 성공 시 access_token · refresh_token 쿠키가 발급됩니다.',
+    operationId: 'getAuthGoogleCallback',
     responses: [GoogleAuthSwagger.googleCallback.success],
   })
   @Get('google/callback')
@@ -86,6 +88,7 @@ export class GoogleAuthController {
   @ApiDoc({
     summary: 'Access Token 재발급',
     description: 'refresh_token 쿠키를 사용해 새 토큰을 발급합니다. 두 쿠키 모두 갱신됩니다.',
+    operationId: 'refreshAuthToken',
     responses: [GoogleAuthSwagger.refresh.success, GoogleAuthSwagger.refresh.unauthorized],
   })
   @HttpCode(HttpStatus.OK)
@@ -113,6 +116,7 @@ export class GoogleAuthController {
   @ApiDoc({
     summary: '로그아웃',
     description: 'access_token · refresh_token 쿠키를 삭제합니다.',
+    operationId: 'logoutAuth',
     auth: true,
     responses: [GoogleAuthSwagger.logout.noContent, GoogleAuthSwagger.logout.unauthorized],
   })
@@ -129,6 +133,7 @@ export class GoogleAuthController {
   @ApiDoc({
     summary: '회원 탈퇴',
     description: 'Google 토큰 revoke 후 계정을 소프트 삭제합니다.',
+    operationId: 'deleteAuthWithdrawal',
     auth: true,
     responses: [
       GoogleAuthSwagger.withdrawal.noContent,
