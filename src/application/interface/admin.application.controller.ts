@@ -43,10 +43,7 @@ export class AdminApplicationController {
     auth: true,
   })
   @Get()
-  async getApplications(
-    @AuthUser() user: JwtUser,
-    @Query() filter: ApplicationAdminFilterDto,
-  ) {
+  async getApplications(@AuthUser() user: JwtUser, @Query() filter: ApplicationAdminFilterDto) {
     const applicationAdminFilter = {
       cohortId: filter.cohortId,
       cohortPartId: filter.cohortPartId,
@@ -65,10 +62,7 @@ export class AdminApplicationController {
     auth: true,
   })
   @Get(':id')
-  async getApplicationById(
-    @AuthUser() user: JwtUser,
-    @Param('id', ParseIntPipe) id: number,
-  ) {
+  async getApplicationById(@AuthUser() user: JwtUser, @Param('id', ParseIntPipe) id: number) {
     const form = await this.applicationService.findFormById({ id });
     return ApiResponse.ok(AdminApplicationFormResponseDto.from(form, user.roles));
   }

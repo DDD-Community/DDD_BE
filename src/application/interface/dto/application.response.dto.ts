@@ -51,9 +51,7 @@ export class AdminApplicationFormResponseDto {
     dto.id = form.id;
     dto.status = form.status;
     dto.applicantName = canAccessPii ? form.applicantName : this.maskName(form.applicantName);
-    dto.applicantPhone = canAccessPii
-      ? this.maskPhone(form.applicantPhone)
-      : this.redactPhone();
+    dto.applicantPhone = canAccessPii ? this.maskPhone(form.applicantPhone) : this.redactPhone();
     dto.applicantBirthDate = canAccessPii ? (form.applicantBirthDate ?? null) : null;
     dto.applicantRegion = canAccessPii ? (form.applicantRegion ?? null) : null;
     dto.cohortPartId = form.cohortPartId;

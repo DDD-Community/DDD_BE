@@ -71,7 +71,10 @@ export class FormWriteRepository {
     return result.affected ?? 0;
   }
 
-  private applyFilter(qb: ReturnType<Repository<ApplicationForm>['createQueryBuilder']>, filter: ApplicationFormFilter) {
+  private applyFilter(
+    qb: ReturnType<Repository<ApplicationForm>['createQueryBuilder']>,
+    filter: ApplicationFormFilter,
+  ) {
     if (filter.id !== undefined) {
       qb.andWhere('form.id = :id', { id: filter.id });
     }

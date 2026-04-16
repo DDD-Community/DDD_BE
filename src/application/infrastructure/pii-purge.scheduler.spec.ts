@@ -26,7 +26,6 @@ describe('PiiPurgeScheduler', () => {
     it('180일 이전 기준일로 파기를 요청한다', async () => {
       // Given
       mockApplicationRepository.purgeExpiredPii.mockResolvedValue(3);
-      const now = new Date();
 
       // When
       await scheduler.purgeExpiredPii();
@@ -34,7 +33,9 @@ describe('PiiPurgeScheduler', () => {
       // Then
       expect(mockApplicationRepository.purgeExpiredPii).toHaveBeenCalledTimes(1);
 
-      const calledCutoff = mockApplicationRepository.purgeExpiredPii.mock.calls[0][0].cutoffDate;
+      const calledCutoff = (
+        mockApplicationRepository.purgeExpiredPii.mock.calls[0] as [{ cutoffDate: Date }]
+      )[0].cutoffDate;
       const expectedCutoff = new Date();
       expectedCutoff.setDate(expectedCutoff.getDate() - 180);
 
