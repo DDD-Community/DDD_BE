@@ -13,8 +13,12 @@ import { ApiTags } from '@nestjs/swagger';
 
 import type { JwtUser } from '../../auth/application/auth.type';
 import { AuthUser } from '../../common/decorator/auth-user.decorator';
+import { Roles } from '../../common/decorator/roles.decorator';
+import { RolesGuard } from '../../common/guard/roles.guard';
 import { ApiResponse } from '../../common/response/api-response';
 import { ApiDoc } from '../../common/swagger/api-doc.decorator';
+import { UserRole } from '../../user/domain/user.role';
+import { ApplicationQueryService } from '../application/application-query.service';
 import { ApplicationService } from '../application/application.service';
 import {
   ApplicationAdminFilterDto,
@@ -22,12 +26,15 @@ import {
 } from './dto/application.request.dto';
 import { AdminApplicationFormResponseDto } from './dto/application.response.dto';
 
-// TODO: Admin Role Guard 적용 필요
 @ApiTags('Admin - Application')
 @Controller({ path: 'admin/applications', version: '1' })
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(AuthGuard('jwt'), RolesGuard)
+@Roles(UserRole.계정관리, UserRole.면접관)
 export class AdminApplicationController {
-  constructor(private readonly applicationService: ApplicationService) {}
+  constructor(
+    private readonly applicationService: ApplicationService,
+    private readonly applicationQueryService: ApplicationQueryService,
+  ) {}
 
   @ApiDoc({
     summary: '어드민 지원서 목록 조회',
@@ -36,9 +43,19 @@ export class AdminApplicationController {
     auth: true,
   })
   @Get()
-  async getApplications(@Query() filter: ApplicationAdminFilterDto) {
-    const forms = await this.applicationService.findForms(filter);
-    return ApiResponse.ok(forms.map((form) => AdminApplicationFormResponseDto.from(form)));
+  async getApplications(
+    @AuthUser() user: JwtUser,
+    @Query() filter: ApplicationAdminFilterDto,
+  ) {
+    const applicationAdminFilter = {
+      cohortId: filter.cohortId,
+      cohortPartId: filter.cohortPartId,
+      status: filter.status,
+    };
+    const forms = await this.applicationQueryService.findFormsWithFilter(applicationAdminFilter);
+    return ApiResponse.ok(
+      forms.map((form) => AdminApplicationFormResponseDto.from(form, user.roles)),
+    );
   }
 
   @ApiDoc({
@@ -48,9 +65,12 @@ export class AdminApplicationController {
     auth: true,
   })
   @Get(':id')
-  async getApplicationById(@Param('id', ParseIntPipe) id: number) {
-    const form = await this.applicationService.findFormById(id);
-    return ApiResponse.ok(form ? AdminApplicationFormResponseDto.from(form) : null);
+  async getApplicationById(
+    @AuthUser() user: JwtUser,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    const form = await this.applicationService.findFormById({ id });
+    return ApiResponse.ok(AdminApplicationFormResponseDto.from(form, user.roles));
   }
 
   @ApiDoc({
@@ -60,13 +80,20 @@ export class AdminApplicationController {
     operationId: 'application_patchAdminStatusById',
     auth: true,
   })
+  @Roles(UserRole.계정관리)
   @Patch(':id/status')
   async updateApplicationStatus(
     @Param('id', ParseIntPipe) id: number,
     @AuthUser() user: JwtUser,
     @Body() command: UpdateApplicationStatusRequestDto,
   ) {
-    await this.applicationService.updateStatus(id, user.id, command);
+    const updateStatusCommand = {
+      status: command.status,
+    };
+    await this.applicationService.updateStatus(
+      { formId: id, adminId: user.id },
+      updateStatusCommand,
+    );
     return ApiResponse.ok(null, '지원서 상태가 성공적으로 변경되었습니다.');
   }
 }

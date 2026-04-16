@@ -10,6 +10,7 @@ jest.mock('typeorm-transactional', () => ({
 }));
 import { AppException } from '../../common/exception/app.exception';
 import { UserService } from '../../user/application/user.service';
+import { UserRole } from '../../user/domain/user.role';
 import { GoogleApiClient } from '../infrastructure/google-api.client';
 import type { GoogleProfile } from './google.type';
 import { GoogleAuthService } from './google-auth.service';
@@ -24,6 +25,7 @@ const mockUserService = {
 
 const mockAuthService = {
   signToken: jest.fn(),
+  extractRoles: jest.fn(),
   generateRefreshToken: jest.fn(),
   hashRefreshToken: jest.fn(),
 };
@@ -58,7 +60,11 @@ describe('GoogleAuthService', () => {
       accessToken: 'google-access-token',
     };
 
-    const user = { id: 1, email: 'test@example.com', userRoles: [] };
+    const user = {
+      id: 1,
+      email: 'test@example.com',
+      userRoles: [{ role: [UserRole.계정관리, UserRole.면접관] }],
+    };
 
     describe('email이 없을 때', () => {
       it('GOOGLE_AUTH_FAILED 예외를 던진다', async () => {
@@ -77,6 +83,7 @@ describe('GoogleAuthService', () => {
         // Given
         mockUserService.register.mockResolvedValue({ user, isNew: true });
         mockAuthService.signToken.mockReturnValue('signed-access-token');
+        mockAuthService.extractRoles.mockReturnValue([UserRole.계정관리, UserRole.면접관]);
         mockAuthService.generateRefreshToken.mockReturnValue({
           token: 'plain-token',
           hash: 'hashed-token',
@@ -90,6 +97,8 @@ describe('GoogleAuthService', () => {
         expect(result.isNew).toBe(true);
         expect(result.user.accessToken).toBe('signed-access-token');
         expect(result.user.refreshToken).toBe('plain-token');
+        expect(result.user.roles).toEqual([UserRole.계정관리, UserRole.면접관]);
+        expect(mockAuthService.extractRoles).toHaveBeenCalledWith(user);
         expect(mockUserService.saveRefreshToken).toHaveBeenCalledWith({
           id: 1,
           refreshToken: 'hashed-token',
@@ -102,6 +111,7 @@ describe('GoogleAuthService', () => {
         // Given
         mockUserService.register.mockResolvedValue({ user, isNew: false });
         mockAuthService.signToken.mockReturnValue('signed-access-token');
+        mockAuthService.extractRoles.mockReturnValue([UserRole.계정관리, UserRole.면접관]);
         mockAuthService.generateRefreshToken.mockReturnValue({
           token: 'plain-token',
           hash: 'hashed-token',
@@ -119,7 +129,12 @@ describe('GoogleAuthService', () => {
   });
 
   describe('refresh', () => {
-    const user = { id: 1, email: 'test@example.com', userRoles: [], refreshToken: 'stored-hash' };
+    const user = {
+      id: 1,
+      email: 'test@example.com',
+      userRoles: [{ role: [UserRole.계정관리] }],
+      refreshToken: 'stored-hash',
+    };
 
     describe('유효한 refresh token일 때', () => {
       it('새 accessToken과 rotated refreshToken을 반환한다', async () => {

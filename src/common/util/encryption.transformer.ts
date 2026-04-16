@@ -3,22 +3,27 @@ import * as crypto from 'crypto';
 import type { ValueTransformer } from 'typeorm';
 
 export class EncryptionTransformer implements ValueTransformer {
+  private static readonly ENCRYPTION_KEY_PATTERN = /^[0-9a-f]{64}$/i;
+  private static configuredEncryptionKey?: Buffer;
   private readonly algorithm = 'aes-256-gcm';
-  private readonly keyLength = 32;
   private readonly logger = new Logger(EncryptionTransformer.name);
 
+  static configure({ encryptionKey }: { encryptionKey: string }): void {
+    if (!EncryptionTransformer.ENCRYPTION_KEY_PATTERN.test(encryptionKey)) {
+      throw new Error('ENCRYPTION_KEY는 64자리 hex 문자열이어야 합니다.');
+    }
+
+    EncryptionTransformer.configuredEncryptionKey = Buffer.from(encryptionKey, 'hex');
+  }
+
   private get encryptionKey(): Buffer {
-    const key = process.env.ENCRYPTION_KEY;
-    if (!key) {
-      throw new Error('ENCRYPTION_KEY 환경 변수가 설정되지 않았습니다.');
+    const configuredEncryptionKey = EncryptionTransformer.configuredEncryptionKey;
+
+    if (!configuredEncryptionKey) {
+      throw new Error('ENCRYPTION_KEY가 초기화되지 않았습니다.');
     }
-    let normalizedKey = key;
-    if (normalizedKey.length < this.keyLength) {
-      normalizedKey = normalizedKey.padEnd(this.keyLength, '0');
-    } else if (normalizedKey.length > this.keyLength) {
-      normalizedKey = normalizedKey.substring(0, this.keyLength);
-    }
-    return Buffer.from(normalizedKey, 'utf8');
+
+    return configuredEncryptionKey;
   }
 
   to(data: string | null | undefined): string | null {
@@ -45,7 +50,7 @@ export class EncryptionTransformer implements ValueTransformer {
     try {
       const parts = data.split(':');
       if (parts.length !== 3) {
-        return data;
+        throw new Error('암호화 데이터 형식이 올바르지 않습니다.');
       }
 
       const [ivHex, authTagHex, encryptedHex] = parts;
@@ -60,7 +65,7 @@ export class EncryptionTransformer implements ValueTransformer {
       return decrypted;
     } catch (error) {
       this.logger.error('복호화 실패 - 암호화 키 불일치 가능성', error);
-      return data;
+      throw new Error('복호화에 실패했습니다.');
     }
   }
 }

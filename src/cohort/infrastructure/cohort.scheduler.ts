@@ -11,7 +11,8 @@ export class CohortScheduler {
 
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
   async transitionExpiredRecruitingCohorts() {
-    this.logger.log('모집 종료된 기수 상태 전환 시작');
+    this.logger.log('모집 시작일/종료일 기준 기수 상태 전환 시작');
+    await this.cohortService.transitionUpcomingToRecruiting();
     await this.cohortService.transitionExpiredToActive();
   }
 }

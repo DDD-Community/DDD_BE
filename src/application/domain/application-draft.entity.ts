@@ -1,10 +1,14 @@
-import { Column, Entity, JoinColumn, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
 import { CohortPart } from '../../cohort/domain/cohort-part.entity';
 import { BaseEntity } from '../../common/core/base.entity';
 import { User } from '../../user/domain/user.entity';
 
 @Entity('application_drafts')
+@Index('uq_application_drafts_user_part_active', ['userId', 'cohortPartId'], {
+  unique: true,
+  where: '"deletedAt" IS NULL',
+})
 export class ApplicationDraft extends BaseEntity {
   @ManyToOne(() => User, { nullable: false, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'userId' })

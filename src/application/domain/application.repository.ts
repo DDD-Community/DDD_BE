@@ -1,67 +1,55 @@
 import { Injectable } from '@nestjs/common';
-import { Type } from 'class-transformer';
-import { IsEnum, IsNumber, IsOptional } from 'class-validator';
-import { FindOptionsWhere } from 'typeorm';
 
-import { WriteRepository } from '../infrastructure/write.repository';
-import { ApplicationStatus } from './application.status';
-import { ApplicationDraft } from './application-draft.entity';
-import { ApplicationForm } from './application-form.entity';
-
-export class ApplicationAdminFilter {
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  cohortId?: number;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  cohortPartId?: number;
-
-  @IsOptional()
-  @IsEnum(ApplicationStatus)
-  status?: ApplicationStatus;
-}
+import type { ApplicationStatus } from '../domain/application.status';
+import { ApplicationDraft } from '../domain/application-draft.entity';
+import { ApplicationForm } from '../domain/application-form.entity';
+import { DraftWriteRepository } from '../infrastructure/draft.write.repository';
+import { FormWriteRepository } from '../infrastructure/form.write.repository';
+import type { ApplicationDraftFilter } from '../infrastructure/write.repository.type';
 
 @Injectable()
 export class ApplicationRepository {
-  constructor(private readonly writeRepository: WriteRepository) {}
+  constructor(
+    private readonly formWriteRepository: FormWriteRepository,
+    private readonly draftWriteRepository: DraftWriteRepository,
+  ) {}
 
   async saveForm({ form }: { form: ApplicationForm }) {
-    return this.writeRepository.saveForm({ form });
+    return this.formWriteRepository.save({ form });
   }
 
   async findFormById({ id }: { id: number }) {
-    return this.writeRepository.findOneForm({ where: { id } });
+    return this.formWriteRepository.findOne({
+      where: { id },
+      includeUser: true,
+    });
   }
 
   async findFormByUserAndPart({ userId, cohortPartId }: { userId: number; cohortPartId: number }) {
-    return this.writeRepository.findOneForm({ where: { userId, cohortPartId } });
+    return this.formWriteRepository.findOne({
+      where: { userId, cohortPartId },
+    });
   }
 
-  async findFormsWithFilter(filter: ApplicationAdminFilter) {
-    const where: FindOptionsWhere<ApplicationForm> = {};
-    if (filter.cohortPartId) where.cohortPartId = filter.cohortPartId;
-    if (filter.status) where.status = filter.status;
-    if (filter.cohortId) where.cohortPart = { cohort: { id: filter.cohortId } };
-
-    return this.writeRepository.findForms({ where });
+  async findFormsByFilter({
+    cohortPartIds,
+    status,
+  }: {
+    cohortPartIds?: number[];
+    status?: ApplicationStatus;
+  }) {
+    return this.formWriteRepository.findMany({
+      where: { cohortPartIds, status },
+    });
   }
 
   async saveDraft({ draft }: { draft: ApplicationDraft }) {
-    const found = await this.writeRepository.findOneDraft({
-      where: { userId: draft.userId, cohortPartId: draft.cohortPartId },
-    });
-    if (found) {
-      found.answers = draft.answers;
-      return this.writeRepository.saveDraftRecord({ draft: found });
-    }
-    return this.writeRepository.saveDraftRecord({ draft });
+    return this.draftWriteRepository.save({ draft });
   }
 
   async findDraftByUserAndPart({ userId, cohortPartId }: { userId: number; cohortPartId: number }) {
-    return this.writeRepository.findOneDraft({ where: { userId, cohortPartId } });
+    const filter: ApplicationDraftFilter = { userId, cohortPartId };
+    return this.draftWriteRepository.findOne({ where: filter });
   }
 
   async deleteDraftByUserAndPart({
@@ -71,6 +59,11 @@ export class ApplicationRepository {
     userId: number;
     cohortPartId: number;
   }) {
-    await this.writeRepository.softDeleteDraft({ where: { userId, cohortPartId } });
+    const filter: ApplicationDraftFilter = { userId, cohortPartId };
+    await this.draftWriteRepository.softDelete({ where: filter });
+  }
+
+  async purgeExpiredPii({ cutoffDate }: { cutoffDate: Date }) {
+    return this.formWriteRepository.purgeExpiredPii({ cutoffDate });
   }
 }

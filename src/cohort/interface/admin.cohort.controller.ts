@@ -15,8 +15,11 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags } from '@nestjs/swagger';
 
+import { Roles } from '../../common/decorator/roles.decorator';
+import { RolesGuard } from '../../common/guard/roles.guard';
 import { ApiResponse } from '../../common/response/api-response';
 import { ApiDoc } from '../../common/swagger/api-doc.decorator';
+import { UserRole } from '../../user/domain/user.role';
 import { CohortService } from '../application/cohort.service';
 import {
   CreateCohortRequestDto,
@@ -27,7 +30,8 @@ import { CohortAdminResponseDto } from './dto/admin-cohort.response.dto';
 
 @ApiTags('Admin - Cohort')
 @Controller({ path: 'admin/cohorts', version: '1' })
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(AuthGuard('jwt'), RolesGuard)
+@Roles(UserRole.계정관리)
 export class AdminCohortController {
   constructor(private readonly cohortService: CohortService) {}
 

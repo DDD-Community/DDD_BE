@@ -2,11 +2,12 @@ import { Column, Entity, ManyToOne } from 'typeorm';
 
 import { BaseEntity } from '../../common/core/base.entity';
 import { Cohort } from './cohort.entity';
+import { CohortPartName } from './cohort-part-name';
 
 @Entity('cohort_parts')
 export class CohortPart extends BaseEntity {
-  @Column()
-  partName: string;
+  @Column({ type: 'enum', enum: CohortPartName })
+  partName: CohortPartName;
 
   @Column({ default: false })
   isOpen: boolean;
@@ -26,7 +27,7 @@ export class CohortPart extends BaseEntity {
     applicationSchema,
     cohort,
   }: {
-    partName: string;
+    partName: CohortPartName;
     isOpen?: boolean;
     applicationSchema: Record<string, unknown>;
     cohort: Cohort;

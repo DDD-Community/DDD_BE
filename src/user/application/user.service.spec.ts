@@ -1,6 +1,7 @@
 import { Test } from '@nestjs/testing';
 
 import { UserRepository } from '../domain/user.repository';
+import { UserRole } from '../domain/user.role';
 import { UserService } from './user.service';
 
 jest.mock('typeorm-transactional', () => ({
@@ -39,7 +40,11 @@ describe('UserService', () => {
       lastName: '홍',
       sub: 'google-sub-123',
     };
-    const savedUser = { id: 1, ...userInput, userRoles: [] };
+    const savedUser = {
+      id: 1,
+      ...userInput,
+      userRoles: [{ role: [UserRole.계정관리] }],
+    };
 
     describe('기존 사용자가 있을 때', () => {
       it('새로 생성하지 않고 기존 유저와 isNew=false를 반환한다', async () => {
@@ -144,7 +149,11 @@ describe('UserService', () => {
   describe('findByRefreshToken', () => {
     it('hash로 유저를 조회한다', async () => {
       // Given
-      const user = { id: 1, email: 'test@example.com', userRoles: [] };
+      const user = {
+        id: 1,
+        email: 'test@example.com',
+        userRoles: [{ role: [UserRole.계정관리] }],
+      };
       mockUserRepository.findByRefreshToken.mockResolvedValue(user);
 
       // When

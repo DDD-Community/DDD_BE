@@ -1,5 +1,5 @@
 import { plainToInstance } from 'class-transformer';
-import { IsNumber, IsOptional, IsString, Max, Min, validateSync } from 'class-validator';
+import { IsNumber, IsOptional, IsString, Matches, Max, Min, validateSync } from 'class-validator';
 
 class EnvironmentVariables {
   @IsNumber()
@@ -47,6 +47,32 @@ class EnvironmentVariables {
 
   @IsString()
   CLIENT_REDIRECT_URL: string;
+
+  @IsString()
+  @Matches(/^[0-9a-fA-F]{64}$/, {
+    message: 'ENCRYPTION_KEY must be a 64-character hex string.',
+  })
+  ENCRYPTION_KEY: string;
+
+  @IsString()
+  @IsOptional()
+  EMAIL_PROVIDER: string = 'console';
+
+  @IsString()
+  @IsOptional()
+  RESEND_API_KEY?: string;
+
+  @IsString()
+  @IsOptional()
+  EMAIL_FROM?: string;
+
+  @IsString()
+  @IsOptional()
+  INTERVIEW_BOOKING_URL?: string;
+
+  @IsString()
+  @IsOptional()
+  DISCORD_INVITE_URL?: string;
 }
 
 export const validate = (config: Record<string, unknown>) => {
@@ -57,7 +83,8 @@ export const validate = (config: Record<string, unknown>) => {
   const errors = validateSync(validated, { skipMissingProperties: false });
 
   if (errors.length > 0) {
-    throw new Error(errors.toString());
+    const messages = errors.flatMap((error) => Object.values(error.constraints ?? {}));
+    throw new Error(messages.join(', '));
   }
 
   return validated;

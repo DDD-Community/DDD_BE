@@ -2,6 +2,13 @@ import { ApiProperty } from '@nestjs/swagger';
 
 import type { Cohort } from '../../domain/cohort.entity';
 import { CohortStatus } from '../../domain/cohort.status';
+import type { CohortPartName } from '../../domain/cohort-part-name';
+
+export enum CohortCtaStatus {
+  PRE_NOTIFICATION = 'PRE_NOTIFICATION',
+  APPLY = 'APPLY',
+  CLOSED = 'CLOSED',
+}
 
 export class PublicCohortResponseDto {
   @ApiProperty({ description: 'ID', example: 1 })
@@ -19,11 +26,38 @@ export class PublicCohortResponseDto {
   @ApiProperty({ description: '기수 상태', enum: CohortStatus })
   status: CohortStatus;
 
+  @ApiProperty({
+    description: '모집 프로세스 일정 JSON',
+    nullable: true,
+    required: false,
+    example: {
+      documentResultAt: '2026-03-20',
+      interviewAt: '2026-03-25',
+      finalResultAt: '2026-03-30',
+    },
+  })
+  process?: Record<string, unknown> | null;
+
+  @ApiProperty({
+    description: '커리큘럼 배열 JSON',
+    nullable: true,
+    required: false,
+    type: [Object],
+    example: [{ week: 1, date: '03.10', title: '오리엔테이션' }],
+  })
+  curriculum?: unknown[] | null;
+
   @ApiProperty({ description: '지원 버튼 활성화 여부', example: true })
   isRecruitmentOpen: boolean;
 
-  @ApiProperty({ description: '모집 중인 파트 목록', example: ['Web', 'Server'] })
-  openParts: string[];
+  @ApiProperty({ description: 'CTA 상태', enum: CohortCtaStatus })
+  ctaStatus: CohortCtaStatus;
+
+  @ApiProperty({
+    description: '모집 중인 파트 목록',
+    example: [{ id: 1, partName: 'FE' }],
+  })
+  openParts: { id: number; partName: CohortPartName }[];
 
   static from(cohort: Cohort): PublicCohortResponseDto {
     const dto = new PublicCohortResponseDto();
@@ -32,8 +66,19 @@ export class PublicCohortResponseDto {
     dto.recruitStartAt = cohort.recruitStartAt;
     dto.recruitEndAt = cohort.recruitEndAt;
     dto.status = cohort.status;
-    dto.openParts = (cohort.parts ?? []).filter((p) => p.isOpen).map((p) => p.partName);
+    dto.process = cohort.process ?? null;
+    dto.curriculum = cohort.curriculum ?? null;
+    dto.openParts = (cohort.parts ?? [])
+      .filter((p) => p.isOpen)
+      .map((p) => ({ id: p.id, partName: p.partName }));
     dto.isRecruitmentOpen = cohort.status === CohortStatus.RECRUITING && dto.openParts.length > 0;
+    if (cohort.status === CohortStatus.UPCOMING) {
+      dto.ctaStatus = CohortCtaStatus.PRE_NOTIFICATION;
+    } else if (cohort.status === CohortStatus.RECRUITING && dto.openParts.length > 0) {
+      dto.ctaStatus = CohortCtaStatus.APPLY;
+    } else {
+      dto.ctaStatus = CohortCtaStatus.CLOSED;
+    }
     return dto;
   }
 }

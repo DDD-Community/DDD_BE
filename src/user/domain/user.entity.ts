@@ -20,7 +20,7 @@ export class User extends BaseEntity {
   @Column({ unique: true })
   sub: string;
 
-  @Column({ type: 'varchar', nullable: true })
+  @Column({ nullable: true })
   refreshToken: string | null;
 
   @Column({ nullable: true })
@@ -29,6 +29,6 @@ export class User extends BaseEntity {
   @Column({ nullable: true })
   googleRefreshToken?: string;
 
-  @OneToMany(() => UserRoleEntity, (userRole) => userRole.user)
+  @OneToMany(() => UserRoleEntity, (userRole) => userRole.user, { cascade: ['insert'] })
   userRoles?: UserRoleEntity[];
 }

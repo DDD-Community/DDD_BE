@@ -1,34 +1,47 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { Transactional } from 'typeorm-transactional';
+import { runOnTransactionCommit, Transactional } from 'typeorm-transactional';
 
-import { CohortService } from '../../cohort/application/cohort.service';
+import { CohortRepository } from '../../cohort/domain/cohort.repository';
 import { AppException } from '../../common/exception/app.exception';
-import { ApplicationAdminFilter, ApplicationRepository } from '../domain/application.repository';
+import { InvalidApplicationStatusTransitionError } from '../domain/application.domain-error';
+import { ApplicationRepository } from '../domain/application.repository';
+import type {
+  SaveDraftCommand,
+  SubmitFormCommand,
+  UpdateStatusCommand,
+} from '../domain/application.type';
 import { ApplicationDraft } from '../domain/application-draft.entity';
 import { ApplicationForm } from '../domain/application-form.entity';
-import {
-  SaveApplicationDraftRequestDto,
-  SubmitApplicationRequestDto,
-  UpdateApplicationStatusRequestDto,
-} from '../interface/dto/application.request.dto';
+import { ApplicationAnswerValidator } from './application-answer.validator';
 
 @Injectable()
 export class ApplicationService {
+  private readonly logger = new Logger(ApplicationService.name);
+
   constructor(
     private readonly applicationRepository: ApplicationRepository,
-    private readonly cohortService: CohortService,
+    private readonly cohortRepository: CohortRepository,
     private readonly eventEmitter: EventEmitter2,
+    private readonly applicationAnswerValidator: ApplicationAnswerValidator,
   ) {}
 
   @Transactional()
-  async saveDraft(
-    { userId }: { userId: number },
-    command: SaveApplicationDraftRequestDto,
-  ): Promise<void> {
-    const cohortPart = await this.cohortService.findPartById(command.cohortPartId);
+  async saveDraft({ userId }: { userId: number }, command: SaveDraftCommand): Promise<void> {
+    const cohortPart = await this.cohortRepository.findPartById({ id: command.cohortPartId });
     if (!cohortPart || !cohortPart.isOpen) {
       throw new AppException('COHORT_PART_CLOSED', HttpStatus.BAD_REQUEST);
+    }
+
+    const found = await this.applicationRepository.findDraftByUserAndPart({
+      userId,
+      cohortPartId: cohortPart.id,
+    });
+
+    if (found) {
+      found.answers = command.answers;
+      await this.applicationRepository.saveDraft({ draft: found });
+      return;
     }
 
     const draft = ApplicationDraft.create({
@@ -36,23 +49,26 @@ export class ApplicationService {
       cohortPartId: cohortPart.id,
       answers: command.answers,
     });
-
     await this.applicationRepository.saveDraft({ draft });
   }
 
   @Transactional()
   async submitForm(
     { userId, email }: { userId: number; email: string },
-    command: SubmitApplicationRequestDto,
+    command: SubmitFormCommand,
   ): Promise<void> {
     if (!command.privacyAgreed) {
       throw new AppException('PRIVACY_AGREEMENT_REQUIRED', HttpStatus.BAD_REQUEST);
     }
 
-    const cohortPart = await this.cohortService.findPartById(command.cohortPartId);
+    const cohortPart = await this.cohortRepository.findPartById({ id: command.cohortPartId });
     if (!cohortPart || !cohortPart.isOpen) {
       throw new AppException('COHORT_PART_CLOSED', HttpStatus.BAD_REQUEST);
     }
+    this.applicationAnswerValidator.validate({
+      answers: command.answers,
+      schema: cohortPart.applicationSchema,
+    });
 
     const found = await this.applicationRepository.findFormByUserAndPart({
       userId,
@@ -80,39 +96,63 @@ export class ApplicationService {
       cohortPartId: cohortPart.id,
     });
 
-    this.eventEmitter.emit('application.submitted', {
-      email,
-      name: command.applicantName,
+    this.logger.log(`지원서 최종 제출: userId=${userId}, cohortPartId=${cohortPart.id}`);
+
+    runOnTransactionCommit(() => {
+      this.eventEmitter.emit('application.submitted', {
+        email,
+        name: command.applicantName,
+      });
     });
   }
 
   @Transactional()
   async updateStatus(
-    formId: number,
-    adminId: number,
-    command: UpdateApplicationStatusRequestDto,
+    { formId, adminId }: { formId: number; adminId: number },
+    command: UpdateStatusCommand,
   ): Promise<void> {
     const form = await this.applicationRepository.findFormById({ id: formId });
     if (!form) {
       throw new AppException('APPLICATION_NOT_FOUND', HttpStatus.NOT_FOUND);
     }
 
-    form.changeStatus(command.status, adminId);
+    try {
+      form.changeStatus(command.status, adminId);
+    } catch (error) {
+      if (error instanceof InvalidApplicationStatusTransitionError) {
+        throw new AppException('INVALID_STATUS_TRANSITION', HttpStatus.BAD_REQUEST);
+      }
+      throw error;
+    }
 
     await this.applicationRepository.saveForm({ form });
 
-    this.eventEmitter.emit('application.status_changed', {
-      email: form.user.email,
-      name: form.applicantName,
-      newStatus: form.status,
+    this.logger.log(
+      `지원서 상태 변경: formId=${formId}, status=${command.status}, adminId=${adminId}`,
+    );
+
+    runOnTransactionCommit(() => {
+      this.eventEmitter.emit('application.status_changed', {
+        email: form.user.email,
+        name: form.applicantName,
+        newStatus: form.status,
+      });
     });
   }
 
-  async findForms(filter: ApplicationAdminFilter) {
-    return this.applicationRepository.findFormsWithFilter(filter);
+  async findDraftByPart({ userId, cohortPartId }: { userId: number; cohortPartId: number }) {
+    const draft = await this.applicationRepository.findDraftByUserAndPart({ userId, cohortPartId });
+    if (!draft) {
+      throw new AppException('APPLICATION_DRAFT_NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+    return draft;
   }
 
-  async findFormById(id: number) {
-    return this.applicationRepository.findFormById({ id });
+  async findFormById({ id }: { id: number }) {
+    const form = await this.applicationRepository.findFormById({ id });
+    if (!form) {
+      throw new AppException('APPLICATION_NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+    return form;
   }
 }

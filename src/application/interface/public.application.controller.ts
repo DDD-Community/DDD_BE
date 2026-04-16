@@ -1,4 +1,14 @@
-import { Body, Controller, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseIntPipe,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags } from '@nestjs/swagger';
 
@@ -11,6 +21,7 @@ import {
   SaveApplicationDraftRequestDto,
   SubmitApplicationRequestDto,
 } from './dto/application.request.dto';
+import { PublicApplicationDraftResponseDto } from './dto/application.response.dto';
 
 @ApiTags('Application')
 @Controller({ path: 'applications', version: '1' })
@@ -27,8 +38,27 @@ export class PublicApplicationController {
   @Post('draft')
   @HttpCode(HttpStatus.OK)
   async saveDraft(@AuthUser() user: JwtUser, @Body() command: SaveApplicationDraftRequestDto) {
-    await this.applicationService.saveDraft({ userId: user.id }, command);
+    const saveDraftCommand = {
+      cohortPartId: command.cohortPartId,
+      answers: command.answers,
+    };
+    await this.applicationService.saveDraft({ userId: user.id }, saveDraftCommand);
     return ApiResponse.ok(null, '지원서 임시저장이 완료되었습니다.');
+  }
+
+  @ApiDoc({
+    summary: '지원서 임시저장 조회',
+    description: '파트별 임시저장 지원서를 조회합니다.',
+    operationId: 'application_getDraftByPart',
+    auth: true,
+  })
+  @Get('draft/:cohortPartId')
+  async findDraftByPart(
+    @AuthUser() user: JwtUser,
+    @Param('cohortPartId', ParseIntPipe) cohortPartId: number,
+  ) {
+    const draft = await this.applicationService.findDraftByPart({ userId: user.id, cohortPartId });
+    return ApiResponse.ok(PublicApplicationDraftResponseDto.from(draft));
   }
 
   @ApiDoc({
@@ -40,7 +70,19 @@ export class PublicApplicationController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   async submitApplication(@AuthUser() user: JwtUser, @Body() command: SubmitApplicationRequestDto) {
-    await this.applicationService.submitForm({ userId: user.id, email: user.email }, command);
+    const submitFormCommand = {
+      cohortPartId: command.cohortPartId,
+      applicantName: command.applicantName,
+      applicantPhone: command.applicantPhone,
+      applicantBirthDate: command.applicantBirthDate,
+      applicantRegion: command.applicantRegion,
+      answers: command.answers,
+      privacyAgreed: command.privacyAgreed,
+    };
+    await this.applicationService.submitForm(
+      { userId: user.id, email: user.email },
+      submitFormCommand,
+    );
     return ApiResponse.ok(null, '지원서 제출이 완료되었습니다.');
   }
 }

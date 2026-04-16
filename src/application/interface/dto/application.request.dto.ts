@@ -1,6 +1,16 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsBoolean, IsEnum, IsNumber, IsObject, IsOptional, IsString } from 'class-validator';
+import {
+  IsBoolean,
+  IsDateString,
+  IsEnum,
+  IsNotEmpty,
+  IsNumber,
+  IsObject,
+  IsOptional,
+  IsString,
+  Matches,
+} from 'class-validator';
 
 import { ApplicationStatus } from '../../domain/application.status';
 
@@ -21,14 +31,19 @@ export class SubmitApplicationRequestDto {
 
   @ApiProperty({ description: '지원자 이름', example: '홍길동' })
   @IsString()
+  @IsNotEmpty()
   applicantName: string;
 
   @ApiProperty({ description: '지원자 연락처', example: '010-1234-5678' })
   @IsString()
+  @IsNotEmpty()
+  @Matches(/^01[0-9]-?\d{3,4}-?\d{4}$/, {
+    message: 'applicantPhone must be a valid Korean mobile number',
+  })
   applicantPhone: string;
 
   @ApiPropertyOptional({ description: '지원자 생년월일', example: '1999-01-01' })
-  @IsString()
+  @IsDateString()
   @IsOptional()
   applicantBirthDate?: string;
 

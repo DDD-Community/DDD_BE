@@ -10,16 +10,19 @@ import { addTransactionalDataSource } from 'typeorm-transactional';
 import { ApplicationModule } from './application/application.module';
 import { CohortModule } from './cohort/cohort.module';
 import { HttpExceptionFilter } from './common/exception/http-exception.filter';
+import { EncryptionTransformer } from './common/util/encryption.transformer';
 import { validate } from './config/env.validation';
 import { createTypeOrmModuleOptions } from './config/typeorm.config';
 import { GoogleModule } from './google/google.module';
 import { HealthModule } from './health/health.module';
 
+const ENV_FILE_PATHS = ['.env.production', '.env.staging', '.env.test', '.env.development', '.env'];
+
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: [`.env.${process.env.NODE_ENV ?? 'development'}`, '.env'],
+      envFilePath: ENV_FILE_PATHS,
       validate,
     }),
     TypeOrmModule.forRootAsync({
@@ -37,7 +40,14 @@ import { HealthModule } from './health/health.module';
   providers: [{ provide: APP_FILTER, useClass: HttpExceptionFilter }],
 })
 export class AppModule implements OnModuleInit {
-  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
+  constructor(
+    @InjectDataSource() private readonly dataSource: DataSource,
+    configService: ConfigService,
+  ) {
+    const encryptionKey = configService.getOrThrow<string>('ENCRYPTION_KEY');
+
+    EncryptionTransformer.configure({ encryptionKey });
+  }
 
   onModuleInit(): void {
     addTransactionalDataSource(this.dataSource);

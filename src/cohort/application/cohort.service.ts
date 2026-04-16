@@ -29,7 +29,28 @@ export class CohortService {
   }
 
   async findActiveCohort() {
-    return this.cohortRepository.findActive();
+    const cohorts = await this.cohortRepository.findActive();
+    if (cohorts.length === 0) {
+      return null;
+    }
+
+    const statusPriority = new Map<CohortStatus, number>([
+      [CohortStatus.RECRUITING, 0],
+      [CohortStatus.UPCOMING, 1],
+      [CohortStatus.ACTIVE, 2],
+      [CohortStatus.CLOSED, 3],
+    ]);
+
+    const sorted = [...cohorts].sort((a, b) => {
+      const left = statusPriority.get(a.status) ?? 99;
+      const right = statusPriority.get(b.status) ?? 99;
+
+      if (left !== right) {
+        return left - right;
+      }
+      return b.recruitStartAt.getTime() - a.recruitStartAt.getTime();
+    });
+    return sorted[0] ?? null;
   }
 
   @Transactional()
@@ -39,7 +60,17 @@ export class CohortService {
       throw new AppException('COHORT_NOT_FOUND', HttpStatus.NOT_FOUND);
     }
 
-    // MEMO: 상태 변경 시 활성 기수 중복 검증은 의도적으로 생략합니다. 단순 수정 API를 지원하며, 상태 전이 로직은 추후 별도 유스케이스로 분리합니다.
+    const isTargetStatus =
+      data.status !== undefined &&
+      [CohortStatus.UPCOMING, CohortStatus.RECRUITING].includes(data.status);
+    const hasOtherActiveCohort = isTargetStatus
+      ? await this.cohortRepository.checkActiveCohortExistsExcept({ id })
+      : false;
+
+    if (isTargetStatus && hasOtherActiveCohort) {
+      throw new AppException('COHORT_ALREADY_EXISTS', HttpStatus.CONFLICT);
+    }
+
     const hasUpdate = Object.values(data).some((v) => v !== undefined);
     if (!hasUpdate) {
       return;
@@ -70,14 +101,25 @@ export class CohortService {
     await this.cohortRepository.deleteById({ id });
   }
 
-  async findPartById(id: number) {
-    return this.cohortRepository.findPartById(id);
+  async findPartById({ id }: { id: number }) {
+    return this.cohortRepository.findPartById({ id });
   }
 
+  @Transactional()
   async transitionExpiredToActive() {
     const expired = await this.cohortRepository.findExpiredRecruiting();
     await Promise.all(
       expired.map(({ id }) => this.cohortRepository.update({ id, status: CohortStatus.ACTIVE })),
+    );
+  }
+
+  @Transactional()
+  async transitionUpcomingToRecruiting() {
+    const upcoming = await this.cohortRepository.findUpcomingToRecruiting();
+    await Promise.all(
+      upcoming.map(({ id }) =>
+        this.cohortRepository.update({ id, status: CohortStatus.RECRUITING }),
+      ),
     );
   }
 }

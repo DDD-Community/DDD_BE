@@ -3,13 +3,14 @@ import { ApiProperty } from '@nestjs/swagger';
 import type { Cohort } from '../../domain/cohort.entity';
 import { CohortStatus } from '../../domain/cohort.status';
 import type { CohortPart } from '../../domain/cohort-part.entity';
+import type { CohortPartName } from '../../domain/cohort-part-name';
 
 export class CohortPartAdminResponseDto {
   @ApiProperty({ description: 'ID', example: 1 })
   id: number;
 
-  @ApiProperty({ description: '파트명', example: 'Web' })
-  partName: string;
+  @ApiProperty({ description: '파트명', example: 'FE' })
+  partName: CohortPartName;
 
   @ApiProperty({ description: '모집 오픈 여부', example: false })
   isOpen: boolean;
@@ -47,6 +48,35 @@ export class CohortAdminResponseDto {
   status: CohortStatus;
 
   @ApiProperty({
+    description: '프로세스 일정 JSON',
+    required: false,
+    nullable: true,
+    example: {
+      documentResultAt: '2026-03-20',
+      interviewAt: '2026-03-25',
+      finalResultAt: '2026-03-30',
+    },
+  })
+  process?: Record<string, unknown> | null;
+
+  @ApiProperty({
+    description: '커리큘럼 배열 JSON',
+    required: false,
+    nullable: true,
+    type: [Object],
+    example: [{ week: 1, date: '03.10', title: '오리엔테이션' }],
+  })
+  curriculum?: unknown[] | null;
+
+  @ApiProperty({
+    description: '파트별 지원서 양식 JSON',
+    required: false,
+    nullable: true,
+    example: { PM: { questions: [] }, FE: { questions: [] } },
+  })
+  applicationForm?: Record<string, unknown> | null;
+
+  @ApiProperty({
     description: '파트별 모집 설정 목록',
     type: [CohortPartAdminResponseDto],
   })
@@ -65,6 +95,9 @@ export class CohortAdminResponseDto {
     dto.recruitStartAt = cohort.recruitStartAt;
     dto.recruitEndAt = cohort.recruitEndAt;
     dto.status = cohort.status;
+    dto.process = cohort.process ?? null;
+    dto.curriculum = cohort.curriculum ?? null;
+    dto.applicationForm = cohort.applicationForm ?? null;
     dto.parts = (cohort.parts ?? []).map((part) => CohortPartAdminResponseDto.from(part));
     dto.createdAt = cohort.createdAt;
     dto.updatedAt = cohort.updatedAt;
