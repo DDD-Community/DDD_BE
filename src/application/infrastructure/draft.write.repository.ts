@@ -31,8 +31,8 @@ export class DraftWriteRepository {
       throw new Error('ApplicationDraft softDelete requires at least one where condition.');
     }
 
-    const queryBuilder = this.repository.createQueryBuilder('draft').softDelete();
-    this.applyFilter({ queryBuilder, filter: where, alias: 'draft' });
+    const queryBuilder = this.repository.createQueryBuilder().softDelete();
+    this.applyFilter({ queryBuilder, filter: where, alias: '' });
     await queryBuilder.execute();
   }
 
@@ -49,16 +49,18 @@ export class DraftWriteRepository {
     filter: ApplicationDraftFilter;
     alias?: string;
   }) {
+    const prefix = alias ? `${alias}.` : '';
+
     if (filter.id !== undefined) {
-      queryBuilder.andWhere(`${alias}.id = :id`, { id: filter.id });
+      queryBuilder.andWhere(`${prefix}id = :id`, { id: filter.id });
     }
 
     if (filter.userId !== undefined) {
-      queryBuilder.andWhere(`${alias}.userId = :userId`, { userId: filter.userId });
+      queryBuilder.andWhere(`${prefix}"userId" = :userId`, { userId: filter.userId });
     }
 
     if (filter.cohortPartId !== undefined) {
-      queryBuilder.andWhere(`${alias}.cohortPartId = :cohortPartId`, {
+      queryBuilder.andWhere(`${prefix}"cohortPartId" = :cohortPartId`, {
         cohortPartId: filter.cohortPartId,
       });
     }
