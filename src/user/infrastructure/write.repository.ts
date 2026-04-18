@@ -2,13 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { DataSource, Repository } from 'typeorm';
 
 import { User } from '../domain/user.entity';
-import { UserType } from '../domain/user.type';
-
-type UserFindCondition = {
-  email?: string;
-  id?: number;
-  refreshToken?: string;
-};
+import type { UserFindCondition, UserSavePatch, UserUpdatePatch } from './write.repository.type';
 
 @Injectable()
 export class WriteRepository {
@@ -18,48 +12,48 @@ export class WriteRepository {
     this.repository = dataSource.getRepository(User);
   }
 
-  async create({ user }: { user: UserType }) {
-    return this.repository.save(user);
+  async save({ user }: { user: UserSavePatch }) {
+    const entity = this.repository.create(user);
+    return this.repository.save(entity);
   }
 
-  async softDelete({ id }: { id: number }) {
-    await this.repository.softDelete(id);
-  }
-
-  async restore({ id }: { id: number }) {
-    await this.repository.restore(id);
-  }
-
-  async findOne(condition: UserFindCondition, withDeleted = false) {
+  async findOne({
+    where,
+    includeRoles = false,
+    withDeleted = false,
+  }: {
+    where: UserFindCondition;
+    includeRoles?: boolean;
+    withDeleted?: boolean;
+  }) {
     return this.repository.findOne({
-      where: condition,
-      relations: { userRoles: true },
+      where,
+      relations: includeRoles ? { userRoles: true } : undefined,
       withDeleted,
     });
   }
 
-  async update({ id, refreshToken }: { id: number; refreshToken: string | null }) {
-    await this.repository.update(id, { refreshToken });
+  async update({ id, patch }: { id: number; patch: UserUpdatePatch }) {
+    await this.repository.update(id, patch);
   }
 
-  async updateGoogleTokens({
-    id,
-    googleAccessToken,
-    googleRefreshToken,
-  }: {
-    id: number;
-    googleAccessToken?: string;
-    googleRefreshToken?: string;
-  }) {
-    const updateData: Partial<User> = {};
-    if (googleAccessToken !== undefined) {
-      updateData.googleAccessToken = googleAccessToken;
+  async softDelete({ where }: { where: UserFindCondition }) {
+    if (this.isEmptyWhere(where)) {
+      throw new Error('User softDelete requires at least one where condition.');
     }
-    if (googleRefreshToken !== undefined) {
-      updateData.googleRefreshToken = googleRefreshToken;
+
+    await this.repository.softDelete(where);
+  }
+
+  async restore({ where }: { where: UserFindCondition }) {
+    if (this.isEmptyWhere(where)) {
+      throw new Error('User restore requires at least one where condition.');
     }
-    if (Object.keys(updateData).length > 0) {
-      await this.repository.update(id, updateData);
-    }
+
+    await this.repository.restore(where);
+  }
+
+  private isEmptyWhere(where: UserFindCondition) {
+    return Object.values(where).every((value) => value === undefined);
   }
 }

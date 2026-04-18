@@ -29,6 +29,6 @@ export class User extends BaseEntity {
   @Column({ nullable: true })
   googleRefreshToken?: string;
 
-  @OneToMany(() => UserRoleEntity, (userRole) => userRole.user)
+  @OneToMany(() => UserRoleEntity, (userRole) => userRole.user, { cascade: ['insert'] })
   userRoles?: UserRoleEntity[];
 }

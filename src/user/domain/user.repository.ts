@@ -1,22 +1,30 @@
 import { Injectable } from '@nestjs/common';
 
+import type { UserType } from '../domain/user.type';
 import { WriteRepository } from '../infrastructure/write.repository';
-import type { UserType } from './user.type';
+import type { UserUpdatePatch } from '../infrastructure/write.repository.type';
 
 @Injectable()
 export class UserRepository {
   constructor(private readonly writeRepository: WriteRepository) {}
 
   async findByEmail({ email, withDeleted = false }: { email: string; withDeleted?: boolean }) {
-    return this.writeRepository.findOne({ email }, withDeleted);
+    return this.writeRepository.findOne({
+      where: { email },
+      includeRoles: true,
+      withDeleted,
+    });
   }
 
   async findById({ id }: { id: number }) {
-    return this.writeRepository.findOne({ id });
+    return this.writeRepository.findOne({ where: { id }, includeRoles: true });
   }
 
   async findByRefreshToken({ hash }: { hash: string }) {
-    return this.writeRepository.findOne({ refreshToken: hash });
+    return this.writeRepository.findOne({
+      where: { refreshToken: hash },
+      includeRoles: true,
+    });
   }
 
   async register({
@@ -27,21 +35,30 @@ export class UserRepository {
     googleAccessToken,
     googleRefreshToken,
   }: UserType) {
-    return this.writeRepository.create({
-      user: { email, firstName, lastName, sub, googleAccessToken, googleRefreshToken },
+    return this.writeRepository.save({
+      user: {
+        email,
+        firstName,
+        lastName,
+        sub,
+        googleAccessToken,
+        googleRefreshToken,
+        userRoles: [{ role: [] }],
+      },
     });
   }
 
   async saveRefreshToken({ id, refreshToken }: { id: number; refreshToken: string | null }) {
-    await this.writeRepository.update({ id, refreshToken });
+    const patch: UserUpdatePatch = { refreshToken };
+    await this.writeRepository.update({ id, patch });
   }
 
   async withdraw({ id }: { id: number }) {
-    await this.writeRepository.softDelete({ id });
+    await this.writeRepository.softDelete({ where: { id } });
   }
 
   async restore({ id }: { id: number }) {
-    await this.writeRepository.restore({ id });
+    await this.writeRepository.restore({ where: { id } });
   }
 
   async updateGoogleTokens({
@@ -53,6 +70,16 @@ export class UserRepository {
     googleAccessToken?: string;
     googleRefreshToken?: string;
   }) {
-    await this.writeRepository.updateGoogleTokens({ id, googleAccessToken, googleRefreshToken });
+    const patch: UserUpdatePatch = {
+      ...(googleAccessToken !== undefined && { googleAccessToken }),
+      ...(googleRefreshToken !== undefined && { googleRefreshToken }),
+    };
+    const hasPatch = Object.keys(patch).length > 0;
+
+    if (!hasPatch) {
+      return;
+    }
+
+    await this.writeRepository.update({ id, patch });
   }
 }

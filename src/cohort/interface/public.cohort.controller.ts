@@ -16,7 +16,7 @@ export class PublicCohortController {
   @ApiDoc({
     summary: '현재 활성 기수 조회',
     description: '현재 모집 중이거나 활동 중인 기수 정보와 홈페이지 CTA 버튼 상태를 반환합니다.',
-    operationId: 'getCohortActive',
+    operationId: 'cohort_getPublicActive',
   })
   @Get('active')
   async findActiveCohort() {

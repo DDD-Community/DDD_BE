@@ -1,6 +1,6 @@
 export enum CohortStatus {
-  PLANNED = 'PLANNED',
+  UPCOMING = 'UPCOMING',
   RECRUITING = 'RECRUITING',
   ACTIVE = 'ACTIVE',
-  COMPLETED = 'COMPLETED',
+  CLOSED = 'CLOSED',
 }

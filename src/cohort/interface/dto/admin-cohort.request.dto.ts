@@ -14,17 +14,16 @@ import {
 } from 'class-validator';
 
 import { CohortStatus } from '../../domain/cohort.status';
+import { CohortPartName } from '../../domain/cohort-part-name';
 
 export class CohortPartConfigDto {
-  @ApiProperty({ description: '파트명', example: 'iOS' })
-  @IsString()
-  @IsNotEmpty()
-  name: string;
+  @ApiProperty({ description: '파트명', enum: CohortPartName, example: CohortPartName.IOS })
+  @IsEnum(CohortPartName)
+  name: CohortPartName;
 
-  @ApiPropertyOptional({ description: '모집 오픈 여부', default: false })
+  @ApiProperty({ description: '모집 오픈 여부', example: true })
   @IsBoolean()
-  @IsOptional()
-  isOpen?: boolean;
+  isOpen: boolean;
 
   @ApiProperty({
     description: '지원서 스키마 JSON',
@@ -56,11 +55,40 @@ export class CreateCohortRequestDto {
   @ApiPropertyOptional({
     description: '기수 상태',
     enum: CohortStatus,
-    default: CohortStatus.PLANNED,
+    default: CohortStatus.UPCOMING,
   })
   @IsEnum(CohortStatus)
   @IsOptional()
   status?: CohortStatus;
+
+  @ApiPropertyOptional({
+    description: '프로세스 일정 JSON (서류 발표일/면접일/최종 발표일 등)',
+    example: {
+      documentResultAt: '2026-03-20',
+      interviewAt: '2026-03-25',
+      finalResultAt: '2026-03-30',
+    },
+  })
+  @IsObject()
+  @IsOptional()
+  process?: Record<string, unknown>;
+
+  @ApiPropertyOptional({
+    description: '커리큘럼 배열 JSON',
+    example: [{ week: 1, date: '03.10', title: '오리엔테이션' }],
+    type: [Object],
+  })
+  @IsArray()
+  @IsOptional()
+  curriculum?: unknown[];
+
+  @ApiPropertyOptional({
+    description: '파트별 지원서 양식 JSON',
+    example: { PM: { questions: [] }, FE: { questions: [] } },
+  })
+  @IsObject()
+  @IsOptional()
+  applicationForm?: Record<string, unknown>;
 
   @ApiPropertyOptional({
     description: '파트별 모집 설정',
@@ -95,6 +123,21 @@ export class UpdateCohortRequestDto {
   @IsEnum(CohortStatus)
   @IsOptional()
   status?: CohortStatus;
+
+  @ApiPropertyOptional({ description: '프로세스 일정 JSON' })
+  @IsObject()
+  @IsOptional()
+  process?: Record<string, unknown>;
+
+  @ApiPropertyOptional({ description: '커리큘럼 배열 JSON', type: [Object] })
+  @IsArray()
+  @IsOptional()
+  curriculum?: unknown[];
+
+  @ApiPropertyOptional({ description: '파트별 지원서 양식 JSON' })
+  @IsObject()
+  @IsOptional()
+  applicationForm?: Record<string, unknown>;
 }
 
 export class UpdateCohortPartsRequestDto {

@@ -16,10 +16,19 @@ export class Cohort extends BaseEntity {
   @Column()
   recruitEndAt: Date;
 
+  @Column({ type: 'jsonb', nullable: true })
+  process?: Record<string, unknown>;
+
+  @Column({ type: 'jsonb', nullable: true })
+  curriculum?: unknown[];
+
+  @Column({ type: 'jsonb', nullable: true })
+  applicationForm?: Record<string, unknown>;
+
   @Column({
     type: 'enum',
     enum: CohortStatus,
-    default: CohortStatus.PLANNED,
+    default: CohortStatus.UPCOMING,
   })
   status: CohortStatus;
 

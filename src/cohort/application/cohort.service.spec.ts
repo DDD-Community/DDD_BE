@@ -15,6 +15,9 @@ jest.mock('typeorm-transactional', () => ({
 const mockCohortRepository = {
   register: jest.fn(),
   checkActiveCohortExists: jest.fn(),
+  findById: jest.fn(),
+  checkActiveCohortExistsExcept: jest.fn(),
+  update: jest.fn(),
 };
 
 describe('CohortService', () => {
@@ -34,10 +37,10 @@ describe('CohortService', () => {
       name: '1기',
       recruitStartAt: new Date('2024-01-01'),
       recruitEndAt: new Date('2024-01-31'),
-      status: CohortStatus.PLANNED,
+      status: CohortStatus.UPCOMING,
     };
 
-    describe('PLANNED 또는 RECRUITING 기수가 이미 존재할 때', () => {
+    describe('UPCOMING 또는 RECRUITING 기수가 이미 존재할 때', () => {
       it('COHORT_ALREADY_EXISTS 예외를 던진다', async () => {
         // Given
         mockCohortRepository.checkActiveCohortExists.mockResolvedValue(true);
@@ -64,6 +67,20 @@ describe('CohortService', () => {
         expect(result).toEqual(createdCohort);
         expect(mockCohortRepository.register).toHaveBeenCalledWith({ cohort: cohortInput });
       });
+    });
+  });
+
+  describe('updateCohort', () => {
+    it('상태를 UPCOMING/RECRUITING으로 변경할 때 다른 활성 기수가 있으면 예외를 던진다', async () => {
+      mockCohortRepository.findById.mockResolvedValue({ id: 1, status: CohortStatus.ACTIVE });
+      mockCohortRepository.checkActiveCohortExistsExcept.mockResolvedValue(true);
+
+      await expect(
+        cohortService.updateCohort({
+          id: 1,
+          data: { status: CohortStatus.RECRUITING },
+        }),
+      ).rejects.toThrow(new AppException('COHORT_ALREADY_EXISTS', HttpStatus.CONFLICT));
     });
   });
 });

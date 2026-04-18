@@ -1,43 +1,79 @@
 import { Injectable } from '@nestjs/common';
 
+import { Cohort } from '../domain/cohort.entity';
+import type { CohortUpdatePatch } from '../domain/cohort.repository.type';
+import { CohortStatus } from '../domain/cohort.status';
+import type { CohortCreateType } from '../domain/cohort.type';
+import { PartWriteRepository } from '../infrastructure/part.write.repository';
 import { WriteRepository } from '../infrastructure/write.repository';
-import { Cohort } from './cohort.entity';
-import { CohortStatus } from './cohort.status';
-import type { CohortCreateType } from './cohort.type';
 
 @Injectable()
 export class CohortRepository {
-  constructor(private readonly writeRepository: WriteRepository) {}
+  constructor(
+    private readonly writeRepository: WriteRepository,
+    private readonly partWriteRepository: PartWriteRepository,
+  ) {}
 
   async register({ cohort }: { cohort: CohortCreateType }) {
-    return this.writeRepository.create({ cohort });
+    return this.writeRepository.save({ cohort });
   }
 
   async checkActiveCohortExists() {
     return this.writeRepository.exists({
-      statuses: [CohortStatus.PLANNED, CohortStatus.RECRUITING],
+      where: {
+        statusIn: [CohortStatus.UPCOMING, CohortStatus.RECRUITING],
+      },
+    });
+  }
+
+  async checkActiveCohortExistsExcept({ id }: { id: number }) {
+    return this.writeRepository.exists({
+      where: {
+        statusIn: [CohortStatus.UPCOMING, CohortStatus.RECRUITING],
+        excludedId: id,
+      },
     });
   }
 
   async findById({ id }: { id: number }) {
-    return this.writeRepository.findOne({ id });
+    return this.writeRepository.findOne({ where: { id }, includeParts: true });
+  }
+
+  async findPartById({ id }: { id: number }) {
+    return this.partWriteRepository.findOne({ where: { id } });
   }
 
   async findActive() {
-    return this.writeRepository.findOneByStatuses({
-      statuses: [CohortStatus.RECRUITING, CohortStatus.ACTIVE],
+    return this.writeRepository.findMany({
+      where: {
+        statusIn: [CohortStatus.RECRUITING, CohortStatus.UPCOMING, CohortStatus.ACTIVE],
+      },
+      includeParts: true,
     });
   }
 
   async findExpiredRecruiting() {
-    return this.writeRepository.findByStatusBefore({
-      status: CohortStatus.RECRUITING,
-      date: new Date(),
+    return this.writeRepository.findMany({
+      where: {
+        status: CohortStatus.RECRUITING,
+        recruitEndAtLt: new Date(),
+      },
+      includeParts: true,
+    });
+  }
+
+  async findUpcomingToRecruiting() {
+    return this.writeRepository.findMany({
+      where: {
+        status: CohortStatus.UPCOMING,
+        recruitStartAtLte: new Date(),
+      },
+      includeParts: true,
     });
   }
 
   async findAll() {
-    return this.writeRepository.find();
+    return this.writeRepository.findMany({ where: {}, includeParts: true });
   }
 
   async update({
@@ -45,15 +81,15 @@ export class CohortRepository {
     name,
     recruitStartAt,
     recruitEndAt,
+    process,
+    curriculum,
+    applicationForm,
     status,
-  }: {
-    id: number;
-    name?: string;
-    recruitStartAt?: Date;
-    recruitEndAt?: Date;
-    status?: CohortStatus;
-  }) {
-    await this.writeRepository.update({ id, name, recruitStartAt, recruitEndAt, status });
+  }: { id: number } & CohortUpdatePatch) {
+    await this.writeRepository.update({
+      id,
+      patch: { name, recruitStartAt, recruitEndAt, process, curriculum, applicationForm, status },
+    });
   }
 
   async save({ cohort }: { cohort: Cohort }) {
@@ -61,6 +97,6 @@ export class CohortRepository {
   }
 
   async deleteById({ id }: { id: number }) {
-    await this.writeRepository.softDelete({ id });
+    await this.writeRepository.softDelete({ where: { id } });
   }
 }

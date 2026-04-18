@@ -40,7 +40,7 @@ export class GoogleAuthService {
     });
     const accessToken = this.authService.signToken(user);
     const { token: refreshToken, hash } = this.authService.generateRefreshToken();
-    const roles = (user.userRoles ?? []).map((userRole) => userRole.role);
+    const roles = this.authService.extractRoles(user);
 
     await this.userService.saveRefreshToken({ id: user.id, refreshToken: hash });
 

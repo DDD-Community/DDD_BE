@@ -59,3 +59,7 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 .omc/
 .claude/
+.codex/*
+PLAN.md
+hey-api.md
+DDD_기능명세서*.docx
