@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 import { EmailLog } from '../domain/email-log.entity';
-import { EmailLogWriteRepository } from '../infrastructure/email-log.write.repository';
+import { NotificationRepository } from '../domain/notification.repository';
 import { ResendEmailClient } from '../infrastructure/resend-email.client';
 
 type SendNotificationEmailPayload = {
@@ -17,7 +17,7 @@ export class NotificationService {
 
   constructor(
     private readonly resendEmailClient: ResendEmailClient,
-    private readonly emailLogWriteRepository: EmailLogWriteRepository,
+    private readonly notificationRepository: NotificationRepository,
   ) {}
 
   async sendEmail({ to, subject, html, text }: SendNotificationEmailPayload): Promise<void> {
@@ -25,12 +25,12 @@ export class NotificationService {
       await this.resendEmailClient.sendEmail({ to, subject, html, text });
 
       const log = EmailLog.createSuccess({ recipientEmail: to, subject });
-      await this.emailLogWriteRepository.save({ log });
+      await this.notificationRepository.saveLog({ log });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
 
       const log = EmailLog.createFailure({ recipientEmail: to, subject, errorMessage });
-      await this.emailLogWriteRepository.save({ log });
+      await this.notificationRepository.saveLog({ log });
 
       this.logger.error(`이메일 발송 실패: to=${to}, subject=${subject}`, errorMessage);
       throw error;

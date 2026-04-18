@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import type { ApplicationStatus } from '../domain/application.status';
+import { ApplicationStatus } from '../domain/application.status';
 import { ApplicationDraft } from '../domain/application-draft.entity';
 import { ApplicationForm } from '../domain/application-form.entity';
 import { DraftWriteRepository } from '../infrastructure/draft.write.repository';
@@ -64,6 +64,12 @@ export class ApplicationRepository {
   }
 
   async purgeExpiredPii({ cutoffDate }: { cutoffDate: Date }) {
-    return this.formWriteRepository.purgeExpiredPii({ cutoffDate });
+    const terminalStatuses = [
+      ApplicationStatus.서류불합격,
+      ApplicationStatus.최종합격,
+      ApplicationStatus.최종불합격,
+    ];
+
+    return this.formWriteRepository.nullifyPii({ terminalStatuses, cutoffDate });
   }
 }

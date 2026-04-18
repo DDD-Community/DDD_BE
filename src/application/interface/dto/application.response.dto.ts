@@ -5,7 +5,7 @@ import { ApplicationStatus } from '../../domain/application.status';
 import { ApplicationDraft } from '../../domain/application-draft.entity';
 import { ApplicationForm } from '../../domain/application-form.entity';
 
-const PII_ACCESSIBLE_ROLES: UserRole[] = [UserRole.계정관리];
+const PII_ACCESSIBLE_ROLES: UserRole[] = [UserRole.계정관리, UserRole.면접관];
 
 export class AdminApplicationFormResponseDto {
   @ApiProperty({ description: 'ID', example: 1 })
@@ -64,7 +64,9 @@ export class AdminApplicationFormResponseDto {
   }
 
   private static maskName(name: string): string {
-    if (name.length <= 1) return '*';
+    if (name.length <= 1) {
+      return '*';
+    }
     return name[0] + '*'.repeat(name.length - 1);
   }
 

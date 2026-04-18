@@ -41,8 +41,33 @@ describe('AdminApplicationFormResponseDto', () => {
     });
   });
 
-  describe('면접관 역할 (PII 마스킹)', () => {
+  describe('면접관 역할 (PII 열람 가능)', () => {
     const roles = [UserRole.면접관];
+
+    it('이름 원문을 반환한다', () => {
+      const dto = AdminApplicationFormResponseDto.from(makeForm(), roles);
+      expect(dto.applicantName).toBe('홍길동');
+    });
+
+    it('전화번호는 가운데만 마스킹한다', () => {
+      const dto = AdminApplicationFormResponseDto.from(makeForm(), roles);
+      expect(dto.applicantPhone).toBe('010-****-5678');
+    });
+
+    it('생년월일과 지역을 원문 반환한다', () => {
+      const dto = AdminApplicationFormResponseDto.from(makeForm(), roles);
+      expect(dto.applicantBirthDate).toBe('1999-01-01');
+      expect(dto.applicantRegion).toBe('서울');
+    });
+
+    it('답변은 그대로 반환한다', () => {
+      const dto = AdminApplicationFormResponseDto.from(makeForm(), roles);
+      expect(dto.answers).toEqual({ motivation: '열심히 하겠습니다.' });
+    });
+  });
+
+  describe('PII 비접근 역할 (면접자 — 마스킹)', () => {
+    const roles = [UserRole.면접자];
 
     it('이름을 마스킹한다', () => {
       const dto = AdminApplicationFormResponseDto.from(makeForm(), roles);
@@ -58,11 +83,6 @@ describe('AdminApplicationFormResponseDto', () => {
       const dto = AdminApplicationFormResponseDto.from(makeForm(), roles);
       expect(dto.applicantBirthDate).toBeNull();
       expect(dto.applicantRegion).toBeNull();
-    });
-
-    it('답변은 그대로 반환한다', () => {
-      const dto = AdminApplicationFormResponseDto.from(makeForm(), roles);
-      expect(dto.answers).toEqual({ motivation: '열심히 하겠습니다.' });
     });
   });
 

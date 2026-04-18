@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource, Repository } from 'typeorm';
 
-import { ApplicationStatus } from '../domain/application.status';
+import type { ApplicationStatus } from '../domain/application.status';
 import { ApplicationForm } from '../domain/application-form.entity';
 import type { ApplicationFormFilter, ApplicationFormQuery } from './write.repository.type';
 
@@ -40,13 +40,13 @@ export class FormWriteRepository {
     return qb.getMany();
   }
 
-  async purgeExpiredPii({ cutoffDate }: { cutoffDate: Date }): Promise<number> {
-    const terminalStatuses = [
-      ApplicationStatus.서류불합격,
-      ApplicationStatus.최종합격,
-      ApplicationStatus.최종불합격,
-    ];
-
+  async nullifyPii({
+    terminalStatuses,
+    cutoffDate,
+  }: {
+    terminalStatuses: ApplicationStatus[];
+    cutoffDate: Date;
+  }): Promise<number> {
     const result = await this.repository
       .createQueryBuilder('form')
       .update(ApplicationForm)

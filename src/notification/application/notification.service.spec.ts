@@ -1,7 +1,7 @@
 import { Test } from '@nestjs/testing';
 
 import { EmailLogStatus } from '../domain/email-log.status';
-import { EmailLogWriteRepository } from '../infrastructure/email-log.write.repository';
+import { NotificationRepository } from '../domain/notification.repository';
 import { ResendEmailClient } from '../infrastructure/resend-email.client';
 import { NotificationService } from './notification.service';
 
@@ -9,8 +9,8 @@ const mockResendEmailClient = {
   sendEmail: jest.fn(),
 };
 
-const mockEmailLogWriteRepository = {
-  save: jest.fn(),
+const mockNotificationRepository = {
+  saveLog: jest.fn(),
 };
 
 describe('NotificationService', () => {
@@ -21,7 +21,7 @@ describe('NotificationService', () => {
       providers: [
         NotificationService,
         { provide: ResendEmailClient, useValue: mockResendEmailClient },
-        { provide: EmailLogWriteRepository, useValue: mockEmailLogWriteRepository },
+        { provide: NotificationRepository, useValue: mockNotificationRepository },
       ],
     }).compile();
 
@@ -40,14 +40,14 @@ describe('NotificationService', () => {
     it('발송 성공 시 SUCCESS 이력을 저장한다', async () => {
       // Given
       mockResendEmailClient.sendEmail.mockResolvedValue(undefined);
-      mockEmailLogWriteRepository.save.mockResolvedValue(undefined);
+      mockNotificationRepository.saveLog.mockResolvedValue(undefined);
 
       // When
       await notificationService.sendEmail(emailPayload);
 
       // Then
       expect(mockResendEmailClient.sendEmail).toHaveBeenCalledWith(emailPayload);
-      const saveCall = mockEmailLogWriteRepository.save.mock.calls[0] as [
+      const saveCall = mockNotificationRepository.saveLog.mock.calls[0] as [
         { log: { recipientEmail: string; subject: string; status: EmailLogStatus } },
       ];
       expect(saveCall[0].log.recipientEmail).toBe('test@example.com');
@@ -58,12 +58,12 @@ describe('NotificationService', () => {
     it('발송 실패 시 FAILED 이력을 저장하고 예외를 던진다', async () => {
       // Given
       mockResendEmailClient.sendEmail.mockRejectedValue(new Error('Resend 전송 실패'));
-      mockEmailLogWriteRepository.save.mockResolvedValue(undefined);
+      mockNotificationRepository.saveLog.mockResolvedValue(undefined);
 
       // When & Then
       await expect(notificationService.sendEmail(emailPayload)).rejects.toThrow('Resend 전송 실패');
 
-      const saveCall = mockEmailLogWriteRepository.save.mock.calls[0] as [
+      const saveCall = mockNotificationRepository.saveLog.mock.calls[0] as [
         {
           log: {
             recipientEmail: string;
