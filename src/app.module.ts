@@ -8,6 +8,7 @@ import { DataSource } from 'typeorm';
 import { addTransactionalDataSource } from 'typeorm-transactional';
 
 import { ApplicationModule } from './application/application.module';
+import { BlogModule } from './blog/blog.module';
 import { CohortModule } from './cohort/cohort.module';
 import { HttpExceptionFilter } from './common/exception/http-exception.filter';
 import { EncryptionTransformer } from './common/util/encryption.transformer';
@@ -36,6 +37,7 @@ const ENV_FILE_PATHS = ['.env.production', '.env.staging', '.env.test', '.env.de
     GoogleModule,
     CohortModule,
     ApplicationModule,
+    BlogModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: HttpExceptionFilter }],
 })
