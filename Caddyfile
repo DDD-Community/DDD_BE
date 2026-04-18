@@ -1,3 +1,3 @@
-admin.dddstudy.site {
+admin.dddstudy.co.kr {
     reverse_proxy app:3000
 }
