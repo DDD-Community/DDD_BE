@@ -59,7 +59,7 @@ describe('BlogService', () => {
       // Then
       expect(result).toEqual(postFixture);
       expect(mockBlogRepository.save).toHaveBeenCalledWith({
-        blogPost: expect.any(BlogPost),
+        blogPost: expect.any(BlogPost) as unknown,
       });
     });
   });
