@@ -29,7 +29,7 @@ import { AdminApplicationFormResponseDto } from './dto/application.response.dto'
 @ApiTags('Admin - Application')
 @Controller({ path: 'admin/applications', version: '1' })
 @UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles(UserRole.계정관리, UserRole.면접관)
+@Roles(UserRole.계정관리, UserRole.운영자, UserRole.면접관)
 export class AdminApplicationController {
   constructor(
     private readonly applicationService: ApplicationService,
@@ -74,7 +74,7 @@ export class AdminApplicationController {
     operationId: 'application_patchAdminStatusById',
     auth: true,
   })
-  @Roles(UserRole.계정관리)
+  @Roles(UserRole.계정관리, UserRole.운영자)
   @Patch(':id/status')
   async updateApplicationStatus(
     @Param('id', ParseIntPipe) id: number,

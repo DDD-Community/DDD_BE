@@ -26,7 +26,7 @@ import { BlogPostResponseDto } from './dto/blog.response.dto';
 @ApiTags('Admin - Blog')
 @Controller({ path: 'admin/blog-posts', version: '1' })
 @UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles(UserRole.계정관리)
+@Roles(UserRole.계정관리, UserRole.운영자)
 export class AdminBlogController {
   constructor(private readonly blogService: BlogService) {}
 
