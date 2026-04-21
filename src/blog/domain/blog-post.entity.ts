@@ -48,9 +48,17 @@ export class BlogPost extends BaseEntity {
     thumbnail?: string;
     externalUrl?: string;
   }): void {
-    if (title !== undefined) this.title = title;
-    if (excerpt !== undefined) this.excerpt = excerpt;
-    if (thumbnail !== undefined) this.thumbnail = thumbnail;
-    if (externalUrl !== undefined) this.externalUrl = externalUrl;
+    if (title !== undefined) {
+      this.title = title;
+    }
+    if (excerpt !== undefined) {
+      this.excerpt = excerpt;
+    }
+    if (thumbnail !== undefined) {
+      this.thumbnail = thumbnail;
+    }
+    if (externalUrl !== undefined) {
+      this.externalUrl = externalUrl;
+    }
   }
 }

@@ -31,7 +31,7 @@ import { CohortAdminResponseDto } from './dto/admin-cohort.response.dto';
 @ApiTags('Admin - Cohort')
 @Controller({ path: 'admin/cohorts', version: '1' })
 @UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles(UserRole.계정관리)
+@Roles(UserRole.계정관리, UserRole.운영자)
 export class AdminCohortController {
   constructor(private readonly cohortService: CohortService) {}
 

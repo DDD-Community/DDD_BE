@@ -5,7 +5,7 @@ import { ApplicationStatus } from '../../domain/application.status';
 import { ApplicationDraft } from '../../domain/application-draft.entity';
 import { ApplicationForm } from '../../domain/application-form.entity';
 
-const PII_ACCESSIBLE_ROLES: UserRole[] = [UserRole.계정관리, UserRole.면접관];
+const PII_ACCESSIBLE_ROLES: UserRole[] = [UserRole.계정관리, UserRole.운영자, UserRole.면접관];
 
 export class AdminApplicationFormResponseDto {
   @ApiProperty({ description: 'ID', example: 1 })

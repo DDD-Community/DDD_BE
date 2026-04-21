@@ -26,6 +26,8 @@ export const ErrorMessage = {
   INTERVIEW_SLOT_ALREADY_RESERVED: '이미 예약된 면접 슬롯입니다.',
 
   BLOG_POST_NOT_FOUND: '블로그 게시글을 찾을 수 없습니다.',
+
+  PROJECT_NOT_FOUND: '프로젝트를 찾을 수 없습니다.',
 } as const;
 
 export type ErrorMessageKey = keyof typeof ErrorMessage;
