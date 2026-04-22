@@ -16,6 +16,7 @@ import { validate } from './config/env.validation';
 import { createTypeOrmModuleOptions } from './config/typeorm.config';
 import { GoogleModule } from './google/google.module';
 import { HealthModule } from './health/health.module';
+import { NotificationModule } from './notification/notification.module';
 import { ProjectModule } from './project/project.module';
 
 const ENV_FILE_PATHS = ['.env.production', '.env.staging', '.env.test', '.env.development', '.env'];
@@ -39,6 +40,7 @@ const ENV_FILE_PATHS = ['.env.production', '.env.staging', '.env.test', '.env.de
     CohortModule,
     ApplicationModule,
     BlogModule,
+    NotificationModule,
     ProjectModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: HttpExceptionFilter }],

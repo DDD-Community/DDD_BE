@@ -28,6 +28,9 @@ export const ErrorMessage = {
   BLOG_POST_NOT_FOUND: '블로그 게시글을 찾을 수 없습니다.',
 
   PROJECT_NOT_FOUND: '프로젝트를 찾을 수 없습니다.',
+
+  EARLY_NOTIFICATION_CONFLICT:
+    '사전 알림 처리 중 일시적인 충돌이 발생했습니다. 다시 시도해주세요.',
 } as const;
 
 export type ErrorMessageKey = keyof typeof ErrorMessage;
