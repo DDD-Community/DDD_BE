@@ -41,7 +41,7 @@ jobs:
           host: ${{ secrets.GCP_VM_HOST }}
           username: ${{ secrets.GCP_VM_USER }}
           key: ${{ secrets.GCP_VM_SSH_KEY }}
-          envs: GHCR_TOKEN,GITHUB_ACTOR,APP_IMAGE,APP_PORT,DB_PORT,DB_USERNAME,DB_PASSWORD,DB_NAME,JWT_SECRET,JWT_EXPIRES_IN,GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET,GOOGLE_CALLBACK_URL,CLIENT_REDIRECT_URL
+          envs: GHCR_TOKEN,GITHUB_ACTOR,APP_IMAGE,APP_PORT,DB_PORT,DB_USERNAME,DB_PASSWORD,DB_NAME,JWT_SECRET,JWT_EXPIRES_IN,GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET,GOOGLE_CALLBACK_URL,CLIENT_REDIRECT_URL,ENCRYPTION_KEY
           script: |
             echo "$GHCR_TOKEN" | sudo docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
             sudo docker pull "$APP_IMAGE"
@@ -61,6 +61,7 @@ jobs:
             printf 'GOOGLE_CLIENT_SECRET=%s\n' "$GOOGLE_CLIENT_SECRET" >> .env.production
             printf 'GOOGLE_CALLBACK_URL=%s\n' "$GOOGLE_CALLBACK_URL" >> .env.production
             printf 'CLIENT_REDIRECT_URL=%s\n' "$CLIENT_REDIRECT_URL" >> .env.production
+            printf 'ENCRYPTION_KEY=%s\n' "$ENCRYPTION_KEY" >> .env.production
             sudo APP_ENV_FILE=.env.production docker compose --env-file .env.production up -d
             for i in $(seq 1 12); do
               curl -sf "http://localhost:${APP_PORT:-3000}/api/v1/health" && break
@@ -86,6 +87,7 @@ jobs:
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           GOOGLE_CALLBACK_URL: ${{ secrets.GOOGLE_CALLBACK_URL }}
           CLIENT_REDIRECT_URL: ${{ secrets.CLIENT_REDIRECT_URL }}
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
 
   export-openapi:
     runs-on: ubuntu-latest
