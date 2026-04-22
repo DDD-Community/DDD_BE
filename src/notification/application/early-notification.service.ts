@@ -114,24 +114,28 @@ export class EarlyNotificationService {
 
     const total = records.length;
     const sentIds: number[] = [];
+    const batchSize = 20;
 
-    const results = await Promise.allSettled(
-      records.map(async (record) => {
-        await this.notificationService.sendEmail({
-          to: record.email,
-          subject,
-          html,
-          text,
-        });
-        return record.id;
-      }),
-    );
+    for (let startIndex = 0; startIndex < records.length; startIndex += batchSize) {
+      const batch = records.slice(startIndex, startIndex + batchSize);
+      const results = await Promise.allSettled(
+        batch.map(async (record) => {
+          await this.notificationService.sendEmail({
+            to: record.email,
+            subject,
+            html,
+            text,
+          });
+          return record.id;
+        }),
+      );
 
-    for (const result of results) {
-      if (result.status === 'fulfilled') {
-        sentIds.push(result.value);
-      } else {
-        this.logger.error('사전 알림 이메일 발송 실패', result.reason);
+      for (const result of results) {
+        if (result.status === 'fulfilled') {
+          sentIds.push(result.value);
+        } else {
+          this.logger.error('사전 알림 이메일 발송 실패', result.reason);
+        }
       }
     }
 

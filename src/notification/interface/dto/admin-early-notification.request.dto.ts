@@ -19,7 +19,17 @@ export class FindAdminEarlyNotificationsQueryDto {
 
   @ApiPropertyOptional({ description: '미발송 대상만 조회', example: true })
   @IsOptional()
-  @Transform(({ value }) => value === 'true' || value === true)
+  @Transform(({ value }) => {
+    if (value === 'true' || value === true) {
+      return true;
+    }
+
+    if (value === 'false' || value === false) {
+      return false;
+    }
+
+    return value as boolean;
+  })
   @IsBoolean()
   onlyUnnotified?: boolean;
 }
