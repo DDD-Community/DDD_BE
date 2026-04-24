@@ -22,6 +22,7 @@ export class ApplicationRepository {
     return this.formWriteRepository.findOne({
       where: { id },
       includeUser: true,
+      includeCohortPart: true,
     });
   }
 

@@ -17,11 +17,15 @@ export class FormWriteRepository {
     return this.repository.save(form);
   }
 
-  async findOne({ where = {}, includeUser = false }: ApplicationFormQuery) {
+  async findOne({ where = {}, includeUser = false, includeCohortPart = false }: ApplicationFormQuery) {
     const qb = this.repository.createQueryBuilder('form');
 
     if (includeUser) {
       qb.leftJoinAndSelect('form.user', 'user');
+    }
+
+    if (includeCohortPart) {
+      qb.leftJoinAndSelect('form.cohortPart', 'cohortPart');
     }
 
     this.applyFilter(qb, where);

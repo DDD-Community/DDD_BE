@@ -11,6 +11,7 @@ export type ApplicationFormFilter = {
 export type ApplicationFormQuery = {
   where?: ApplicationFormFilter;
   includeUser?: boolean;
+  includeCohortPart?: boolean;
 };
 
 export type ApplicationDraftFilter = {
