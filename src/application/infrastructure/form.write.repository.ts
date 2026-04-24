@@ -17,7 +17,11 @@ export class FormWriteRepository {
     return this.repository.save(form);
   }
 
-  async findOne({ where = {}, includeUser = false, includeCohortPart = false }: ApplicationFormQuery) {
+  async findOne({
+    where = {},
+    includeUser = false,
+    includeCohortPart = false,
+  }: ApplicationFormQuery) {
     const qb = this.repository.createQueryBuilder('form');
 
     if (includeUser) {
