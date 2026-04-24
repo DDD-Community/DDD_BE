@@ -19,14 +19,14 @@ export class WriteRepository {
 
   async findOne({ where, relations }: { where: ProjectFilter; relations?: string[] }) {
     return this.repository.findOne({
-      where: this.toWhereOptions(where),
+      where: this.buildWhere(where),
       relations,
     });
   }
 
   async findMany({ where = {}, relations }: { where?: ProjectFilter; relations?: string[] } = {}) {
     return this.repository.find({
-      where: this.toWhereOptions(where),
+      where: this.buildWhere(where),
       relations,
       order: { createdAt: 'DESC' },
     });
@@ -53,7 +53,7 @@ export class WriteRepository {
       qb.leftJoinAndSelect(`project.${relation}`, relation);
     }
 
-    const whereOptions = this.toWhereOptions(where);
+    const whereOptions = this.buildWhere(where);
     if (whereOptions.id !== undefined) {
       qb.andWhere('project.id = :projectId', { projectId: whereOptions.id });
     }
@@ -83,7 +83,7 @@ export class WriteRepository {
   }
 
   async softDelete({ where }: { where: ProjectFilter }) {
-    const whereOptions = this.toWhereOptions(where);
+    const whereOptions = this.buildWhere(where);
 
     if (this.isEmptyWhere(whereOptions)) {
       throw new Error('Project softDelete requires at least one where condition.');
@@ -92,7 +92,7 @@ export class WriteRepository {
     await this.repository.softDelete(whereOptions);
   }
 
-  private toWhereOptions(filter: ProjectFilter): FindOptionsWhere<Project> {
+  private buildWhere(filter: ProjectFilter): FindOptionsWhere<Project> {
     const where: FindOptionsWhere<Project> = {};
 
     if (filter.id !== undefined) {

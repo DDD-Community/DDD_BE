@@ -18,12 +18,12 @@ export class WriteRepository {
   }
 
   async findOne({ where }: { where: BlogPostFilter }) {
-    return this.repository.findOne({ where: this.toWhereOptions(where) });
+    return this.repository.findOne({ where: this.buildWhere(where) });
   }
 
   async findMany({ where = {} }: { where?: BlogPostFilter } = {}) {
     return this.repository.find({
-      where: this.toWhereOptions(where),
+      where: this.buildWhere(where),
       order: { createdAt: 'DESC' },
     });
   }
@@ -60,7 +60,7 @@ export class WriteRepository {
   }
 
   async softDelete({ where }: { where: BlogPostFilter }) {
-    const whereOptions = this.toWhereOptions(where);
+    const whereOptions = this.buildWhere(where);
 
     if (this.isEmptyWhere(whereOptions)) {
       throw new Error('BlogPost softDelete requires at least one where condition.');
@@ -69,7 +69,7 @@ export class WriteRepository {
     await this.repository.softDelete(whereOptions);
   }
 
-  private toWhereOptions(filter: BlogPostFilter): FindOptionsWhere<BlogPost> {
+  private buildWhere(filter: BlogPostFilter): FindOptionsWhere<BlogPost> {
     const where: FindOptionsWhere<BlogPost> = {};
 
     if (filter.id !== undefined) {

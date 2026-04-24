@@ -22,7 +22,7 @@ export class WriteRepository {
 
   async findOne({ where, includeParts }: { where: CohortFilter; includeParts?: boolean }) {
     return this.repository.findOne({
-      where: this.toWhereOptions(where),
+      where: this.buildWhere(where),
       relations: includeParts ? { parts: true } : undefined,
     });
   }
@@ -32,13 +32,13 @@ export class WriteRepository {
     includeParts,
   }: { where?: CohortFilter; includeParts?: boolean } = {}) {
     return this.repository.find({
-      where: this.toWhereOptions(where),
+      where: this.buildWhere(where),
       relations: includeParts ? { parts: true } : undefined,
     });
   }
 
   async exists({ where }: { where: CohortExistsQuery }) {
-    return this.repository.exists({ where: this.toWhereOptions(where) });
+    return this.repository.exists({ where: this.buildWhere(where) });
   }
 
   async update({ id, patch }: { id: number; patch: CohortUpdatePatch }) {
@@ -50,7 +50,7 @@ export class WriteRepository {
   }
 
   async softDelete({ where }: { where: CohortFilter }) {
-    const whereOptions = this.toWhereOptions(where);
+    const whereOptions = this.buildWhere(where);
 
     if (this.isEmptyWhere(whereOptions)) {
       throw new Error('Cohort softDelete requires at least one where condition.');
@@ -59,7 +59,7 @@ export class WriteRepository {
     await this.repository.softDelete(whereOptions);
   }
 
-  private toWhereOptions(filter: CohortFilter): FindOptionsWhere<Cohort> {
+  private buildWhere(filter: CohortFilter): FindOptionsWhere<Cohort> {
     const where: FindOptionsWhere<Cohort> = {};
     const idCondition = this.resolveIdCondition(filter);
     const statusCondition = this.resolveStatusCondition(filter);

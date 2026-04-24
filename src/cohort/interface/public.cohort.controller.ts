@@ -1,8 +1,6 @@
-import { Controller, HttpStatus } from '@nestjs/common';
-import { Get } from '@nestjs/common';
+import { Controller, Get } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
-import { AppException } from '../../common/exception/app.exception';
 import { ApiResponse } from '../../common/response/api-response';
 import { ApiDoc } from '../../common/swagger/api-doc.decorator';
 import { CohortService } from '../application/cohort.service';
@@ -20,11 +18,7 @@ export class PublicCohortController {
   })
   @Get('active')
   async findActiveCohort() {
-    const cohort = await this.cohortService.findActiveCohort();
-    if (!cohort) {
-      throw new AppException('COHORT_NOT_FOUND', HttpStatus.NOT_FOUND);
-    }
-
+    const cohort = await this.cohortService.findActiveCohortOrThrow();
     return ApiResponse.ok(PublicCohortResponseDto.from(cohort));
   }
 }

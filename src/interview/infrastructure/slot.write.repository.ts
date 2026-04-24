@@ -18,12 +18,12 @@ export class SlotWriteRepository {
   }
 
   async findOne({ where, relations }: { where: SlotFilter; relations?: string[] }) {
-    return this.repository.findOne({ where: this.toWhereOptions(where), relations });
+    return this.repository.findOne({ where: this.buildWhere(where), relations });
   }
 
   async findMany({ where = {}, relations }: { where?: SlotFilter; relations?: string[] } = {}) {
     return this.repository.find({
-      where: this.toWhereOptions(where),
+      where: this.buildWhere(where),
       relations,
       order: { startAt: 'ASC' },
     });
@@ -45,7 +45,7 @@ export class SlotWriteRepository {
     return this.repository.count({ where: { cohortPartId } });
   }
 
-  private toWhereOptions(filter: SlotFilter): FindOptionsWhere<InterviewSlot> {
+  private buildWhere(filter: SlotFilter): FindOptionsWhere<InterviewSlot> {
     const where: FindOptionsWhere<InterviewSlot> = {};
     if (filter.id !== undefined) {
       where.id = filter.id;
