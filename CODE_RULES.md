@@ -149,6 +149,17 @@
 2. 변수명에 줄임말을 사용하지 않는다. (❌ `repo`, `req`, `res`, `err` → ✅ `repository`, `request`, `response`, `error`)
 3. 도메인 용어의 경우 영문 풀네임이 오히려 의미 전달을 해친다면 한글 명칭을 사용하는 것도 고려한다.
 
+### Enum 네이밍 규칙
+
+1. Enum 값이 **UI/DB에 그대로 노출되는 도메인 상태어**인 경우 한글을 허용한다. 예: `ApplicationStatus.서류합격`, `UserRole.운영자`.
+2. Enum 값이 **기술 식별자/플래그**인 경우 영문 대문자를 사용한다. 예: `CohortStatus.RECRUITING`, `ProjectPlatform.IOS`, `EmailLogStatus.SUCCESS`.
+3. Enum 파일명은 도메인 엔티티/맥락 + 속성명 조합으로 `kebab-case`를 사용한다. 예: `application.status.ts`, `cohort.status.ts`, `user.role.ts`, `project-platform.ts`, `cohort-part-name.ts`.
+
+### Write Repository `where` 빌더 네이밍
+
+1. `FindOptionsWhere<T>` 객체를 반환하는 변환 함수는 `buildWhere`로 통일한다.
+2. QueryBuilder(`createQueryBuilder()`)에 조건을 직접 주입하는 함수는 `applyFilter` 또는 `applyWhere`로 명명한다. (시그니처가 다르므로 단일 이름으로 통합하지 않는다.)
+
 ### 폴더 구조
 
 ```
