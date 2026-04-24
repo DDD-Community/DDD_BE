@@ -163,7 +163,16 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Fetch OpenAPI spec
-        run: curl -sf "https://admin.dddstudy.kr/api-docs-json" -o openapi.json
+        run: |
+          for i in {1..10}; do
+            curl -k -sf "https://admin.dddstudy.kr/api-docs-json" -o openapi.json && break
+            echo "OpenAPI spec fetch failed. Retrying in 10s... ($i/10)"
+            sleep 10
+            if [ "$i" -eq 10 ]; then
+              echo "Failed to fetch OpenAPI spec after 10 attempts."
+              exit 1
+            fi
+          done
 
       - name: Commit OpenAPI spec
         run: |
