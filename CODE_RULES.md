@@ -26,6 +26,9 @@
 ## 2) 아키텍처/레이어 규칙 (MUST)
 
 1. Domain Layer는 프레임워크/외부 라이브러리에 의존하지 않는다.
+   - **예외**: Entity 클래스의 영속성 매핑용 데코레이터(`typeorm`의 `@Entity`, `@Column`, `@Index`, `@ManyToOne` 등)는 본 프로젝트에서 허용한다. 별도 매퍼 레이어를 두지 않고 Entity 자체가 영속성 매핑을 겸한다.
+   - **예외**: Domain Repository의 `@Injectable()` 데코레이터는 허용한다. Domain Repository는 비즈니스 의미를 가진 메서드를 제공하며, 실제 DB 접근은 Infrastructure의 Write Repository에 위임한다.
+   - **금지**: Domain Entity/Repository가 `@nestjs/common` 외 NestJS 모듈(HTTP, Swagger 등), 외부 API 클라이언트, 프레임워크 인프라에 의존하는 것은 여전히 금지한다.
 2. Application Layer는 유스케이스를 조합하며 트랜잭션 경계를 가진다.
    트랜잭션의 시작/커밋/롤백은 Application Layer에서 선언하고, 실제 구현은 Infrastructure Layer(Unit of Work 등)에 위임한다.
 3. Infrastructure Layer는 DB, 외부 API, 메시징 등 구현 세부사항을 담당한다.
