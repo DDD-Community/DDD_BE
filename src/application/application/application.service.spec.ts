@@ -4,6 +4,7 @@ import { Test } from '@nestjs/testing';
 
 import { CohortRepository } from '../../cohort/domain/cohort.repository';
 import { AppException } from '../../common/exception/app.exception';
+import { InterviewService } from '../../interview/application/interview.service';
 import type { User } from '../../user/domain/user.entity';
 import { ApplicationRepository } from '../domain/application.repository';
 import { ApplicationStatus } from '../domain/application.status';
@@ -36,6 +37,10 @@ const mockEventEmitter = {
   emit: jest.fn(),
 };
 
+const mockInterviewService = {
+  hasSlotsForCohortPart: jest.fn(),
+};
+
 describe('ApplicationService', () => {
   let applicationService: ApplicationService;
 
@@ -47,6 +52,7 @@ describe('ApplicationService', () => {
         { provide: ApplicationRepository, useValue: mockApplicationRepository },
         { provide: CohortRepository, useValue: mockCohortRepository },
         { provide: EventEmitter2, useValue: mockEventEmitter },
+        { provide: InterviewService, useValue: mockInterviewService },
       ],
     }).compile();
 
@@ -176,6 +182,7 @@ describe('ApplicationService', () => {
     it('허용된 상태 전이는 저장 및 이벤트 발행한다', async () => {
       const form = makeForm();
       mockApplicationRepository.findFormById.mockResolvedValue(form);
+      mockInterviewService.hasSlotsForCohortPart.mockResolvedValue(true);
 
       await applicationService.updateStatus(
         { formId: 1, adminId: 100 },
@@ -190,6 +197,21 @@ describe('ApplicationService', () => {
         name: '홍길동',
         newStatus: ApplicationStatus.서류합격,
       });
+    });
+
+    it('서류합격 전환 시 면접 슬롯이 없으면 예외를 던진다', async () => {
+      const form = makeForm();
+      mockApplicationRepository.findFormById.mockResolvedValue(form);
+      mockInterviewService.hasSlotsForCohortPart.mockResolvedValue(false);
+
+      await expect(
+        applicationService.updateStatus(
+          { formId: 1, adminId: 100 },
+          { status: ApplicationStatus.서류합격 },
+        ),
+      ).rejects.toThrow(new AppException('INTERVIEW_SLOT_NOT_FOUND', HttpStatus.BAD_REQUEST));
+
+      expect(mockApplicationRepository.saveForm).not.toHaveBeenCalled();
     });
   });
 

@@ -73,6 +73,34 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   DISCORD_INVITE_URL?: string;
+
+  @IsString()
+  @IsOptional()
+  STORAGE_PROVIDER?: string = 'console';
+
+  @IsString()
+  @IsOptional()
+  GCS_BUCKET_NAME?: string;
+
+  @IsString()
+  @IsOptional()
+  GCS_PROJECT_ID?: string;
+
+  @IsString()
+  @IsOptional()
+  GCS_KEY_FILE_PATH?: string;
+
+  @IsString()
+  @IsOptional()
+  CALENDAR_PROVIDER?: string = 'console';
+
+  @IsString()
+  @IsOptional()
+  GOOGLE_CALENDAR_ID?: string;
+
+  @IsString()
+  @IsOptional()
+  GOOGLE_CALENDAR_KEY_FILE_PATH?: string;
 }
 
 export const validate = (config: Record<string, unknown>) => {

@@ -1,8 +1,9 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { CohortModule } from '../cohort/cohort.module';
 import { RolesGuard } from '../common/guard/roles.guard';
+import { InterviewModule } from '../interview/interview.module';
 import { NotificationModule } from '../notification/notification.module';
 import { ApplicationService } from './application/application.service';
 import { ApplicationAnswerValidator } from './application/application-answer.validator';
@@ -22,6 +23,7 @@ import { PublicApplicationController } from './interface/public.application.cont
     TypeOrmModule.forFeature([ApplicationForm, ApplicationDraft]),
     CohortModule,
     NotificationModule,
+    forwardRef(() => InterviewModule),
   ],
   controllers: [AdminApplicationController, PublicApplicationController],
   providers: [

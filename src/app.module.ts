@@ -16,7 +16,9 @@ import { validate } from './config/env.validation';
 import { createTypeOrmModuleOptions } from './config/typeorm.config';
 import { GoogleModule } from './google/google.module';
 import { HealthModule } from './health/health.module';
+import { InterviewModule } from './interview/interview.module';
 import { ProjectModule } from './project/project.module';
+import { StorageModule } from './storage/storage.module';
 
 const ENV_FILE_PATHS = ['.env.production', '.env.staging', '.env.test', '.env.development', '.env'];
 
@@ -40,6 +42,8 @@ const ENV_FILE_PATHS = ['.env.production', '.env.staging', '.env.test', '.env.de
     ApplicationModule,
     BlogModule,
     ProjectModule,
+    StorageModule,
+    InterviewModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: HttpExceptionFilter }],
 })

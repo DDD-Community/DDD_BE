@@ -1,11 +1,13 @@
-import { HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { forwardRef, HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { runOnTransactionCommit, Transactional } from 'typeorm-transactional';
 
 import { CohortRepository } from '../../cohort/domain/cohort.repository';
 import { AppException } from '../../common/exception/app.exception';
+import { InterviewService } from '../../interview/application/interview.service';
 import { InvalidApplicationStatusTransitionError } from '../domain/application.domain-error';
 import { ApplicationRepository } from '../domain/application.repository';
+import { ApplicationStatus } from '../domain/application.status';
 import type {
   SaveDraftCommand,
   SubmitFormCommand,
@@ -24,6 +26,8 @@ export class ApplicationService {
     private readonly cohortRepository: CohortRepository,
     private readonly eventEmitter: EventEmitter2,
     private readonly applicationAnswerValidator: ApplicationAnswerValidator,
+    @Inject(forwardRef(() => InterviewService))
+    private readonly interviewService: InterviewService,
   ) {}
 
   @Transactional()
@@ -114,6 +118,15 @@ export class ApplicationService {
     const form = await this.applicationRepository.findFormById({ id: formId });
     if (!form) {
       throw new AppException('APPLICATION_NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+
+    if (command.status === ApplicationStatus.서류합격) {
+      const hasSlots = await this.interviewService.hasSlotsForCohortPart({
+        cohortPartId: form.cohortPartId,
+      });
+      if (!hasSlots) {
+        throw new AppException('INTERVIEW_SLOT_NOT_FOUND', HttpStatus.BAD_REQUEST);
+      }
     }
 
     try {
