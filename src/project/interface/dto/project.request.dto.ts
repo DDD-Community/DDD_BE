@@ -9,9 +9,12 @@ import {
   IsOptional,
   IsString,
   IsUrl,
+  Max,
+  Min,
   ValidateNested,
 } from 'class-validator';
 
+import { MAX_CURSOR_LIMIT } from '../../../common/util/cursor';
 import { ProjectPlatform } from '../../domain/project-platform';
 
 export class ProjectMemberRequestDto {
@@ -122,4 +125,17 @@ export class ProjectListQueryDto {
   @IsEnum(ProjectPlatform)
   @IsOptional()
   platform?: ProjectPlatform;
+
+  @ApiPropertyOptional({ description: '다음 페이지 커서(base64url)' })
+  @IsOptional()
+  @IsString()
+  cursor?: string;
+
+  @ApiPropertyOptional({ description: '페이지 크기', minimum: 1, maximum: MAX_CURSOR_LIMIT })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(MAX_CURSOR_LIMIT)
+  limit?: number;
 }

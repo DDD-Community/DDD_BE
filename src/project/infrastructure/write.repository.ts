@@ -32,6 +32,48 @@ export class WriteRepository {
     });
   }
 
+  async findManyByCursor({
+    where = {},
+    relations,
+    limit,
+    after,
+  }: {
+    where?: ProjectFilter;
+    relations?: string[];
+    limit: number;
+    after?: { createdAt: Date; id: number };
+  }): Promise<Project[]> {
+    const qb = this.repository
+      .createQueryBuilder('project')
+      .orderBy('project.createdAt', 'DESC')
+      .addOrderBy('project.id', 'DESC')
+      .take(limit + 1);
+
+    for (const relation of relations ?? []) {
+      qb.leftJoinAndSelect(`project.${relation}`, relation);
+    }
+
+    const whereOptions = this.toWhereOptions(where);
+    if (whereOptions.id !== undefined) {
+      qb.andWhere('project.id = :projectId', { projectId: whereOptions.id });
+    }
+    if (whereOptions.cohortId !== undefined) {
+      qb.andWhere('project.cohortId = :cohortId', { cohortId: whereOptions.cohortId });
+    }
+    if (where.platform !== undefined) {
+      qb.andWhere(':platform = ANY(project.platforms)', { platform: where.platform });
+    }
+
+    if (after) {
+      qb.andWhere(
+        '(project.createdAt < :afterCreatedAt OR (project.createdAt = :afterCreatedAt AND project.id < :afterId))',
+        { afterCreatedAt: after.createdAt, afterId: after.id },
+      );
+    }
+
+    return qb.getMany();
+  }
+
   async update({ id, patch }: { id: number; patch: ProjectUpdatePatch }) {
     const defined = filterDefinedFields(patch);
     if (Object.keys(defined).length === 0) {

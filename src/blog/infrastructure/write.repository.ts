@@ -28,6 +28,29 @@ export class WriteRepository {
     });
   }
 
+  async findManyByCursor({
+    limit,
+    after,
+  }: {
+    limit: number;
+    after?: { createdAt: Date; id: number };
+  }): Promise<BlogPost[]> {
+    const qb = this.repository
+      .createQueryBuilder('post')
+      .orderBy('post.createdAt', 'DESC')
+      .addOrderBy('post.id', 'DESC')
+      .take(limit + 1);
+
+    if (after) {
+      qb.where('post.createdAt < :createdAt OR (post.createdAt = :createdAt AND post.id < :id)', {
+        createdAt: after.createdAt,
+        id: after.id,
+      });
+    }
+
+    return qb.getMany();
+  }
+
   async update({ id, patch }: { id: number; patch: BlogPostUpdatePatch }) {
     const defined = filterDefinedFields(patch);
     if (Object.keys(defined).length === 0) {

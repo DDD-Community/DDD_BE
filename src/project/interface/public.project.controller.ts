@@ -19,8 +19,17 @@ export class PublicProjectController {
   })
   @Get()
   async findAllProjects(@Query() query: ProjectListQueryDto) {
-    const projects = await this.projectService.findAllProjects({ platform: query.platform });
-    return ApiResponse.ok(projects.map((project) => ProjectListResponseDto.from(project)));
+    const { items, nextCursor, hasNext } = await this.projectService.findProjectsByCursor({
+      platform: query.platform,
+      cursor: query.cursor,
+      limit: query.limit,
+    });
+
+    return ApiResponse.ok(
+      items.map((project) => ProjectListResponseDto.from(project)),
+      'success',
+      { nextCursor, hasNext },
+    );
   }
 
   @ApiDoc({
