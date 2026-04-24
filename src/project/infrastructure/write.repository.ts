@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ArrayContains, DataSource, FindOptionsWhere, Repository } from 'typeorm';
 
+import { filterDefinedFields } from '../../common/util/object-utils';
 import { Project } from '../domain/project.entity';
 import type { ProjectFilter, ProjectUpdatePatch } from './write.repository.type';
 
@@ -32,9 +33,7 @@ export class WriteRepository {
   }
 
   async update({ id, patch }: { id: number; patch: ProjectUpdatePatch }) {
-    const defined = Object.fromEntries(
-      Object.entries(patch).filter(([, value]) => value !== undefined),
-    );
+    const defined = filterDefinedFields(patch);
     if (Object.keys(defined).length === 0) {
       return;
     }

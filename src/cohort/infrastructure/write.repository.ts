@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { FindOptionsWhere } from 'typeorm';
 import { DataSource, In, LessThan, LessThanOrEqual, Not, Repository } from 'typeorm';
 
+import { filterDefinedFields } from '../../common/util/object-utils';
 import { Cohort } from '../domain/cohort.entity';
 import type { CohortUpdatePatch } from '../domain/cohort.repository.type';
 import type { CohortCreateType } from '../domain/cohort.type';
@@ -41,7 +42,7 @@ export class WriteRepository {
   }
 
   async update({ id, patch }: { id: number; patch: CohortUpdatePatch }) {
-    const defined = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined));
+    const defined = filterDefinedFields(patch);
     if (Object.keys(defined).length === 0) {
       return;
     }

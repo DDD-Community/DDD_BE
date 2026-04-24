@@ -1,8 +1,8 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
-import { QueryFailedError } from 'typeorm';
 
 import { CohortRepository } from '../../cohort/domain/cohort.repository';
 import { AppException } from '../../common/exception/app.exception';
+import { isPostgresUniqueViolation } from '../../common/util/postgres-error';
 import { EarlyNotificationRepository } from '../domain/early-notification.repository';
 import { NotificationService } from './notification.service';
 
@@ -62,11 +62,7 @@ export class EarlyNotificationService {
     try {
       return await this.earlyNotificationRepository.register({ cohortId, email });
     } catch (error: unknown) {
-      if (
-        error instanceof QueryFailedError &&
-        (error as QueryFailedError & { driverError?: { code?: string } }).driverError?.code ===
-          '23505'
-      ) {
+      if (isPostgresUniqueViolation(error)) {
         const record = await this.earlyNotificationRepository.findOne({ cohortId, email });
         if (!record) {
           throw new AppException('EARLY_NOTIFICATION_CONFLICT', HttpStatus.CONFLICT);

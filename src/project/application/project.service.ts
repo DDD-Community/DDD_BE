@@ -2,6 +2,7 @@ import { HttpStatus, Injectable } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 
 import { AppException } from '../../common/exception/app.exception';
+import { hasDefinedValues } from '../../common/util/object-utils';
 import { Project } from '../domain/project.entity';
 import { ProjectRepository } from '../domain/project.repository';
 import type {
@@ -42,8 +43,7 @@ export class ProjectService {
       throw new AppException('PROJECT_NOT_FOUND', HttpStatus.NOT_FOUND);
     }
 
-    const hasUpdate = Object.values(data).some((value) => value !== undefined);
-    if (!hasUpdate) {
+    if (!hasDefinedValues(data)) {
       return;
     }
 

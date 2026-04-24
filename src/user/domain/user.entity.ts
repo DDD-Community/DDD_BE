@@ -20,7 +20,7 @@ export class User extends BaseEntity {
   @Column({ unique: true })
   sub: string;
 
-  @Column({ type: 'varchar', nullable: true })
+  @Column({ nullable: true })
   refreshToken: string | null;
 
   @Column({ nullable: true })

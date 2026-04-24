@@ -2,6 +2,7 @@ import { HttpStatus, Injectable } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 
 import { AppException } from '../../common/exception/app.exception';
+import { hasDefinedValues } from '../../common/util/object-utils';
 import { CohortRepository } from '../domain/cohort.repository';
 import { CohortStatus } from '../domain/cohort.status';
 import type {
@@ -71,8 +72,7 @@ export class CohortService {
       throw new AppException('COHORT_ALREADY_EXISTS', HttpStatus.CONFLICT);
     }
 
-    const hasUpdate = Object.values(data).some((v) => v !== undefined);
-    if (!hasUpdate) {
+    if (!hasDefinedValues(data)) {
       return;
     }
 

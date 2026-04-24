@@ -32,7 +32,6 @@ export class Project extends BaseEntity {
 
   @OneToMany(() => ProjectMember, (member) => member.project, {
     cascade: true,
-    eager: true,
   })
   members: ProjectMember[];
 

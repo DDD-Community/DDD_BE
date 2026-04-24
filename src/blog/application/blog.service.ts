@@ -2,6 +2,7 @@ import { HttpStatus, Injectable } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 
 import { AppException } from '../../common/exception/app.exception';
+import { hasDefinedValues } from '../../common/util/object-utils';
 import { BlogRepository } from '../domain/blog.repository';
 import type { BlogPostCreateType, BlogPostUpdateType } from '../domain/blog.type';
 import { BlogPost } from '../domain/blog-post.entity';
@@ -35,8 +36,7 @@ export class BlogService {
       throw new AppException('BLOG_POST_NOT_FOUND', HttpStatus.NOT_FOUND);
     }
 
-    const hasUpdate = Object.values(data).some((v) => v !== undefined);
-    if (!hasUpdate) {
+    if (!hasDefinedValues(data)) {
       return;
     }
 
