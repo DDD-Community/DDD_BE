@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 
 import { EmailLog } from '../domain/email-log.entity';
 import { NotificationRepository } from '../domain/notification.repository';
-import { ResendEmailClient } from '../infrastructure/resend-email.client';
+import { GmailEmailClient } from '../infrastructure/gmail-email.client';
 
 type SendNotificationEmailPayload = {
   to: string;
@@ -16,13 +16,13 @@ export class NotificationService {
   private readonly logger = new Logger(NotificationService.name);
 
   constructor(
-    private readonly resendEmailClient: ResendEmailClient,
+    private readonly gmailEmailClient: GmailEmailClient,
     private readonly notificationRepository: NotificationRepository,
   ) {}
 
   async sendEmail({ to, subject, html, text }: SendNotificationEmailPayload): Promise<void> {
     try {
-      await this.resendEmailClient.sendEmail({ to, subject, html, text });
+      await this.gmailEmailClient.sendEmail({ to, subject, html, text });
 
       const log = EmailLog.createSuccess({ recipientEmail: to, subject });
       await this.notificationRepository.saveLog({ log });

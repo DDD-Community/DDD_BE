@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import * as nodemailer from 'nodemailer';
 
 type SendEmailPayload = {
   to: string;
@@ -9,46 +10,33 @@ type SendEmailPayload = {
 };
 
 @Injectable()
-export class ResendEmailClient {
-  private readonly logger = new Logger(ResendEmailClient.name);
+export class GmailEmailClient {
+  private readonly logger = new Logger(GmailEmailClient.name);
 
   constructor(private readonly configService: ConfigService) {}
 
   async sendEmail({ to, subject, html, text }: SendEmailPayload): Promise<void> {
     const provider = (this.configService.get<string>('EMAIL_PROVIDER') ?? 'console').toLowerCase();
-    if (provider !== 'resend') {
+    if (provider !== 'gmail') {
       this.logger.log(`[메일 미리보기] to=${this.maskEmail({ email: to })}, subject=${subject}`);
       return;
     }
 
-    const apiKey = this.configService.get<string>('RESEND_API_KEY');
+    const user = this.configService.get<string>('GMAIL_USER');
+    const pass = this.configService.get<string>('GMAIL_APP_PASSWORD');
     const from = this.configService.get<string>('EMAIL_FROM');
 
-    if (!apiKey || !from) {
-      this.logger.error(
-        'EMAIL_PROVIDER=resend 이지만 RESEND_API_KEY 또는 EMAIL_FROM이 누락되었습니다.',
-      );
+    if (!user || !pass || !from) {
+      this.logger.error('EMAIL_PROVIDER=gmail 이지만 GMAIL_USER, GMAIL_APP_PASSWORD 또는 EMAIL_FROM이 누락되었습니다.');
       return;
     }
 
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from,
-        to: [to],
-        subject,
-        html,
-        text,
-      }),
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user, pass },
     });
 
-    if (!response.ok) {
-      throw new Error(`Resend 전송 실패: status=${response.status}`);
-    }
+    await transporter.sendMail({ from, to, subject, html, text });
   }
 
   private maskEmail({ email }: { email: string }): string {

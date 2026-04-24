@@ -2,10 +2,10 @@ import { Test } from '@nestjs/testing';
 
 import { EmailLogStatus } from '../domain/email-log.status';
 import { NotificationRepository } from '../domain/notification.repository';
-import { ResendEmailClient } from '../infrastructure/resend-email.client';
+import { GmailEmailClient } from '../infrastructure/gmail-email.client';
 import { NotificationService } from './notification.service';
 
-const mockResendEmailClient = {
+const mockGmailEmailClient = {
   sendEmail: jest.fn(),
 };
 
@@ -20,7 +20,7 @@ describe('NotificationService', () => {
     const module = await Test.createTestingModule({
       providers: [
         NotificationService,
-        { provide: ResendEmailClient, useValue: mockResendEmailClient },
+        { provide: GmailEmailClient, useValue: mockGmailEmailClient },
         { provide: NotificationRepository, useValue: mockNotificationRepository },
       ],
     }).compile();
@@ -39,14 +39,14 @@ describe('NotificationService', () => {
   describe('sendEmail', () => {
     it('발송 성공 시 SUCCESS 이력을 저장한다', async () => {
       // Given
-      mockResendEmailClient.sendEmail.mockResolvedValue(undefined);
+      mockGmailEmailClient.sendEmail.mockResolvedValue(undefined);
       mockNotificationRepository.saveLog.mockResolvedValue(undefined);
 
       // When
       await notificationService.sendEmail(emailPayload);
 
       // Then
-      expect(mockResendEmailClient.sendEmail).toHaveBeenCalledWith(emailPayload);
+      expect(mockGmailEmailClient.sendEmail).toHaveBeenCalledWith(emailPayload);
       const saveCall = mockNotificationRepository.saveLog.mock.calls[0] as [
         { log: { recipientEmail: string; subject: string; status: EmailLogStatus } },
       ];
@@ -57,11 +57,11 @@ describe('NotificationService', () => {
 
     it('발송 실패 시 FAILED 이력을 저장하고 예외를 던진다', async () => {
       // Given
-      mockResendEmailClient.sendEmail.mockRejectedValue(new Error('Resend 전송 실패'));
+      mockGmailEmailClient.sendEmail.mockRejectedValue(new Error('Gmail 전송 실패'));
       mockNotificationRepository.saveLog.mockResolvedValue(undefined);
 
       // When & Then
-      await expect(notificationService.sendEmail(emailPayload)).rejects.toThrow('Resend 전송 실패');
+      await expect(notificationService.sendEmail(emailPayload)).rejects.toThrow('Gmail 전송 실패');
 
       const saveCall = mockNotificationRepository.saveLog.mock.calls[0] as [
         {
@@ -76,7 +76,7 @@ describe('NotificationService', () => {
       expect(saveCall[0].log.recipientEmail).toBe('test@example.com');
       expect(saveCall[0].log.subject).toBe('[DDD] 테스트 메일');
       expect(saveCall[0].log.status).toBe(EmailLogStatus.FAILED);
-      expect(saveCall[0].log.errorMessage).toBe('Resend 전송 실패');
+      expect(saveCall[0].log.errorMessage).toBe('Gmail 전송 실패');
     });
   });
 });

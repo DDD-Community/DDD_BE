@@ -11,7 +11,7 @@ import { EmailLog } from './domain/email-log.entity';
 import { NotificationRepository } from './domain/notification.repository';
 import { EarlyNotificationWriteRepository } from './infrastructure/early-notification.write.repository';
 import { EmailLogWriteRepository } from './infrastructure/email-log.write.repository';
-import { ResendEmailClient } from './infrastructure/resend-email.client';
+import { GmailEmailClient } from './infrastructure/gmail-email.client';
 import { AdminEarlyNotificationController } from './interface/admin.early-notification.controller';
 import { PublicEarlyNotificationController } from './interface/public.early-notification.controller';
 
@@ -21,7 +21,7 @@ import { PublicEarlyNotificationController } from './interface/public.early-noti
   providers: [
     NotificationService,
     NotificationRepository,
-    ResendEmailClient,
+    GmailEmailClient,
     EmailLogWriteRepository,
     EarlyNotificationService,
     EarlyNotificationRepository,
