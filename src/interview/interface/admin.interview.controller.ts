@@ -15,7 +15,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags } from '@nestjs/swagger';
 
-import { ApplicationService } from '../../application/application/application.service';
+import { ApplicationService } from '../../application/usecase/application.service';
 import { Roles } from '../../common/decorator/roles.decorator';
 import { RolesGuard } from '../../common/guard/roles.guard';
 import { ApiResponse } from '../../common/response/api-response';

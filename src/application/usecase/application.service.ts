@@ -125,7 +125,7 @@ export class ApplicationService {
         cohortPartId: form.cohortPartId,
       });
       if (!hasSlots) {
-        throw new AppException('INTERVIEW_SLOT_NOT_FOUND', HttpStatus.BAD_REQUEST);
+        throw new AppException('INTERVIEW_SLOTS_NOT_READY', HttpStatus.BAD_REQUEST);
       }
     }
 

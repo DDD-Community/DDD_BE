@@ -209,7 +209,7 @@ describe('ApplicationService', () => {
           { formId: 1, adminId: 100 },
           { status: ApplicationStatus.서류합격 },
         ),
-      ).rejects.toThrow(new AppException('INTERVIEW_SLOT_NOT_FOUND', HttpStatus.BAD_REQUEST));
+      ).rejects.toThrow(new AppException('INTERVIEW_SLOTS_NOT_READY', HttpStatus.BAD_REQUEST));
 
       expect(mockApplicationRepository.saveForm).not.toHaveBeenCalled();
     });

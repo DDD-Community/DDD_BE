@@ -5,9 +5,6 @@ import { CohortModule } from '../cohort/cohort.module';
 import { RolesGuard } from '../common/guard/roles.guard';
 import { InterviewModule } from '../interview/interview.module';
 import { NotificationModule } from '../notification/notification.module';
-import { ApplicationService } from './application/application.service';
-import { ApplicationAnswerValidator } from './application/application-answer.validator';
-import { ApplicationQueryService } from './application/application-query.service';
 import { ApplicationRepository } from './domain/application.repository';
 import { ApplicationDraft } from './domain/application-draft.entity';
 import { ApplicationForm } from './domain/application-form.entity';
@@ -17,6 +14,9 @@ import { FormWriteRepository } from './infrastructure/form.write.repository';
 import { PiiPurgeScheduler } from './infrastructure/pii-purge.scheduler';
 import { AdminApplicationController } from './interface/admin.application.controller';
 import { PublicApplicationController } from './interface/public.application.controller';
+import { ApplicationService } from './usecase/application.service';
+import { ApplicationAnswerValidator } from './usecase/application-answer.validator';
+import { ApplicationQueryService } from './usecase/application-query.service';
 
 @Module({
   imports: [
