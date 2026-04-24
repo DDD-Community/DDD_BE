@@ -1,6 +1,9 @@
 import { Test } from '@nestjs/testing';
 
 import { ApplicationRepository } from '../domain/application.repository';
+import { ApplicationStatus } from '../domain/application.status';
+import type { DraftWriteRepository } from './draft.write.repository';
+import type { FormWriteRepository } from './form.write.repository';
 import { PiiPurgeScheduler } from './pii-purge.scheduler';
 
 const mockApplicationRepository = {
@@ -41,6 +44,30 @@ describe('PiiPurgeScheduler', () => {
 
       const diffMs = Math.abs(calledCutoff.getTime() - expectedCutoff.getTime());
       expect(diffMs).toBeLessThan(1000);
+    });
+  });
+});
+
+describe('ApplicationRepository.purgeExpiredPii (기산점 우선순위)', () => {
+  it('terminalStatuses에 활동완료/활동중단이 포함된 상태로 nullifyPii를 호출한다', async () => {
+    const nullifyPii = jest.fn().mockResolvedValue(0);
+    const formWriteRepository = { nullifyPii } as unknown as FormWriteRepository;
+    const draftWriteRepository = {} as unknown as DraftWriteRepository;
+
+    const repository = new ApplicationRepository(formWriteRepository, draftWriteRepository);
+
+    const cutoffDate = new Date();
+    await repository.purgeExpiredPii({ cutoffDate });
+
+    expect(nullifyPii).toHaveBeenCalledWith({
+      terminalStatuses: expect.arrayContaining([
+        ApplicationStatus.서류불합격,
+        ApplicationStatus.최종합격,
+        ApplicationStatus.최종불합격,
+        ApplicationStatus.활동완료,
+        ApplicationStatus.활동중단,
+      ]) as ApplicationStatus[],
+      cutoffDate,
     });
   });
 });
