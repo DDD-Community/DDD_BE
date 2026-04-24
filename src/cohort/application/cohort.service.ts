@@ -1,6 +1,7 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 
+import { AuditLogService } from '../../audit/application/audit-log.service';
 import { AppException } from '../../common/exception/app.exception';
 import { hasDefinedValues } from '../../common/util/object-utils';
 import { CohortRepository } from '../domain/cohort.repository';
@@ -11,9 +12,15 @@ import type {
   CohortUpdateType,
 } from '../domain/cohort.type';
 
+const AUDIT_ENTITY_TYPE = 'cohort';
+const SYSTEM_ADMIN_ID = 0;
+
 @Injectable()
 export class CohortService {
-  constructor(private readonly cohortRepository: CohortRepository) {}
+  constructor(
+    private readonly cohortRepository: CohortRepository,
+    private readonly auditLogService: AuditLogService,
+  ) {}
 
   @Transactional()
   async createCohort({ cohort }: { cohort: CohortCreateType }) {
@@ -63,7 +70,15 @@ export class CohortService {
   }
 
   @Transactional()
-  async updateCohort({ id, data }: { id: number; data: CohortUpdateType }) {
+  async updateCohort({
+    id,
+    data,
+    adminId,
+  }: {
+    id: number;
+    data: CohortUpdateType;
+    adminId?: number;
+  }) {
     const found = await this.cohortRepository.findById({ id });
     if (!found) {
       throw new AppException('COHORT_NOT_FOUND', HttpStatus.NOT_FOUND);
@@ -84,7 +99,20 @@ export class CohortService {
       return;
     }
 
+    const statusChanged = data.status !== undefined && data.status !== found.status;
+    const previousStatus = found.status;
+
     await this.cohortRepository.update({ id, ...data });
+
+    if (statusChanged && data.status !== undefined) {
+      await this.auditLogService.recordStatusChange({
+        entityType: AUDIT_ENTITY_TYPE,
+        entityId: id,
+        fromValue: previousStatus,
+        toValue: data.status,
+        adminId: adminId ?? SYSTEM_ADMIN_ID,
+      });
+    }
   }
 
   @Transactional()
@@ -117,7 +145,16 @@ export class CohortService {
   async transitionExpiredToActive() {
     const expired = await this.cohortRepository.findExpiredRecruiting();
     await Promise.all(
-      expired.map(({ id }) => this.cohortRepository.update({ id, status: CohortStatus.ACTIVE })),
+      expired.map(async ({ id, status }) => {
+        await this.cohortRepository.update({ id, status: CohortStatus.ACTIVE });
+        await this.auditLogService.recordStatusChange({
+          entityType: AUDIT_ENTITY_TYPE,
+          entityId: id,
+          fromValue: status,
+          toValue: CohortStatus.ACTIVE,
+          adminId: SYSTEM_ADMIN_ID,
+        });
+      }),
     );
   }
 
@@ -125,9 +162,16 @@ export class CohortService {
   async transitionUpcomingToRecruiting() {
     const upcoming = await this.cohortRepository.findUpcomingToRecruiting();
     await Promise.all(
-      upcoming.map(({ id }) =>
-        this.cohortRepository.update({ id, status: CohortStatus.RECRUITING }),
-      ),
+      upcoming.map(async ({ id, status }) => {
+        await this.cohortRepository.update({ id, status: CohortStatus.RECRUITING });
+        await this.auditLogService.recordStatusChange({
+          entityType: AUDIT_ENTITY_TYPE,
+          entityId: id,
+          fromValue: status,
+          toValue: CohortStatus.RECRUITING,
+          adminId: SYSTEM_ADMIN_ID,
+        });
+      }),
     );
   }
 }
