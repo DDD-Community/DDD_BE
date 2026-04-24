@@ -80,7 +80,7 @@ jobs:
             printf 'RESEND_API_KEY=%s\n'     "$RESEND_API_KEY"       >> .env.production
             
             # Interview & Calendar
-            printf 'INTERVIEW_BOOKING_URL=%s\n' "https://dddstudy.kr/interview" >> .env.production
+            printf 'INTERVIEW_BOOKING_URL=%s\n' "https://admin.dddstudy.kr/interview" >> .env.production
             printf 'CALENDAR_PROVIDER=%s\n'  "google"                >> .env.production
             printf 'GOOGLE_CALENDAR_ID=%s\n' "$GOOGLE_CALENDAR_ID"   >> .env.production
             printf 'GOOGLE_CALENDAR_KEY_FILE_PATH=%s\n' "/app/gcp-key.json" >> .env.production

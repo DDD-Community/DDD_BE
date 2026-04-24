@@ -27,7 +27,9 @@ export class GmailEmailClient {
     const from = this.configService.get<string>('EMAIL_FROM');
 
     if (!user || !pass || !from) {
-      this.logger.error('EMAIL_PROVIDER=gmail 이지만 GMAIL_USER, GMAIL_APP_PASSWORD 또는 EMAIL_FROM이 누락되었습니다.');
+      this.logger.error(
+        'EMAIL_PROVIDER=gmail 이지만 GMAIL_USER, GMAIL_APP_PASSWORD 또는 EMAIL_FROM이 누락되었습니다.',
+      );
       return;
     }
 
