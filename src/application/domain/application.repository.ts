@@ -68,6 +68,8 @@ export class ApplicationRepository {
       ApplicationStatus.서류불합격,
       ApplicationStatus.최종합격,
       ApplicationStatus.최종불합격,
+      ApplicationStatus.활동완료,
+      ApplicationStatus.활동중단,
     ];
 
     return this.formWriteRepository.nullifyPii({ terminalStatuses, cutoffDate });

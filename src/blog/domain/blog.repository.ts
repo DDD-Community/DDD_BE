@@ -20,6 +20,16 @@ export class BlogRepository {
     return this.writeRepository.findMany();
   }
 
+  async findPageByCursor({
+    limit,
+    after,
+  }: {
+    limit: number;
+    after?: { createdAt: Date; id: number };
+  }) {
+    return this.writeRepository.findManyByCursor({ limit, after });
+  }
+
   async update({ id, patch }: { id: number; patch: BlogPostUpdatePatch }) {
     await this.writeRepository.update({ id, patch });
   }

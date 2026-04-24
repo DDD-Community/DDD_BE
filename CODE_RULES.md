@@ -26,6 +26,9 @@
 ## 2) 아키텍처/레이어 규칙 (MUST)
 
 1. Domain Layer는 프레임워크/외부 라이브러리에 의존하지 않는다.
+   - **예외**: Entity 클래스의 영속성 매핑용 데코레이터(`typeorm`의 `@Entity`, `@Column`, `@Index`, `@ManyToOne` 등)는 본 프로젝트에서 허용한다. 별도 매퍼 레이어를 두지 않고 Entity 자체가 영속성 매핑을 겸한다.
+   - **예외**: Domain Repository의 `@Injectable()` 데코레이터는 허용한다. Domain Repository는 비즈니스 의미를 가진 메서드를 제공하며, 실제 DB 접근은 Infrastructure의 Write Repository에 위임한다.
+   - **금지**: Domain Entity/Repository가 `@nestjs/common` 외 NestJS 모듈(HTTP, Swagger 등), 외부 API 클라이언트, 프레임워크 인프라에 의존하는 것은 여전히 금지한다.
 2. Application Layer는 유스케이스를 조합하며 트랜잭션 경계를 가진다.
    트랜잭션의 시작/커밋/롤백은 Application Layer에서 선언하고, 실제 구현은 Infrastructure Layer(Unit of Work 등)에 위임한다.
 3. Infrastructure Layer는 DB, 외부 API, 메시징 등 구현 세부사항을 담당한다.
@@ -145,6 +148,17 @@
 1. 변수명에 진행형(-ing)을 사용하지 않는다. 조회된 엔티티/값은 명사형을 사용한다. (❌ `existing` → ✅ `found`, `record`, `target`)
 2. 변수명에 줄임말을 사용하지 않는다. (❌ `repo`, `req`, `res`, `err` → ✅ `repository`, `request`, `response`, `error`)
 3. 도메인 용어의 경우 영문 풀네임이 오히려 의미 전달을 해친다면 한글 명칭을 사용하는 것도 고려한다.
+
+### Enum 네이밍 규칙
+
+1. Enum 값이 **UI/DB에 그대로 노출되는 도메인 상태어**인 경우 한글을 허용한다. 예: `ApplicationStatus.서류합격`, `UserRole.운영자`.
+2. Enum 값이 **기술 식별자/플래그**인 경우 영문 대문자를 사용한다. 예: `CohortStatus.RECRUITING`, `ProjectPlatform.IOS`, `EmailLogStatus.SUCCESS`.
+3. Enum 파일명은 도메인 엔티티/맥락 + 속성명 조합으로 `kebab-case`를 사용한다. 예: `application.status.ts`, `cohort.status.ts`, `user.role.ts`, `project-platform.ts`, `cohort-part-name.ts`.
+
+### Write Repository `where` 빌더 네이밍
+
+1. `FindOptionsWhere<T>` 객체를 반환하는 변환 함수는 `buildWhere`로 통일한다.
+2. QueryBuilder(`createQueryBuilder()`)에 조건을 직접 주입하는 함수는 `applyFilter` 또는 `applyWhere`로 명명한다. (시그니처가 다르므로 단일 이름으로 통합하지 않는다.)
 
 ### 폴더 구조
 

@@ -69,6 +69,18 @@ export class AdminCohortController {
   }
 
   @ApiDoc({
+    summary: '기수 단건 조회',
+    description: '특정 기수의 상세 정보를 조회합니다.',
+    operationId: 'cohort_getAdminById',
+    auth: true,
+  })
+  @Get(':id')
+  async findCohortById(@Param('id', ParseIntPipe) id: number) {
+    const cohort = await this.cohortService.findCohortById({ id });
+    return ApiResponse.ok(CohortAdminResponseDto.from(cohort));
+  }
+
+  @ApiDoc({
     summary: '기수 정보 및 상태 수정',
     description: '기수의 명칭, 일정, 상태 등을 수동으로 수정합니다.',
     operationId: 'cohort_updateAdminById',

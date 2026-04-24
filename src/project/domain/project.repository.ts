@@ -25,6 +25,23 @@ export class ProjectRepository {
     return this.writeRepository.findMany({ where, relations: ['members', 'cohort'] });
   }
 
+  async findPageByCursor({
+    where,
+    limit,
+    after,
+  }: {
+    where?: ProjectFilter;
+    limit: number;
+    after?: { createdAt: Date; id: number };
+  }) {
+    return this.writeRepository.findManyByCursor({
+      where,
+      relations: ['members', 'cohort'],
+      limit,
+      after,
+    });
+  }
+
   async update({ id, patch }: { id: number; patch: ProjectUpdatePatch }) {
     await this.writeRepository.update({ id, patch });
   }

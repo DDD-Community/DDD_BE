@@ -1,5 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, IsString, IsUrl } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsInt, IsNotEmpty, IsOptional, IsString, IsUrl, Max, Min } from 'class-validator';
+
+import { MAX_CURSOR_LIMIT } from '../../../common/util/cursor';
 
 export class CreateBlogPostRequestDto {
   @ApiProperty({ description: '블로그 제목', example: 'DDD 15기 활동 후기' })
@@ -46,4 +49,19 @@ export class UpdateBlogPostRequestDto {
   @IsUrl()
   @IsOptional()
   externalUrl?: string;
+}
+
+export class BlogCursorQueryDto {
+  @ApiPropertyOptional({ description: '다음 페이지 커서(base64url)' })
+  @IsOptional()
+  @IsString()
+  cursor?: string;
+
+  @ApiPropertyOptional({ description: '페이지 크기', minimum: 1, maximum: MAX_CURSOR_LIMIT })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(MAX_CURSOR_LIMIT)
+  limit?: number;
 }

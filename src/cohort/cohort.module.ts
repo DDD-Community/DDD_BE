@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { AuditModule } from '../audit/audit.module';
 import { RolesGuard } from '../common/guard/roles.guard';
 import { CohortService } from './application/cohort.service';
 import { Cohort } from './domain/cohort.entity';
@@ -13,7 +14,7 @@ import { AdminCohortController } from './interface/admin.cohort.controller';
 import { PublicCohortController } from './interface/public.cohort.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Cohort, CohortPart])],
+  imports: [TypeOrmModule.forFeature([Cohort, CohortPart]), AuditModule],
   controllers: [AdminCohortController, PublicCohortController],
   providers: [
     CohortService,

@@ -1,4 +1,3 @@
-// TODO :: 차후 커서 관련 조회시 사용.
 import { FindOptionsWhere } from 'typeorm';
 
 export interface CursorPage<T> {

@@ -2,6 +2,8 @@ import { HttpStatus, Injectable } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 
 import { AppException } from '../../common/exception/app.exception';
+import { decodeCursor, encodeCursor, resolveLimit } from '../../common/util/cursor';
+import { hasDefinedValues } from '../../common/util/object-utils';
 import { Project } from '../domain/project.entity';
 import { ProjectRepository } from '../domain/project.repository';
 import type {
@@ -27,6 +29,35 @@ export class ProjectService {
     return this.projectRepository.findAll({ where });
   }
 
+  async findProjectsByCursor({
+    platform,
+    cursor,
+    limit,
+  }: {
+    platform?: ProjectPlatform;
+    cursor?: string;
+    limit?: number;
+  }): Promise<{ items: Project[]; nextCursor: string | null; hasNext: boolean }> {
+    const resolvedLimit = resolveLimit(limit);
+    const claim = cursor ? decodeCursor(cursor) : null;
+    const after = claim ? { createdAt: new Date(claim.createdAt), id: claim.id } : undefined;
+    const where = platform ? { platform } : undefined;
+
+    const fetched = await this.projectRepository.findPageByCursor({
+      where,
+      limit: resolvedLimit,
+      after,
+    });
+
+    const hasNext = fetched.length > resolvedLimit;
+    const items = hasNext ? fetched.slice(0, resolvedLimit) : fetched;
+    const last = items[items.length - 1];
+    const nextCursor =
+      hasNext && last ? encodeCursor({ createdAt: last.createdAt.getTime(), id: last.id }) : null;
+
+    return { items, nextCursor, hasNext };
+  }
+
   async findProjectById({ id }: { id: number }) {
     const project = await this.projectRepository.findById({ id });
     if (!project) {
@@ -42,8 +73,7 @@ export class ProjectService {
       throw new AppException('PROJECT_NOT_FOUND', HttpStatus.NOT_FOUND);
     }
 
-    const hasUpdate = Object.values(data).some((value) => value !== undefined);
-    if (!hasUpdate) {
+    if (!hasDefinedValues(data)) {
       return;
     }
 

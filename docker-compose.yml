@@ -11,6 +11,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      - ./gcp-key.json:/app/gcp-key.json:ro
     restart: unless-stopped
 
   postgres:

@@ -1,13 +1,10 @@
-import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, OneToMany } from 'typeorm';
 
-import { BaseEntity } from '../../common/entity/base.entity';
+import { BaseEntity } from '../../common/core/base.entity';
 import { UserRoleEntity } from './user-role.entity';
 
 @Entity('users')
 export class User extends BaseEntity {
-  @PrimaryGeneratedColumn()
-  id: number;
-
   @Column({ unique: true })
   email: string;
 

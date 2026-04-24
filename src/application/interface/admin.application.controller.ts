@@ -18,8 +18,8 @@ import { RolesGuard } from '../../common/guard/roles.guard';
 import { ApiResponse } from '../../common/response/api-response';
 import { ApiDoc } from '../../common/swagger/api-doc.decorator';
 import { UserRole } from '../../user/domain/user.role';
-import { ApplicationService } from '../application/application.service';
-import { ApplicationQueryService } from '../application/application-query.service';
+import { ApplicationService } from '../usecase/application.service';
+import { ApplicationQueryService } from '../usecase/application-query.service';
 import {
   ApplicationAdminFilterDto,
   UpdateApplicationStatusRequestDto,

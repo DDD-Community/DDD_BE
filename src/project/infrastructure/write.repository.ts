@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ArrayContains, DataSource, FindOptionsWhere, Repository } from 'typeorm';
 
+import { filterDefinedFields } from '../../common/util/object-utils';
 import { Project } from '../domain/project.entity';
 import type { ProjectFilter, ProjectUpdatePatch } from './write.repository.type';
 
@@ -18,23 +19,63 @@ export class WriteRepository {
 
   async findOne({ where, relations }: { where: ProjectFilter; relations?: string[] }) {
     return this.repository.findOne({
-      where: this.toWhereOptions(where),
+      where: this.buildWhere(where),
       relations,
     });
   }
 
   async findMany({ where = {}, relations }: { where?: ProjectFilter; relations?: string[] } = {}) {
     return this.repository.find({
-      where: this.toWhereOptions(where),
+      where: this.buildWhere(where),
       relations,
       order: { createdAt: 'DESC' },
     });
   }
 
+  async findManyByCursor({
+    where = {},
+    relations,
+    limit,
+    after,
+  }: {
+    where?: ProjectFilter;
+    relations?: string[];
+    limit: number;
+    after?: { createdAt: Date; id: number };
+  }): Promise<Project[]> {
+    const qb = this.repository
+      .createQueryBuilder('project')
+      .orderBy('project.createdAt', 'DESC')
+      .addOrderBy('project.id', 'DESC')
+      .take(limit + 1);
+
+    for (const relation of relations ?? []) {
+      qb.leftJoinAndSelect(`project.${relation}`, relation);
+    }
+
+    const whereOptions = this.buildWhere(where);
+    if (whereOptions.id !== undefined) {
+      qb.andWhere('project.id = :projectId', { projectId: whereOptions.id });
+    }
+    if (whereOptions.cohortId !== undefined) {
+      qb.andWhere('project.cohortId = :cohortId', { cohortId: whereOptions.cohortId });
+    }
+    if (where.platform !== undefined) {
+      qb.andWhere(':platform = ANY(project.platforms)', { platform: where.platform });
+    }
+
+    if (after) {
+      qb.andWhere(
+        '(project.createdAt < :afterCreatedAt OR (project.createdAt = :afterCreatedAt AND project.id < :afterId))',
+        { afterCreatedAt: after.createdAt, afterId: after.id },
+      );
+    }
+
+    return qb.getMany();
+  }
+
   async update({ id, patch }: { id: number; patch: ProjectUpdatePatch }) {
-    const defined = Object.fromEntries(
-      Object.entries(patch).filter(([, value]) => value !== undefined),
-    );
+    const defined = filterDefinedFields(patch);
     if (Object.keys(defined).length === 0) {
       return;
     }
@@ -42,7 +83,7 @@ export class WriteRepository {
   }
 
   async softDelete({ where }: { where: ProjectFilter }) {
-    const whereOptions = this.toWhereOptions(where);
+    const whereOptions = this.buildWhere(where);
 
     if (this.isEmptyWhere(whereOptions)) {
       throw new Error('Project softDelete requires at least one where condition.');
@@ -51,7 +92,7 @@ export class WriteRepository {
     await this.repository.softDelete(whereOptions);
   }
 
-  private toWhereOptions(filter: ProjectFilter): FindOptionsWhere<Project> {
+  private buildWhere(filter: ProjectFilter): FindOptionsWhere<Project> {
     const where: FindOptionsWhere<Project> = {};
 
     if (filter.id !== undefined) {

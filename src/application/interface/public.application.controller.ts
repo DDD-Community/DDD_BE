@@ -16,7 +16,7 @@ import type { JwtUser } from '../../auth/application/auth.type';
 import { AuthUser } from '../../common/decorator/auth-user.decorator';
 import { ApiResponse } from '../../common/response/api-response';
 import { ApiDoc } from '../../common/swagger/api-doc.decorator';
-import { ApplicationService } from '../application/application.service';
+import { ApplicationService } from '../usecase/application.service';
 import {
   SaveApplicationDraftRequestDto,
   SubmitApplicationRequestDto,

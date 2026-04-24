@@ -1,6 +1,7 @@
 import { HttpStatus } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 
+import { AuditLogService } from '../../audit/application/audit-log.service';
 import { AppException } from '../../common/exception/app.exception';
 import { CohortRepository } from '../domain/cohort.repository';
 import { CohortStatus } from '../domain/cohort.status';
@@ -20,12 +21,20 @@ const mockCohortRepository = {
   update: jest.fn(),
 };
 
+const mockAuditLogService = {
+  recordStatusChange: jest.fn(),
+};
+
 describe('CohortService', () => {
   let cohortService: CohortService;
 
   beforeEach(async () => {
     const module = await Test.createTestingModule({
-      providers: [CohortService, { provide: CohortRepository, useValue: mockCohortRepository }],
+      providers: [
+        CohortService,
+        { provide: CohortRepository, useValue: mockCohortRepository },
+        { provide: AuditLogService, useValue: mockAuditLogService },
+      ],
     }).compile();
 
     cohortService = module.get(CohortService);
