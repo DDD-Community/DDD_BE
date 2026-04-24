@@ -1,6 +1,6 @@
-import { Column, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 
-import { BaseEntity } from '../../common/entity/base.entity';
+import { BaseEntity } from '../../common/core/base.entity';
 import { User } from './user.entity';
 import { UserRole } from './user.role';
 
@@ -10,9 +10,6 @@ import { UserRole } from './user.role';
   where: '"deletedAt" IS NULL',
 })
 export class UserRoleEntity extends BaseEntity {
-  @PrimaryGeneratedColumn()
-  id: number;
-
   @ManyToOne(() => User, (user) => user.userRoles, { nullable: false, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'userId' })
   user: User;
