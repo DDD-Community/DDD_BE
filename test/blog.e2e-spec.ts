@@ -1,6 +1,7 @@
 import { INestApplication, ValidationPipe, VersioningType } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
+import type { Server } from 'http';
 import request from 'supertest';
 
 import { BlogService } from '../src/blog/application/blog.service';
@@ -60,7 +61,9 @@ describe('Public Blog API (e2e)', () => {
     });
 
     // When
-    const response = await request(app.getHttpServer()).get('/api/v1/blog-posts').expect(200);
+    const response = await request(app.getHttpServer() as Server)
+      .get('/api/v1/blog-posts')
+      .expect(200);
 
     // Then
     expect(response.body).toMatchObject({
@@ -68,7 +71,7 @@ describe('Public Blog API (e2e)', () => {
       data: expect.arrayContaining([
         expect.objectContaining({ id: 1, title: '글 1' }),
         expect.objectContaining({ id: 2, title: '글 2' }),
-      ]),
+      ]) as Partial<BlogPost>[],
       meta: { nextCursor: 'next-token', hasNext: true },
     });
     expect(mockBlogService.findPostsByCursor).toHaveBeenCalledWith({
@@ -86,7 +89,9 @@ describe('Public Blog API (e2e)', () => {
     });
 
     // When
-    await request(app.getHttpServer()).get('/api/v1/blog-posts?cursor=abc&limit=5').expect(200);
+    await request(app.getHttpServer() as Server)
+      .get('/api/v1/blog-posts?cursor=abc&limit=5')
+      .expect(200);
 
     // Then
     expect(mockBlogService.findPostsByCursor).toHaveBeenCalledWith({
@@ -96,6 +101,8 @@ describe('Public Blog API (e2e)', () => {
   });
 
   it('GET /api/v1/blog-posts?limit=500: limit 상한(100) 초과 시 400을 반환한다', async () => {
-    await request(app.getHttpServer()).get('/api/v1/blog-posts?limit=500').expect(400);
+    await request(app.getHttpServer() as Server)
+      .get('/api/v1/blog-posts?limit=500')
+      .expect(400);
   });
 });
