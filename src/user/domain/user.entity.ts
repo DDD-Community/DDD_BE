@@ -17,7 +17,7 @@ export class User extends BaseEntity {
   @Column({ unique: true })
   sub: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   refreshToken: string | null;
 
   @Column({ nullable: true })

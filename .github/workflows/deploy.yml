@@ -100,7 +100,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Fetch OpenAPI spec
-        run: curl -sf "https://admin.dddstudy.co.kr/api-docs-json" -o openapi.json
+        run: curl -sf "https://admin.dddstudy.kr/api-docs-json" -o openapi.json
 
       - name: Commit OpenAPI spec
         run: |
