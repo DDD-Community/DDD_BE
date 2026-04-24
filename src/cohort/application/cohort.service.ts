@@ -36,6 +36,14 @@ export class CohortService {
     return this.cohortRepository.findAll();
   }
 
+  async findCohortById({ id }: { id: number }) {
+    const cohort = await this.cohortRepository.findById({ id });
+    if (!cohort) {
+      throw new AppException('COHORT_NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+    return cohort;
+  }
+
   async findActiveCohortOrThrow() {
     const cohort = await this.findActiveCohort();
     if (!cohort) {
