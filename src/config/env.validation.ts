@@ -101,6 +101,54 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   GOOGLE_CALENDAR_KEY_FILE_PATH?: string;
+
+  @IsString()
+  @IsOptional()
+  DISCORD_PROVIDER?: string = 'console';
+
+  @IsString()
+  @IsOptional()
+  DISCORD_CLIENT_ID?: string;
+
+  @IsString()
+  @IsOptional()
+  DISCORD_CLIENT_SECRET?: string;
+
+  @IsString()
+  @IsOptional()
+  DISCORD_CALLBACK_URL?: string;
+
+  @IsString()
+  @IsOptional()
+  DISCORD_BOT_TOKEN?: string;
+
+  @IsString()
+  @IsOptional()
+  DISCORD_GUILD_ID?: string;
+
+  @IsString()
+  @IsOptional()
+  DISCORD_ROLE_ID_PM?: string;
+
+  @IsString()
+  @IsOptional()
+  DISCORD_ROLE_ID_PD?: string;
+
+  @IsString()
+  @IsOptional()
+  DISCORD_ROLE_ID_BE?: string;
+
+  @IsString()
+  @IsOptional()
+  DISCORD_ROLE_ID_FE?: string;
+
+  @IsString()
+  @IsOptional()
+  DISCORD_ROLE_ID_IOS?: string;
+
+  @IsString()
+  @IsOptional()
+  DISCORD_ROLE_ID_AOS?: string;
 }
 
 export const validate = (config: Record<string, unknown>) => {

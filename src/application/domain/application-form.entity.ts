@@ -56,6 +56,9 @@ export class ApplicationForm extends BaseEntity {
   announcedAt?: Date;
 
   @Column({ nullable: true })
+  activityEndedAt?: Date;
+
+  @Column({ nullable: true })
   updatedByAdminId?: number;
 
   static create({
@@ -105,6 +108,9 @@ export class ApplicationForm extends BaseEntity {
     if (ApplicationForm.isAnnouncementStatus(newStatus)) {
       this.announcedAt = new Date();
     }
+    if (ApplicationForm.isActivityEndedStatus(newStatus)) {
+      this.activityEndedAt = new Date();
+    }
   }
 
   private static isAnnouncementStatus(status: ApplicationStatus): boolean {
@@ -116,13 +122,20 @@ export class ApplicationForm extends BaseEntity {
     );
   }
 
+  private static isActivityEndedStatus(status: ApplicationStatus): boolean {
+    return status === ApplicationStatus.활동완료 || status === ApplicationStatus.활동중단;
+  }
+
   private validateStatusTransition(current: ApplicationStatus, next: ApplicationStatus): void {
     const allowedTransitions: Record<ApplicationStatus, ApplicationStatus[]> = {
       [ApplicationStatus.서류심사대기]: [ApplicationStatus.서류합격, ApplicationStatus.서류불합격],
       [ApplicationStatus.서류합격]: [ApplicationStatus.최종합격, ApplicationStatus.최종불합격],
       [ApplicationStatus.서류불합격]: [],
-      [ApplicationStatus.최종합격]: [],
+      [ApplicationStatus.최종합격]: [ApplicationStatus.활동중],
       [ApplicationStatus.최종불합격]: [],
+      [ApplicationStatus.활동중]: [ApplicationStatus.활동완료, ApplicationStatus.활동중단],
+      [ApplicationStatus.활동완료]: [],
+      [ApplicationStatus.활동중단]: [],
     };
 
     if (!allowedTransitions[current].includes(next)) {

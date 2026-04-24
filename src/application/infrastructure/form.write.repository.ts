@@ -47,8 +47,13 @@ export class FormWriteRepository {
     terminalStatuses: ApplicationStatus[];
     cutoffDate: Date;
   }): Promise<number> {
-    // 기산점 우선순위: announcedAt(합격 발표일) > updatedAt(상태 변경) > createdAt(제출일)
-    // announcedAt은 합격/불합격 확정 시 세팅되며, 개인정보보호법상 파기 기산점의 1순위.
+    // 기산점 우선순위:
+    //   1) activityEndedAt (활동완료/활동중단 확정일)
+    //   2) announcedAt (서류/최종 합격 발표일)
+    //   3) updatedAt (터미널 상태 진입 시점 fallback)
+    //   4) createdAt (비터미널 상태 기본 fallback)
+    // 활동 종료 시점이 존재하면 수료생에 대해 가장 늦은 기산점으로 동작하며,
+    // 그 외에는 기존 announcedAt -> updatedAt -> createdAt 순으로 판단한다.
     const result = await this.repository
       .createQueryBuilder('form')
       .update(ApplicationForm)
@@ -62,13 +67,21 @@ export class FormWriteRepository {
       .where('form."applicantName" IS NOT NULL')
       .andWhere(
         `(
-          (form."announcedAt" IS NOT NULL AND form."announcedAt" <= :cutoffDate)
+          (form."activityEndedAt" IS NOT NULL AND form."activityEndedAt" <= :cutoffDate)
           OR
-          (form."announcedAt" IS NULL
+          (form."activityEndedAt" IS NULL
+            AND form."announcedAt" IS NOT NULL
+            AND form."announcedAt" <= :cutoffDate)
+          OR
+          (form."activityEndedAt" IS NULL
+            AND form."announcedAt" IS NULL
             AND form.status IN (:...terminalStatuses)
             AND form."updatedAt" <= :cutoffDate)
           OR
-          (form.status NOT IN (:...terminalStatuses) AND form."createdAt" <= :cutoffDate)
+          (form."activityEndedAt" IS NULL
+            AND form."announcedAt" IS NULL
+            AND form.status NOT IN (:...terminalStatuses)
+            AND form."createdAt" <= :cutoffDate)
         )`,
         { terminalStatuses, cutoffDate },
       )

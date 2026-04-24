@@ -142,9 +142,8 @@ describe('InterviewService', () => {
       mockInterviewRepository.findReservationByApplicationFormId.mockResolvedValue(null);
 
       const queryError = new QueryFailedError('insert', [], new Error('duplicate'));
-      (queryError as QueryFailedError & { driverError: { code: string } }).driverError = {
-        code: '23505',
-      };
+      (queryError as QueryFailedError & { driverError: Error & { code: string } }).driverError =
+        Object.assign(new Error('duplicate'), { code: '23505' });
       mockInterviewRepository.saveReservation.mockRejectedValue(queryError);
 
       // When / Then
