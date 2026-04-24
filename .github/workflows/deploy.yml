@@ -41,12 +41,23 @@ jobs:
           host: ${{ secrets.GCP_VM_HOST }}
           username: ${{ secrets.GCP_VM_USER }}
           key: ${{ secrets.GCP_VM_SSH_KEY }}
-          envs: GHCR_TOKEN,GITHUB_ACTOR,APP_IMAGE,APP_PORT,DB_PORT,DB_USERNAME,DB_PASSWORD,DB_NAME,JWT_SECRET,JWT_EXPIRES_IN,GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET,GOOGLE_CALLBACK_URL,CLIENT_REDIRECT_URL,ENCRYPTION_KEY
+          envs: >
+            GHCR_TOKEN,GITHUB_ACTOR,APP_IMAGE,APP_PORT,DB_PORT,DB_USERNAME,DB_PASSWORD,DB_NAME,
+            JWT_SECRET,JWT_EXPIRES_IN,GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET,GOOGLE_CALLBACK_URL,
+            CLIENT_REDIRECT_URL,ENCRYPTION_KEY,EMAIL_FROM,RESEND_API_KEY,GOOGLE_CALENDAR_ID,
+            GCS_BUCKET_NAME,GCP_SERVICE_ACCOUNT_JSON,DISCORD_CLIENT_ID,DISCORD_CLIENT_SECRET,
+            DISCORD_CALLBACK_URL,DISCORD_BOT_TOKEN,DISCORD_GUILD_ID,DISCORD_INVITE_URL,
+            DISCORD_ROLE_ID_PM,DISCORD_ROLE_ID_PD,DISCORD_ROLE_ID_BE,DISCORD_ROLE_ID_FE,
+            DISCORD_ROLE_ID_IOS,DISCORD_ROLE_ID_AOS
           script: |
             echo "$GHCR_TOKEN" | sudo docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
             sudo docker pull "$APP_IMAGE"
             cd /opt/ddd-be
             umask 077
+            
+            # Create GCP Service Account Key file
+            echo "$GCP_SERVICE_ACCOUNT_JSON" > gcp-key.json
+            
             printf 'PORT=%s\n'        "$APP_PORT"    > .env.production
             printf 'NODE_ENV=%s\n'    "production"   >> .env.production
             printf 'DB_HOST=%s\n'     "postgres"     >> .env.production
@@ -61,7 +72,42 @@ jobs:
             printf 'GOOGLE_CLIENT_SECRET=%s\n' "$GOOGLE_CLIENT_SECRET" >> .env.production
             printf 'GOOGLE_CALLBACK_URL=%s\n' "$GOOGLE_CALLBACK_URL" >> .env.production
             printf 'CLIENT_REDIRECT_URL=%s\n' "$CLIENT_REDIRECT_URL" >> .env.production
-            printf 'ENCRYPTION_KEY=%s\n' "$ENCRYPTION_KEY" >> .env.production
+            printf 'ENCRYPTION_KEY=%s\n'     "$ENCRYPTION_KEY"       >> .env.production
+            
+            # Email
+            printf 'EMAIL_PROVIDER=%s\n'     "resend"                >> .env.production
+            printf 'EMAIL_FROM=%s\n'         "$EMAIL_FROM"           >> .env.production
+            printf 'RESEND_API_KEY=%s\n'     "$RESEND_API_KEY"       >> .env.production
+            
+            # Interview & Calendar
+            printf 'INTERVIEW_BOOKING_URL=%s\n' "https://dddstudy.kr/interview" >> .env.production
+            printf 'CALENDAR_PROVIDER=%s\n'  "google"                >> .env.production
+            printf 'GOOGLE_CALENDAR_ID=%s\n' "$GOOGLE_CALENDAR_ID"   >> .env.production
+            printf 'GOOGLE_CALENDAR_KEY_FILE_PATH=%s\n' "/app/gcp-key.json" >> .env.production
+            
+            # Storage
+            printf 'STORAGE_PROVIDER=%s\n'   "gcs"                   >> .env.production
+            printf 'GCS_PROJECT_ID=%s\n'     "ddd-project-450002"    >> .env.production
+            printf 'GCS_BUCKET_NAME=%s\n'    "$GCS_BUCKET_NAME"      >> .env.production
+            printf 'GCS_KEY_FILE_PATH=%s\n'  "/app/gcp-key.json"     >> .env.production
+            
+            # Discord
+            printf 'DISCORD_PROVIDER=%s\n'   "discord"               >> .env.production
+            printf 'DISCORD_CLIENT_ID=%s\n'  "$DISCORD_CLIENT_ID"    >> .env.production
+            printf 'DISCORD_CLIENT_SECRET=%s\n' "$DISCORD_CLIENT_SECRET" >> .env.production
+            printf 'DISCORD_CALLBACK_URL=%s\n' "$DISCORD_CALLBACK_URL" >> .env.production
+            printf 'DISCORD_BOT_TOKEN=%s\n'  "$DISCORD_BOT_TOKEN"    >> .env.production
+            printf 'DISCORD_GUILD_ID=%s\n'   "$DISCORD_GUILD_ID"     >> .env.production
+            printf 'DISCORD_INVITE_URL=%s\n' "$DISCORD_INVITE_URL"   >> .env.production
+            
+            # Discord Role IDs
+            printf 'DISCORD_ROLE_ID_PM=%s\n'  "$DISCORD_ROLE_ID_PM"  >> .env.production
+            printf 'DISCORD_ROLE_ID_PD=%s\n'  "$DISCORD_ROLE_ID_PD"  >> .env.production
+            printf 'DISCORD_ROLE_ID_BE=%s\n'  "$DISCORD_ROLE_ID_BE"  >> .env.production
+            printf 'DISCORD_ROLE_ID_FE=%s\n'  "$DISCORD_ROLE_ID_FE"  >> .env.production
+            printf 'DISCORD_ROLE_ID_IOS=%s\n' "$DISCORD_ROLE_ID_IOS" >> .env.production
+            printf 'DISCORD_ROLE_ID_AOS=%s\n' "$DISCORD_ROLE_ID_AOS" >> .env.production
+            
             sudo APP_ENV_FILE=.env.production docker compose --env-file .env.production up -d
             for i in $(seq 1 12); do
               curl -sf "http://localhost:${APP_PORT:-3000}/api/v1/health" && break
@@ -88,6 +134,23 @@ jobs:
           GOOGLE_CALLBACK_URL: ${{ secrets.GOOGLE_CALLBACK_URL }}
           CLIENT_REDIRECT_URL: ${{ secrets.CLIENT_REDIRECT_URL }}
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          GOOGLE_CALENDAR_ID: ${{ secrets.GOOGLE_CALENDAR_ID }}
+          GCS_BUCKET_NAME: ${{ secrets.GCS_BUCKET_NAME }}
+          GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+          DISCORD_CLIENT_ID: ${{ secrets.DISCORD_CLIENT_ID }}
+          DISCORD_CLIENT_SECRET: ${{ secrets.DISCORD_CLIENT_SECRET }}
+          DISCORD_CALLBACK_URL: ${{ secrets.DISCORD_CALLBACK_URL }}
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          DISCORD_GUILD_ID: ${{ secrets.DISCORD_GUILD_ID }}
+          DISCORD_INVITE_URL: ${{ secrets.DISCORD_INVITE_URL }}
+          DISCORD_ROLE_ID_PM: ${{ secrets.DISCORD_ROLE_ID_PM }}
+          DISCORD_ROLE_ID_PD: ${{ secrets.DISCORD_ROLE_ID_PD }}
+          DISCORD_ROLE_ID_BE: ${{ secrets.DISCORD_ROLE_ID_BE }}
+          DISCORD_ROLE_ID_FE: ${{ secrets.DISCORD_ROLE_ID_FE }}
+          DISCORD_ROLE_ID_IOS: ${{ secrets.DISCORD_ROLE_ID_IOS }}
+          DISCORD_ROLE_ID_AOS: ${{ secrets.DISCORD_ROLE_ID_AOS }}
 
   export-openapi:
     runs-on: ubuntu-latest
