@@ -4,6 +4,8 @@ import { Transactional } from 'typeorm-transactional';
 import { AppException } from '../../common/exception/app.exception';
 import { hasDefinedValues } from '../../common/util/object-utils';
 import { isPostgresUniqueViolation } from '../../common/util/postgres-error';
+import { NotificationService } from '../../notification/application/notification.service';
+import { buildIcsFile } from '../../notification/util/build-ics';
 import { InterviewRepository } from '../domain/interview.repository';
 import type {
   InterviewSlotCreateInput,
@@ -21,6 +23,7 @@ export class InterviewService {
   constructor(
     private readonly interviewRepository: InterviewRepository,
     private readonly googleCalendarClient: GoogleCalendarClient,
+    private readonly notificationService: NotificationService,
   ) {}
 
   @Transactional()
@@ -115,16 +118,22 @@ export class InterviewService {
           summary: `[DDD] 면접 - ${input.applicantName}`,
           startAt: slot.startAt,
           endAt: slot.endAt,
-          attendees: [input.applicantEmail],
           location: slot.location,
           description: slot.description,
         });
         saved.assignCalendarEvent(eventId);
-        return await this.interviewRepository.saveReservation({ reservation: saved });
+        await this.interviewRepository.saveReservation({ reservation: saved });
       } catch (error) {
         this.logger.error('구글 캘린더 이벤트 생성 실패 (예약은 저장됨)', error);
-        return saved;
       }
+
+      await this.sendInterviewInviteEmail({
+        applicantName: input.applicantName,
+        applicantEmail: input.applicantEmail,
+        slot,
+      });
+
+      return saved;
     } catch (error) {
       if (isPostgresUniqueViolation(error)) {
         throw new AppException('INTERVIEW_SLOT_ALREADY_RESERVED', HttpStatus.CONFLICT);
@@ -141,5 +150,79 @@ export class InterviewService {
     if (endAt.getTime() <= startAt.getTime()) {
       throw new AppException('INVALID_INTERVIEW_SLOT_RANGE', HttpStatus.BAD_REQUEST);
     }
+  }
+
+  private async sendInterviewInviteEmail({
+    applicantName,
+    applicantEmail,
+    slot,
+  }: {
+    applicantName: string;
+    applicantEmail: string;
+    slot: InterviewSlot;
+  }): Promise<void> {
+    try {
+      const summary = `[DDD] 면접 일정 안내`;
+      const ics = buildIcsFile({
+        uid: `interview-${slot.id}-${applicantEmail}@dddstudy.kr`,
+        summary,
+        startAt: slot.startAt,
+        endAt: slot.endAt,
+        location: slot.location,
+        description: slot.description,
+      });
+
+      const formattedStart = this.formatKstRange({ startAt: slot.startAt, endAt: slot.endAt });
+      const safeName = this.escapeHtml(applicantName);
+      const safeLocation = slot.location ? this.escapeHtml(slot.location) : '추후 안내';
+
+      await this.notificationService.sendEmail({
+        to: applicantEmail,
+        subject: '[DDD] 면접 일정이 확정되었습니다.',
+        html: `
+          <div style="font-family:Arial,sans-serif;line-height:1.6;color:#111;">
+            <h2>${safeName}님, 면접 일정이 확정되었습니다.</h2>
+            <p><b>일시</b>: ${formattedStart}</p>
+            <p><b>장소</b>: ${safeLocation}</p>
+            <p>첨부된 캘린더 파일(.ics)을 클릭하시면 본인 캘린더에 자동으로 추가됩니다.</p>
+          </div>
+        `,
+        text: `${applicantName}님, 면접 일정이 확정되었습니다.\n일시: ${formattedStart}\n장소: ${slot.location ?? '추후 안내'}`,
+        attachments: [
+          {
+            filename: 'interview.ics',
+            content: ics,
+            contentType: 'text/calendar; charset=utf-8; method=PUBLISH',
+          },
+        ],
+      });
+    } catch (error) {
+      this.logger.error(
+        '면접 일정 안내 이메일 발송 실패 (예약은 저장됨)',
+        error instanceof Error ? error.stack : String(error),
+      );
+    }
+  }
+
+  private formatKstRange({ startAt, endAt }: { startAt: Date; endAt: Date }): string {
+    const formatter = new Intl.DateTimeFormat('ko-KR', {
+      timeZone: 'Asia/Seoul',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+    return `${formatter.format(startAt)} ~ ${formatter.format(endAt)} (KST)`;
+  }
+
+  private escapeHtml(input: string): string {
+    return input
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
   }
 }

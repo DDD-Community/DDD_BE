@@ -4,11 +4,18 @@ import { EmailLog } from '../domain/email-log.entity';
 import { NotificationRepository } from '../domain/notification.repository';
 import { GmailEmailClient } from '../infrastructure/gmail-email.client';
 
+type EmailAttachment = {
+  filename: string;
+  content: string | Buffer;
+  contentType?: string;
+};
+
 type SendNotificationEmailPayload = {
   to: string;
   subject: string;
   html: string;
   text: string;
+  attachments?: EmailAttachment[];
 };
 
 @Injectable()
@@ -20,9 +27,15 @@ export class NotificationService {
     private readonly notificationRepository: NotificationRepository,
   ) {}
 
-  async sendEmail({ to, subject, html, text }: SendNotificationEmailPayload): Promise<void> {
+  async sendEmail({
+    to,
+    subject,
+    html,
+    text,
+    attachments,
+  }: SendNotificationEmailPayload): Promise<void> {
     try {
-      await this.gmailEmailClient.sendEmail({ to, subject, html, text });
+      await this.gmailEmailClient.sendEmail({ to, subject, html, text, attachments });
 
       const log = EmailLog.createSuccess({ recipientEmail: to, subject });
       await this.notificationRepository.saveLog({ log });

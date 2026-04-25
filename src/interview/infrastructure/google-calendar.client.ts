@@ -7,7 +7,6 @@ type CreateEventPayload = {
   description?: string;
   startAt: Date;
   endAt: Date;
-  attendees: string[];
   location?: string;
 };
 
@@ -47,13 +46,12 @@ export class GoogleCalendarClient {
     description,
     startAt,
     endAt,
-    attendees,
     location,
   }: CreateEventPayload): Promise<string> {
     if (!this.calendar || !this.calendarId) {
       const previewId = `preview-${Date.now()}`;
       this.logger.log(
-        `[캘린더 미리보기] summary=${summary}, start=${startAt.toISOString()}, attendees=${attendees.join(',')}, eventId=${previewId}`,
+        `[캘린더 미리보기] summary=${summary}, start=${startAt.toISOString()}, eventId=${previewId}`,
       );
       return previewId;
     }
@@ -66,7 +64,6 @@ export class GoogleCalendarClient {
         location,
         start: { dateTime: startAt.toISOString(), timeZone: 'Asia/Seoul' },
         end: { dateTime: endAt.toISOString(), timeZone: 'Asia/Seoul' },
-        attendees: attendees.map((email) => ({ email })),
       },
     });
 

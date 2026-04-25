@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import { QueryFailedError } from 'typeorm';
 
 import { AppException } from '../../common/exception/app.exception';
+import { NotificationService } from '../../notification/application/notification.service';
 import { InterviewRepository } from '../domain/interview.repository';
 import type { InterviewReservation } from '../domain/interview-reservation.entity';
 import type { InterviewSlot } from '../domain/interview-slot.entity';
@@ -30,6 +31,10 @@ const mockInterviewRepository = {
 
 const mockGoogleCalendarClient = {
   createEvent: jest.fn(),
+};
+
+const mockNotificationService = {
+  sendEmail: jest.fn(),
 };
 
 const buildSlot = (overrides: Partial<InterviewSlot> = {}): InterviewSlot =>
@@ -67,6 +72,7 @@ describe('InterviewService', () => {
         InterviewService,
         { provide: InterviewRepository, useValue: mockInterviewRepository },
         { provide: GoogleCalendarClient, useValue: mockGoogleCalendarClient },
+        { provide: NotificationService, useValue: mockNotificationService },
       ],
     }).compile();
 
@@ -188,10 +194,21 @@ describe('InterviewService', () => {
       expect(mockGoogleCalendarClient.createEvent).toHaveBeenCalledWith(
         expect.objectContaining({
           summary: '[DDD] 면접 - 홍길동',
-          attendees: ['hong@example.com'],
         }),
       );
+      expect(mockGoogleCalendarClient.createEvent).not.toHaveBeenCalledWith(
+        expect.objectContaining({ attendees: expect.anything() }),
+      );
       expect(mockInterviewRepository.saveReservation).toHaveBeenCalledTimes(2);
+      expect(mockNotificationService.sendEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'hong@example.com',
+          subject: expect.stringContaining('면접'),
+          attachments: expect.arrayContaining([
+            expect.objectContaining({ filename: 'interview.ics' }),
+          ]),
+        }),
+      );
     });
   });
 

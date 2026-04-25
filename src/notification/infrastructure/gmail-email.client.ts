@@ -2,11 +2,18 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 
+type EmailAttachment = {
+  filename: string;
+  content: string | Buffer;
+  contentType?: string;
+};
+
 type SendEmailPayload = {
   to: string;
   subject: string;
   html: string;
   text: string;
+  attachments?: EmailAttachment[];
 };
 
 @Injectable()
@@ -15,10 +22,13 @@ export class GmailEmailClient {
 
   constructor(private readonly configService: ConfigService) {}
 
-  async sendEmail({ to, subject, html, text }: SendEmailPayload): Promise<void> {
+  async sendEmail({ to, subject, html, text, attachments }: SendEmailPayload): Promise<void> {
     const provider = (this.configService.get<string>('EMAIL_PROVIDER') ?? 'console').toLowerCase();
     if (provider !== 'gmail') {
-      this.logger.log(`[메일 미리보기] to=${this.maskEmail({ email: to })}, subject=${subject}`);
+      const attachmentSuffix = attachments?.length ? `, attachments=${attachments.length}` : '';
+      this.logger.log(
+        `[메일 미리보기] to=${this.maskEmail({ email: to })}, subject=${subject}${attachmentSuffix}`,
+      );
       return;
     }
 
@@ -38,7 +48,7 @@ export class GmailEmailClient {
       auth: { user, pass },
     });
 
-    await transporter.sendMail({ from, to, subject, html, text });
+    await transporter.sendMail({ from, to, subject, html, text, attachments });
   }
 
   private maskEmail({ email }: { email: string }): string {

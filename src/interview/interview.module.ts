@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { ApplicationModule } from '../application/application.module';
 import { RolesGuard } from '../common/guard/roles.guard';
+import { NotificationModule } from '../notification/notification.module';
 import { InterviewService } from './application/interview.service';
 import { InterviewRepository } from './domain/interview.repository';
 import { InterviewReservation } from './domain/interview-reservation.entity';
@@ -16,6 +17,7 @@ import { AdminInterviewController } from './interface/admin.interview.controller
   imports: [
     TypeOrmModule.forFeature([InterviewSlot, InterviewReservation]),
     forwardRef(() => ApplicationModule),
+    NotificationModule,
   ],
   controllers: [AdminInterviewController],
   providers: [
