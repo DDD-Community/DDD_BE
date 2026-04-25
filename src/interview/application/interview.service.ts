@@ -172,22 +172,21 @@ export class InterviewService {
         description: slot.description,
       });
 
-      const formattedStart = this.formatKstRange({ startAt: slot.startAt, endAt: slot.endAt });
-      const safeName = this.escapeHtml(applicantName);
-      const safeLocation = slot.location ? this.escapeHtml(slot.location) : '추후 안내';
+      const greeting = this.buildGreeting(applicantName);
+      const dateLine = this.formatKstDate(slot.startAt);
+      const timeLine = this.formatKstTimeRange({ startAt: slot.startAt, endAt: slot.endAt });
+      const locationLine = slot.location ? this.escapeHtml(slot.location) : '추후 안내';
 
       await this.notificationService.sendEmail({
         to: applicantEmail,
-        subject: '[DDD] 면접 일정이 확정되었습니다.',
-        html: `
-          <div style="font-family:Arial,sans-serif;line-height:1.6;color:#111;">
-            <h2>${safeName}님, 면접 일정이 확정되었습니다.</h2>
-            <p><b>일시</b>: ${formattedStart}</p>
-            <p><b>장소</b>: ${safeLocation}</p>
-            <p>첨부된 캘린더 파일(.ics)을 클릭하시면 본인 캘린더에 자동으로 추가됩니다.</p>
-          </div>
-        `,
-        text: `${applicantName}님, 면접 일정이 확정되었습니다.\n일시: ${formattedStart}\n장소: ${slot.location ?? '추후 안내'}`,
+        subject: '[DDD] 면접 일정이 확정되었습니다',
+        html: this.renderInterviewHtml({ greeting, dateLine, timeLine, locationLine }),
+        text: this.renderInterviewText({
+          greeting,
+          dateLine,
+          timeLine,
+          locationLine: slot.location ?? '추후 안내',
+        }),
         attachments: [
           {
             filename: 'interview.ics',
@@ -204,17 +203,121 @@ export class InterviewService {
     }
   }
 
-  private formatKstRange({ startAt, endAt }: { startAt: Date; endAt: Date }): string {
-    const formatter = new Intl.DateTimeFormat('ko-KR', {
+  private buildGreeting(name: string): string {
+    // 이름에 Unicode replacement character(U+FFFD)가 있으면 인코딩 손상으로 보고 generic greeting 사용
+    if (!name || name.includes('�')) {
+      return '안녕하세요, 지원자님';
+    }
+    return `안녕하세요, ${this.escapeHtml(name)}님`;
+  }
+
+  private formatKstDate(date: Date): string {
+    return new Intl.DateTimeFormat('ko-KR', {
       timeZone: 'Asia/Seoul',
       year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
+      month: 'long',
+      day: 'numeric',
+      weekday: 'short',
+    }).format(date);
+  }
+
+  private formatKstTimeRange({ startAt, endAt }: { startAt: Date; endAt: Date }): string {
+    const formatter = new Intl.DateTimeFormat('ko-KR', {
+      timeZone: 'Asia/Seoul',
       hour: '2-digit',
       minute: '2-digit',
       hour12: false,
     });
     return `${formatter.format(startAt)} ~ ${formatter.format(endAt)} (KST)`;
+  }
+
+  private renderInterviewHtml({
+    greeting,
+    dateLine,
+    timeLine,
+    locationLine,
+  }: {
+    greeting: string;
+    dateLine: string;
+    timeLine: string;
+    locationLine: string;
+  }): string {
+    return `
+<div style="margin:0;padding:0;background:#f4f6f8;font-family:'Apple SD Gothic Neo','Malgun Gothic',Arial,sans-serif;color:#111;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f6f8;padding:32px 0;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="560" cellspacing="0" cellpadding="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06);max-width:560px;width:100%;">
+          <tr>
+            <td style="padding:32px 32px 16px 32px;">
+              <div style="font-size:13px;letter-spacing:1px;color:#5b6470;font-weight:600;">DDD</div>
+              <div style="font-size:22px;font-weight:700;line-height:1.4;color:#111;margin-top:8px;">면접 일정이 확정되었습니다</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 32px 16px 32px;font-size:15px;line-height:1.65;color:#222;">
+              <p style="margin:0 0 16px 0;">${greeting},</p>
+              <p style="margin:0 0 24px 0;">DDD 면접 일정이 아래와 같이 안내되었습니다.</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 32px 24px 32px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f8fafc;border-radius:8px;border:1px solid #e5e9ef;">
+                <tr>
+                  <td style="padding:18px 20px;font-size:14px;color:#111;">
+                    <div style="margin-bottom:10px;"><span style="display:inline-block;width:64px;color:#6b7280;font-weight:600;">일자</span><span>${dateLine}</span></div>
+                    <div style="margin-bottom:10px;"><span style="display:inline-block;width:64px;color:#6b7280;font-weight:600;">시간</span><span>${timeLine}</span></div>
+                    <div><span style="display:inline-block;width:64px;color:#6b7280;font-weight:600;">장소</span><span>${locationLine}</span></div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 32px 24px 32px;font-size:14px;line-height:1.65;color:#374151;">
+              <p style="margin:0 0 8px 0;">첨부된 <b>interview.ics</b> 파일을 클릭하면 본인 캘린더에 한 번에 추가됩니다.</p>
+              <p style="margin:0;">변경/취소 등 문의는 운영진 이메일로 회신 부탁드립니다.</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:20px 32px 28px 32px;border-top:1px solid #eef0f3;font-size:12px;color:#9097a3;">
+              본 메일은 발신 전용입니다. © DDD
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</div>
+    `.trim();
+  }
+
+  private renderInterviewText({
+    greeting,
+    dateLine,
+    timeLine,
+    locationLine,
+  }: {
+    greeting: string;
+    dateLine: string;
+    timeLine: string;
+    locationLine: string;
+  }): string {
+    return [
+      '[DDD] 면접 일정이 확정되었습니다',
+      '',
+      `${greeting},`,
+      'DDD 면접 일정이 아래와 같이 안내되었습니다.',
+      '',
+      `일자  ${dateLine}`,
+      `시간  ${timeLine}`,
+      `장소  ${locationLine}`,
+      '',
+      '첨부된 interview.ics 파일을 클릭하면 본인 캘린더에 한 번에 추가됩니다.',
+      '변경/취소 등 문의는 운영진 이메일로 회신 부탁드립니다.',
+      '',
+      '— DDD',
+    ].join('\n');
   }
 
   private escapeHtml(input: string): string {

@@ -34,9 +34,10 @@ export class GmailEmailClient {
 
     const user = this.configService.get<string>('GMAIL_USER');
     const pass = this.configService.get<string>('GMAIL_APP_PASSWORD');
-    const from = this.configService.get<string>('EMAIL_FROM');
+    const fromAddress = this.configService.get<string>('EMAIL_FROM');
+    const fromName = this.configService.get<string>('EMAIL_FROM_NAME') ?? 'DDD';
 
-    if (!user || !pass || !from) {
+    if (!user || !pass || !fromAddress) {
       this.logger.error(
         'EMAIL_PROVIDER=gmail 이지만 GMAIL_USER, GMAIL_APP_PASSWORD 또는 EMAIL_FROM이 누락되었습니다.',
       );
@@ -48,7 +49,14 @@ export class GmailEmailClient {
       auth: { user, pass },
     });
 
-    await transporter.sendMail({ from, to, subject, html, text, attachments });
+    await transporter.sendMail({
+      from: { name: fromName, address: fromAddress },
+      to,
+      subject,
+      html,
+      text,
+      attachments,
+    });
   }
 
   private maskEmail({ email }: { email: string }): string {
