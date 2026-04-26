@@ -13,6 +13,11 @@ const bootstrap = async () => {
   const app = await NestFactory.create(AppModule);
   app.use(cookieParser());
 
+  app.enableCors({
+    origin: ['http://localhost:3000', 'http://localhost:5173'],
+    credentials: true,
+  });
+
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   app.setGlobalPrefix('api');
   app.enableVersioning({ type: VersioningType.URI });
