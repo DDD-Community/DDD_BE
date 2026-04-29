@@ -37,6 +37,13 @@ export const ErrorMessage = {
   FILE_TYPE_NOT_ALLOWED: '허용되지 않는 파일 형식입니다.',
   FILE_SIZE_EXCEEDED: '파일 크기가 제한을 초과했습니다.',
   FILE_UPLOAD_FAILED: '파일 업로드에 실패했습니다.',
+  FILE_NOT_FOUND: '파일을 찾을 수 없습니다.',
+  FILE_DELETE_FAILED: '파일 삭제에 실패했습니다.',
+  FILE_LIST_FAILED: '파일 목록 조회에 실패했습니다.',
+  FILE_DOWNLOAD_FAILED: '파일 다운로드에 실패했습니다.',
+  SIGNED_URL_GENERATION_FAILED: '서명 URL 생성에 실패했습니다.',
+  STORAGE_NOT_CONFIGURED: '스토리지가 설정되지 않았습니다.',
+  INVALID_FILE_PATH: '유효하지 않은 파일 경로입니다.',
 
   DISCORD_OAUTH_FAILED: 'Discord 인증 정보를 가져올 수 없습니다.',
   DISCORD_GUILD_ADD_FAILED: 'Discord 서버에 합류시키는 데 실패했습니다.',
