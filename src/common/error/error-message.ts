@@ -10,6 +10,7 @@ export const ErrorMessage = {
 
   COHORT_NOT_FOUND: '기수를 찾을 수 없습니다.',
   COHORT_ALREADY_EXISTS: '이미 진행 중인 기수가 존재합니다.',
+  COHORT_PART_NOT_FOUND: '모집 중인 파트를 찾을 수 없습니다.',
 
   APPLICATION_FORM_NOT_FOUND: '지원서를 찾을 수 없습니다.',
   COHORT_PART_CLOSED: '모집이 마감되었거나 존재하지 않는 파트입니다.',
