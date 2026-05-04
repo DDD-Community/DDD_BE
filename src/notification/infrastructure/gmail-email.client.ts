@@ -49,13 +49,31 @@ export class GmailEmailClient {
       auth: { user, pass },
     });
 
+    const normalizedHtml = html.trimStart().toLowerCase().startsWith('<html')
+      ? html
+      : `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>${html}</body></html>`;
+
+    // 첨부가 없으면 1×1 투명 PNG 더미를 추가해 multipart/mixed 구조로 강제한다.
+    // 일부 한국 이메일 뷰어(Naver/Daum/카카오 등)가 multipart/alternative
+    // 최상위 구조에서 한글을 깨뜨리는 문제를 회피하기 위함이다.
+    // (면접 이메일이 ICS 첨부 덕에 multipart/mixed 가 되어 정상 동작하는 것이 근거)
+    const TRANSPARENT_PNG = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
+      'base64',
+    );
+    const finalAttachments =
+      attachments && attachments.length > 0
+        ? attachments
+        : [{ filename: 'spacer.png', content: TRANSPARENT_PNG, contentType: 'image/png' }];
+
     await transporter.sendMail({
       from: { name: fromName, address: fromAddress },
       to,
       subject,
-      html,
+      html: normalizedHtml,
       text,
-      attachments,
+      attachments: finalAttachments,
+      textEncoding: 'quoted-printable',
     });
   }
 
