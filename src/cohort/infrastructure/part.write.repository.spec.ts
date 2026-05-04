@@ -5,13 +5,13 @@ import { PartWriteRepository } from './part.write.repository';
 
 describe('PartWriteRepository', () => {
   describe('findOne', () => {
-    it('삭제되지 않은 cohort에 속한 part만 조회한다', async () => {
-      const innerJoin = jest.fn().mockReturnThis();
+    it('삭제되지 않은 cohort을 함께 조회한다', async () => {
+      const innerJoinAndSelect = jest.fn().mockReturnThis();
       const where = jest.fn().mockReturnThis();
       const andWhere = jest.fn().mockReturnThis();
       const getOne = jest.fn().mockResolvedValue(null);
       const createQueryBuilder = jest.fn().mockReturnValue({
-        innerJoin,
+        innerJoinAndSelect,
         where,
         andWhere,
         getOne,
@@ -27,7 +27,11 @@ describe('PartWriteRepository', () => {
       await partWriteRepository.findOne({ where: { id: 1 } });
 
       expect(createQueryBuilder).toHaveBeenCalledWith('part');
-      expect(innerJoin).toHaveBeenCalledWith('part.cohort', 'cohort', 'cohort.deletedAt IS NULL');
+      expect(innerJoinAndSelect).toHaveBeenCalledWith(
+        'part.cohort',
+        'cohort',
+        'cohort.deletedAt IS NULL',
+      );
       expect(where).toHaveBeenCalledWith('part.id = :id', { id: 1 });
       expect(andWhere).toHaveBeenCalledWith('part.deletedAt IS NULL');
       expect(getOne).toHaveBeenCalledTimes(1);

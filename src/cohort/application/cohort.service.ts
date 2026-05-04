@@ -149,6 +149,14 @@ export class CohortService {
     return this.cohortRepository.findPartById({ id });
   }
 
+  async findPartByIdOrThrow({ id }: { id: number }) {
+    const part = await this.cohortRepository.findPartById({ id });
+    if (!part || !part.isOpen || part.cohort?.status !== CohortStatus.RECRUITING) {
+      throw new AppException('COHORT_PART_NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+    return part;
+  }
+
   @Transactional()
   async transitionExpiredToActive() {
     const expired = await this.cohortRepository.findExpiredRecruiting();

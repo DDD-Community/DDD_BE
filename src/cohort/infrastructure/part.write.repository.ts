@@ -14,7 +14,7 @@ export class PartWriteRepository {
   async findOne({ where }: { where: { id: number } }) {
     return this.repository
       .createQueryBuilder('part')
-      .innerJoin('part.cohort', 'cohort', 'cohort.deletedAt IS NULL')
+      .innerJoinAndSelect('part.cohort', 'cohort', 'cohort.deletedAt IS NULL')
       .where('part.id = :id', { id: where.id })
       .andWhere('part.deletedAt IS NULL')
       .getOne();

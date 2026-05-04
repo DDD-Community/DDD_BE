@@ -2,6 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 
 import type { Cohort } from '../../domain/cohort.entity';
 import { CohortStatus } from '../../domain/cohort.status';
+import type { CohortPart } from '../../domain/cohort-part.entity';
 import type { CohortPartName } from '../../domain/cohort-part-name';
 
 export enum CohortCtaStatus {
@@ -79,6 +80,30 @@ export class PublicCohortResponseDto {
     } else {
       dto.ctaStatus = CohortCtaStatus.CLOSED;
     }
+    return dto;
+  }
+}
+
+export class PublicCohortPartResponseDto {
+  @ApiProperty({ description: '파트 ID', example: 1 })
+  id: number;
+
+  @ApiProperty({ description: '파트명', example: 'FE' })
+  partName: CohortPartName;
+
+  @ApiProperty({
+    description: '지원서 스키마 JSON',
+    type: 'object',
+    additionalProperties: true,
+    example: { questions: [] },
+  })
+  applicationSchema: Record<string, unknown>;
+
+  static from(part: CohortPart): PublicCohortPartResponseDto {
+    const dto = new PublicCohortPartResponseDto();
+    dto.id = part.id;
+    dto.partName = part.partName;
+    dto.applicationSchema = part.applicationSchema ?? {};
     return dto;
   }
 }
