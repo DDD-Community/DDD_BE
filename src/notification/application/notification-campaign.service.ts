@@ -2,6 +2,7 @@ import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 
 import { AuditLogService } from '../../audit/application/audit-log.service';
+import { Cohort } from '../../cohort/domain/cohort.entity';
 import { CohortRepository } from '../../cohort/domain/cohort.repository';
 import { AppException } from '../../common/exception/app.exception';
 import {
@@ -60,6 +61,20 @@ export class NotificationCampaignService {
       subject,
       html,
       text,
+    });
+  }
+
+  async registerDefaultForCohort({ cohort }: { cohort: Cohort }) {
+    return this.notificationCampaignRepository.registerDraft({
+      cohortId: cohort.id,
+      scheduledAt: cohort.recruitStartAt,
+      subject: `[DDD] ${cohort.name} 모집 시작 안내`,
+      html:
+        `<p>안녕하세요.</p>` +
+        `<p>DDD ${cohort.name} 모집이 시작되었습니다. 자세한 내용은 홈페이지에서 확인해주세요.</p>`,
+      text:
+        `안녕하세요.\n\n` +
+        `DDD ${cohort.name} 모집이 시작되었습니다. 자세한 내용은 홈페이지에서 확인해주세요.`,
     });
   }
 

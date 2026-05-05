@@ -5,6 +5,7 @@ import { AuditLogService } from '../../audit/application/audit-log.service';
 import { AppException } from '../../common/exception/app.exception';
 import { hasDefinedValues } from '../../common/util/object-utils';
 import { GeneralEarlyNotificationService } from '../../notification/application/general-early-notification.service';
+import { NotificationCampaignService } from '../../notification/application/notification-campaign.service';
 import { CohortRepository } from '../domain/cohort.repository';
 import { CohortStatus } from '../domain/cohort.status';
 import type {
@@ -23,6 +24,8 @@ export class CohortService {
     private readonly auditLogService: AuditLogService,
     @Inject(forwardRef(() => GeneralEarlyNotificationService))
     private readonly generalEarlyNotificationService: GeneralEarlyNotificationService,
+    @Inject(forwardRef(() => NotificationCampaignService))
+    private readonly notificationCampaignService: NotificationCampaignService,
   ) {}
 
   @Transactional()
@@ -34,6 +37,7 @@ export class CohortService {
 
     const created = await this.cohortRepository.register({ cohort });
     await this.generalEarlyNotificationService.promoteToCohort({ cohortId: created.id });
+    await this.notificationCampaignService.registerDefaultForCohort({ cohort: created });
     return created;
   }
 

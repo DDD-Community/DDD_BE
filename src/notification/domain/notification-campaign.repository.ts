@@ -28,6 +28,29 @@ export class NotificationCampaignRepository {
     return this.writeRepository.save({ campaign });
   }
 
+  async registerDraft({
+    cohortId,
+    scheduledAt,
+    subject,
+    html,
+    text,
+  }: {
+    cohortId: number;
+    scheduledAt: Date;
+    subject: string;
+    html: string;
+    text: string;
+  }) {
+    const campaign = NotificationCampaign.createDraft({
+      cohortId,
+      scheduledAt,
+      subject,
+      html,
+      text,
+    });
+    return this.writeRepository.save({ campaign });
+  }
+
   async save({ campaign }: { campaign: NotificationCampaign }) {
     return this.writeRepository.save({ campaign });
   }

@@ -17,6 +17,7 @@ import { NotificationCampaignService } from './notification-campaign.service';
 
 const mockNotificationCampaignRepository = {
   register: jest.fn(),
+  registerDraft: jest.fn(),
   save: jest.fn(),
   findById: jest.fn(),
   findByCohort: jest.fn(),
@@ -521,6 +522,38 @@ describe('NotificationCampaignService', () => {
 
       // Then
       expect(mockAuditLogService.recordStatusChange).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('registerDefaultForCohort', () => {
+    it('cohort 정보로 기본 본문 + recruitStartAt 기준 PAUSED 캠페인을 등록한다', async () => {
+      // Given
+      const cohort = {
+        id: 7,
+        name: '16기',
+        recruitStartAt: new Date('2026-09-01T00:00:00Z'),
+      };
+      const created = { id: 999, status: NotificationCampaignStatus.PAUSED };
+      mockNotificationCampaignRepository.registerDraft.mockResolvedValue(created);
+
+      // When
+      const result = await service.registerDefaultForCohort({ cohort: cohort as never });
+
+      // Then
+      expect(result).toBe(created);
+      expect(mockNotificationCampaignRepository.registerDraft).toHaveBeenCalledTimes(1);
+      const args = mockNotificationCampaignRepository.registerDraft.mock.calls[0][0] as {
+        cohortId: number;
+        scheduledAt: Date;
+        subject: string;
+        html: string;
+        text: string;
+      };
+      expect(args.cohortId).toBe(7);
+      expect(args.scheduledAt).toEqual(cohort.recruitStartAt);
+      expect(args.subject).toContain('16기');
+      expect(args.html).toContain('16기');
+      expect(args.text).toContain('16기');
     });
   });
 

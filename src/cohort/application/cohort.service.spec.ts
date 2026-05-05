@@ -4,6 +4,7 @@ import { Test } from '@nestjs/testing';
 import { AuditLogService } from '../../audit/application/audit-log.service';
 import { AppException } from '../../common/exception/app.exception';
 import { GeneralEarlyNotificationService } from '../../notification/application/general-early-notification.service';
+import { NotificationCampaignService } from '../../notification/application/notification-campaign.service';
 import { CohortRepository } from '../domain/cohort.repository';
 import { CohortStatus } from '../domain/cohort.status';
 import { CohortService } from './cohort.service';
@@ -32,6 +33,10 @@ const mockGeneralEarlyNotificationService = {
   subscribe: jest.fn(),
 };
 
+const mockNotificationCampaignService = {
+  registerDefaultForCohort: jest.fn(),
+};
+
 describe('CohortService', () => {
   let cohortService: CohortService;
 
@@ -44,6 +49,10 @@ describe('CohortService', () => {
         {
           provide: GeneralEarlyNotificationService,
           useValue: mockGeneralEarlyNotificationService,
+        },
+        {
+          provide: NotificationCampaignService,
+          useValue: mockNotificationCampaignService,
         },
       ],
     }).compile();
@@ -74,7 +83,7 @@ describe('CohortService', () => {
     });
 
     describe('활성 기수가 없을 때', () => {
-      it('기수를 생성하고 대기열을 신규 기수로 일괄 승격한 뒤 반환한다', async () => {
+      it('기수를 생성하고 대기열 승격 + 기본 캠페인 등록 후 반환한다', async () => {
         // Given
         const createdCohort = { id: 1, ...cohortInput };
         mockCohortRepository.checkActiveCohortExists.mockResolvedValue(false);
@@ -83,6 +92,9 @@ describe('CohortService', () => {
           total: 0,
           promoted: 0,
           skippedDuplicate: 0,
+        });
+        mockNotificationCampaignService.registerDefaultForCohort.mockResolvedValue({
+          id: 100,
         });
 
         // When
@@ -93,6 +105,9 @@ describe('CohortService', () => {
         expect(mockCohortRepository.register).toHaveBeenCalledWith({ cohort: cohortInput });
         expect(mockGeneralEarlyNotificationService.promoteToCohort).toHaveBeenCalledWith({
           cohortId: 1,
+        });
+        expect(mockNotificationCampaignService.registerDefaultForCohort).toHaveBeenCalledWith({
+          cohort: createdCohort,
         });
       });
 
@@ -108,6 +123,27 @@ describe('CohortService', () => {
         // When & Then
         await expect(cohortService.createCohort({ cohort: cohortInput })).rejects.toThrow(
           'promote failed',
+        );
+        expect(mockNotificationCampaignService.registerDefaultForCohort).not.toHaveBeenCalled();
+      });
+
+      it('기본 캠페인 등록이 실패하면 createCohort 자체가 실패한다 (트랜잭션 롤백)', async () => {
+        // Given
+        const createdCohort = { id: 3, ...cohortInput };
+        mockCohortRepository.checkActiveCohortExists.mockResolvedValue(false);
+        mockCohortRepository.register.mockResolvedValue(createdCohort);
+        mockGeneralEarlyNotificationService.promoteToCohort.mockResolvedValue({
+          total: 0,
+          promoted: 0,
+          skippedDuplicate: 0,
+        });
+        mockNotificationCampaignService.registerDefaultForCohort.mockRejectedValue(
+          new Error('campaign registration failed'),
+        );
+
+        // When & Then
+        await expect(cohortService.createCohort({ cohort: cohortInput })).rejects.toThrow(
+          'campaign registration failed',
         );
       });
     });
