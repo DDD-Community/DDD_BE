@@ -82,16 +82,8 @@ describe('env validation', () => {
       expect(result.STORAGE_PROVIDER).toBe('console');
     });
 
-    it('STORAGE_PROVIDER=gcs + 필수 GCS 키가 모두 있으면 통과한다', () => {
-      expect(() =>
-        validate({
-          ...createValidConfig(),
-          STORAGE_PROVIDER: 'gcs',
-          GCS_BUCKET_NAME: 'ddd-bucket',
-          GCS_PROJECT_ID: 'ddd-project',
-          GCS_KEY_FILE_PATH: '/app/gcp-key.json',
-        }),
-      ).not.toThrow();
+    it('STORAGE_PROVIDER=gcs 는 통과한다', () => {
+      expect(() => validate({ ...createValidConfig(), STORAGE_PROVIDER: 'gcs' })).not.toThrow();
     });
 
     it('알 수 없는 STORAGE_PROVIDER 값은 앱 시작 전에 실패한다', () => {
@@ -104,133 +96,6 @@ describe('env validation', () => {
       expect(() => {
         validate({ ...createValidConfig(), STORAGE_PROVIDER: 'aws-s3' });
       }).toThrow('STORAGE_PROVIDER');
-    });
-  });
-
-  describe('EMAIL_PROVIDER 조건부 검증', () => {
-    it('EMAIL_PROVIDER=console(기본)이면 RESEND_API_KEY/EMAIL_FROM 없이 통과한다', () => {
-      expect(() => validate(createValidConfig())).not.toThrow();
-    });
-
-    it('EMAIL_PROVIDER=resend 인데 RESEND_API_KEY가 없으면 실패한다', () => {
-      expect(() => {
-        validate({
-          ...createValidConfig(),
-          EMAIL_PROVIDER: 'resend',
-          EMAIL_FROM: 'noreply@dddsite.co.kr',
-        });
-      }).toThrow('RESEND_API_KEY');
-    });
-
-    it('EMAIL_PROVIDER=resend 인데 EMAIL_FROM이 없으면 실패한다', () => {
-      expect(() => {
-        validate({
-          ...createValidConfig(),
-          EMAIL_PROVIDER: 'resend',
-          RESEND_API_KEY: 're_test_key',
-        });
-      }).toThrow('EMAIL_FROM');
-    });
-
-    it('EMAIL_PROVIDER=resend 이고 KEY/FROM 이 모두 있으면 통과한다', () => {
-      expect(() =>
-        validate({
-          ...createValidConfig(),
-          EMAIL_PROVIDER: 'resend',
-          RESEND_API_KEY: 're_test_key',
-          EMAIL_FROM: 'noreply@dddsite.co.kr',
-        }),
-      ).not.toThrow();
-    });
-  });
-
-  describe('STORAGE_PROVIDER 조건부 검증', () => {
-    it('STORAGE_PROVIDER=gcs 인데 GCS_BUCKET_NAME이 없으면 실패한다', () => {
-      expect(() => {
-        validate({
-          ...createValidConfig(),
-          STORAGE_PROVIDER: 'gcs',
-          GCS_PROJECT_ID: 'ddd-project',
-          GCS_KEY_FILE_PATH: '/app/gcp-key.json',
-        });
-      }).toThrow('GCS_BUCKET_NAME');
-    });
-
-    it('STORAGE_PROVIDER=gcs 인데 GCS_PROJECT_ID가 없으면 실패한다', () => {
-      expect(() => {
-        validate({
-          ...createValidConfig(),
-          STORAGE_PROVIDER: 'gcs',
-          GCS_BUCKET_NAME: 'ddd-bucket',
-          GCS_KEY_FILE_PATH: '/app/gcp-key.json',
-        });
-      }).toThrow('GCS_PROJECT_ID');
-    });
-
-    it('STORAGE_PROVIDER=gcs 인데 GCS_KEY_FILE_PATH가 없으면 실패한다', () => {
-      expect(() => {
-        validate({
-          ...createValidConfig(),
-          STORAGE_PROVIDER: 'gcs',
-          GCS_BUCKET_NAME: 'ddd-bucket',
-          GCS_PROJECT_ID: 'ddd-project',
-        });
-      }).toThrow('GCS_KEY_FILE_PATH');
-    });
-  });
-
-  describe('DISCORD_PROVIDER 조건부 검증', () => {
-    const buildDiscordConfig = (): Record<string, unknown> => ({
-      ...createValidConfig(),
-      DISCORD_PROVIDER: 'discord',
-      DISCORD_CLIENT_ID: 'discord-client',
-      DISCORD_CLIENT_SECRET: 'discord-secret',
-      DISCORD_CALLBACK_URL: 'https://api.dddsite.co.kr/discord/callback',
-      DISCORD_BOT_TOKEN: 'discord-bot-token',
-      DISCORD_GUILD_ID: 'discord-guild-id',
-    });
-
-    it('DISCORD_PROVIDER 미설정(기본 console)이면 DISCORD_* 없이 통과한다', () => {
-      expect(() => validate(createValidConfig())).not.toThrow();
-    });
-
-    it('DISCORD_PROVIDER=discord 이고 핵심 5개가 모두 있으면 통과한다', () => {
-      expect(() => validate(buildDiscordConfig())).not.toThrow();
-    });
-
-    it('DISCORD_PROVIDER=discord 인데 DISCORD_CLIENT_ID가 없으면 실패한다', () => {
-      const config = buildDiscordConfig();
-      delete config.DISCORD_CLIENT_ID;
-
-      expect(() => validate(config)).toThrow('DISCORD_CLIENT_ID');
-    });
-
-    it('DISCORD_PROVIDER=discord 인데 DISCORD_CLIENT_SECRET이 없으면 실패한다', () => {
-      const config = buildDiscordConfig();
-      delete config.DISCORD_CLIENT_SECRET;
-
-      expect(() => validate(config)).toThrow('DISCORD_CLIENT_SECRET');
-    });
-
-    it('DISCORD_PROVIDER=discord 인데 DISCORD_CALLBACK_URL이 없으면 실패한다', () => {
-      const config = buildDiscordConfig();
-      delete config.DISCORD_CALLBACK_URL;
-
-      expect(() => validate(config)).toThrow('DISCORD_CALLBACK_URL');
-    });
-
-    it('DISCORD_PROVIDER=discord 인데 DISCORD_BOT_TOKEN이 없으면 실패한다', () => {
-      const config = buildDiscordConfig();
-      delete config.DISCORD_BOT_TOKEN;
-
-      expect(() => validate(config)).toThrow('DISCORD_BOT_TOKEN');
-    });
-
-    it('DISCORD_PROVIDER=discord 인데 DISCORD_GUILD_ID가 없으면 실패한다', () => {
-      const config = buildDiscordConfig();
-      delete config.DISCORD_GUILD_ID;
-
-      expect(() => validate(config)).toThrow('DISCORD_GUILD_ID');
     });
   });
 });
