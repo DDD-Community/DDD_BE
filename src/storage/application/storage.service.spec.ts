@@ -90,6 +90,16 @@ describe('StorageService', () => {
       ).rejects.toThrow(new AppException('FILE_UPLOAD_FAILED', HttpStatus.INTERNAL_SERVER_ERROR));
     });
 
+    it('GcsClient 비활성화 상태에서는 STORAGE_NOT_CONFIGURED(503)을 던지고 GCS를 호출하지 않는다', async () => {
+      mockGcsClient.isEnabled.mockReturnValue(false);
+      const file = buildFile();
+
+      await expect(
+        service.upload({ file, category: UploadCategory.PROJECT_THUMBNAIL }),
+      ).rejects.toThrow(new AppException('STORAGE_NOT_CONFIGURED', HttpStatus.SERVICE_UNAVAILABLE));
+      expect(mockGcsClient.upload).not.toHaveBeenCalled();
+    });
+
     it('정상 업로드 시 카테고리별 GCS 경로와 함께 URL을 반환한다', async () => {
       const file = buildFile();
       mockGcsClient.upload.mockResolvedValue('https://cdn.example.com/projects/thumbnails/abc.png');
@@ -166,6 +176,15 @@ describe('StorageService', () => {
         service.listFiles({ category: UploadCategory.PROJECT_THUMBNAIL }),
       ).rejects.toThrow(new AppException('FILE_LIST_FAILED', HttpStatus.INTERNAL_SERVER_ERROR));
     });
+
+    it('GcsClient 비활성화 상태에서는 STORAGE_NOT_CONFIGURED(503)을 던지고 GCS를 호출하지 않는다', async () => {
+      mockGcsClient.isEnabled.mockReturnValue(false);
+
+      await expect(
+        service.listFiles({ category: UploadCategory.PROJECT_THUMBNAIL }),
+      ).rejects.toThrow(new AppException('STORAGE_NOT_CONFIGURED', HttpStatus.SERVICE_UNAVAILABLE));
+      expect(mockGcsClient.list).not.toHaveBeenCalled();
+    });
   });
 
   describe('deleteFile', () => {
@@ -218,6 +237,15 @@ describe('StorageService', () => {
       await expect(service.deleteFile({ path: 'projects/thumbnails/abc.png' })).rejects.toThrow(
         new AppException('FILE_DELETE_FAILED', HttpStatus.INTERNAL_SERVER_ERROR),
       );
+    });
+
+    it('exists() 가 raw 에러를 던지면 FILE_DELETE_FAILED(500)로 매핑한다', async () => {
+      mockGcsClient.exists.mockRejectedValue(new Error('network'));
+
+      await expect(service.deleteFile({ path: 'projects/thumbnails/abc.png' })).rejects.toThrow(
+        new AppException('FILE_DELETE_FAILED', HttpStatus.INTERNAL_SERVER_ERROR),
+      );
+      expect(mockGcsClient.delete).not.toHaveBeenCalled();
     });
   });
 
@@ -292,6 +320,32 @@ describe('StorageService', () => {
         new AppException('SIGNED_URL_GENERATION_FAILED', HttpStatus.INTERNAL_SERVER_ERROR),
       );
     });
+
+    it('WRITE 액션에서도 GcsClient 비활성화 상태면 STORAGE_NOT_CONFIGURED(503)을 던진다', async () => {
+      mockGcsClient.isEnabled.mockReturnValue(false);
+
+      await expect(
+        service.generateSignedUrl({
+          path: 'projects/thumbnails/new.png',
+          action: SignedUrlAction.WRITE,
+        }),
+      ).rejects.toThrow(new AppException('STORAGE_NOT_CONFIGURED', HttpStatus.SERVICE_UNAVAILABLE));
+      expect(mockGcsClient.getSignedUrl).not.toHaveBeenCalled();
+    });
+
+    it('READ 액션에서 exists() 가 raw 에러를 던지면 SIGNED_URL_GENERATION_FAILED(500)로 매핑한다', async () => {
+      mockGcsClient.exists.mockRejectedValue(new Error('network'));
+
+      await expect(
+        service.generateSignedUrl({
+          path: 'projects/thumbnails/abc.png',
+          action: SignedUrlAction.READ,
+        }),
+      ).rejects.toThrow(
+        new AppException('SIGNED_URL_GENERATION_FAILED', HttpStatus.INTERNAL_SERVER_ERROR),
+      );
+      expect(mockGcsClient.getSignedUrl).not.toHaveBeenCalled();
+    });
   });
 
   describe('download', () => {
@@ -343,6 +397,15 @@ describe('StorageService', () => {
       await expect(service.download({ path: 'projects/thumbnails/abc.png' })).rejects.toThrow(
         new AppException('FILE_DOWNLOAD_FAILED', HttpStatus.INTERNAL_SERVER_ERROR),
       );
+    });
+
+    it('exists() 가 raw 에러를 던지면 FILE_DOWNLOAD_FAILED(500)로 매핑한다', async () => {
+      mockGcsClient.exists.mockRejectedValue(new Error('network'));
+
+      await expect(service.download({ path: 'projects/thumbnails/abc.png' })).rejects.toThrow(
+        new AppException('FILE_DOWNLOAD_FAILED', HttpStatus.INTERNAL_SERVER_ERROR),
+      );
+      expect(mockGcsClient.download).not.toHaveBeenCalled();
     });
   });
 });
