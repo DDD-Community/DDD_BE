@@ -17,6 +17,10 @@ export class BootstrapTokenGuard implements CanActivate {
       throw new AppException('BOOTSTRAP_TOKEN_NOT_CONFIGURED', HttpStatus.SERVICE_UNAVAILABLE);
     }
 
+    if (this.isExpired()) {
+      throw new AppException('BOOTSTRAP_TOKEN_EXPIRED', HttpStatus.SERVICE_UNAVAILABLE);
+    }
+
     const request = context.switchToHttp().getRequest<Request>();
     const provided = request.headers[HEADER_NAME];
 
@@ -25,6 +29,19 @@ export class BootstrapTokenGuard implements CanActivate {
     }
 
     return true;
+  }
+
+  private isExpired(): boolean {
+    const expiresAt = this.configService.get<string>('ADMIN_BOOTSTRAP_TOKEN_EXPIRES_AT');
+    if (!expiresAt) {
+      return false;
+    }
+
+    const expiresAtMs = Date.parse(expiresAt);
+    if (Number.isNaN(expiresAtMs)) {
+      throw new AppException('BOOTSTRAP_TOKEN_EXPIRED', HttpStatus.SERVICE_UNAVAILABLE);
+    }
+    return Date.now() >= expiresAtMs;
   }
 
   private matches(expected: string, provided: string): boolean {

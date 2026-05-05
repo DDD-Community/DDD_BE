@@ -41,6 +41,10 @@ class EnvironmentVariables {
   ADMIN_BOOTSTRAP_TOKEN?: string;
 
   @IsString()
+  @IsOptional()
+  ADMIN_BOOTSTRAP_TOKEN_EXPIRES_AT?: string;
+
+  @IsString()
   GOOGLE_CLIENT_ID: string;
 
   @IsString()

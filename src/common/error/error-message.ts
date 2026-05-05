@@ -6,9 +6,12 @@ export const ErrorMessage = {
   BAD_REQUEST: '잘못된 요청입니다.',
 
   USER_NOT_FOUND: '사용자를 찾을 수 없습니다.',
+  USER_DELETED: '탈퇴 처리된 사용자입니다.',
   GOOGLE_AUTH_FAILED: '구글 인증 정보를 가져올 수 없습니다.',
   BOOTSTRAP_TOKEN_NOT_CONFIGURED: '부트스트랩 토큰이 서버에 설정되지 않았습니다.',
+  BOOTSTRAP_TOKEN_EXPIRED: '부트스트랩 토큰이 만료되어 이 엔드포인트는 봉인되었습니다.',
   BOOTSTRAP_TOKEN_INVALID: '부트스트랩 토큰이 일치하지 않습니다.',
+  ADMIN_LOCKOUT_PROTECTED: '활성 계정관리자가 0명이 되는 변경은 허용되지 않습니다.',
 
   COHORT_NOT_FOUND: '기수를 찾을 수 없습니다.',
   COHORT_ALREADY_EXISTS: '이미 진행 중인 기수가 존재합니다.',

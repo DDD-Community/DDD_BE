@@ -17,6 +17,14 @@ export class UserRepository {
     await this.roleWriteRepository.saveRoles({ userId, roles });
   }
 
+  async countActiveByRole({ role }: { role: UserRole }): Promise<number> {
+    return this.roleWriteRepository.countActiveByRole({ role });
+  }
+
+  async findByIdWithDeleted({ id }: { id: number }) {
+    return this.writeRepository.findOne({ where: { id }, includeRoles: true, withDeleted: true });
+  }
+
   async findByEmail({ email, withDeleted = false }: { email: string; withDeleted?: boolean }) {
     return this.writeRepository.findOne({
       where: { email },

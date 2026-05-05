@@ -27,4 +27,12 @@ export class RoleWriteRepository {
     const created = this.repository.create({ userId, role: roles });
     await this.repository.save(created);
   }
+
+  async countActiveByRole({ role }: { role: UserRole }): Promise<number> {
+    return this.repository
+      .createQueryBuilder('userRole')
+      .where(':role = ANY(userRole.role)', { role })
+      .andWhere('userRole.deletedAt IS NULL')
+      .getCount();
+  }
 }

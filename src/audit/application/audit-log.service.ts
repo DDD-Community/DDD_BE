@@ -32,6 +32,28 @@ export class AuditLogService {
     });
   }
 
+  async recordRoleChange({
+    userId,
+    fromRoles,
+    toRoles,
+    adminId,
+  }: {
+    userId: number;
+    fromRoles: string[];
+    toRoles: string[];
+    adminId: number;
+  }): Promise<AuditLog> {
+    return this.auditLogRepository.record({
+      entityType: 'user_role',
+      entityId: userId,
+      action: AuditAction.UPDATE,
+      field: 'roles',
+      fromValue: JSON.stringify(fromRoles),
+      toValue: JSON.stringify(toRoles),
+      adminId,
+    });
+  }
+
   async findHistory({
     entityType,
     entityId,
