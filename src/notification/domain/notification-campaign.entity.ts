@@ -71,6 +71,24 @@ export class NotificationCampaign extends BaseEntity {
     return campaign;
   }
 
+  static createDraft({
+    cohortId,
+    scheduledAt,
+    subject,
+    html,
+    text,
+  }: {
+    cohortId: number;
+    scheduledAt: Date;
+    subject: string;
+    html: string;
+    text: string;
+  }): NotificationCampaign {
+    const campaign = NotificationCampaign.create({ cohortId, scheduledAt, subject, html, text });
+    campaign.status = NotificationCampaignStatus.PAUSED;
+    return campaign;
+  }
+
   applyEdits({
     scheduledAt,
     subject,
