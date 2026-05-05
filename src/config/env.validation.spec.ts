@@ -37,4 +37,41 @@ describe('env validation', () => {
       });
     }).toThrow('ENCRYPTION_KEY must be a 64-character hex string.');
   });
+
+  describe('CALENDAR_PROVIDER 조건부 검증', () => {
+    it('CALENDAR_PROVIDER 미설정(기본 console)이면 GOOGLE_CALENDAR_ID/KEY 없이 통과한다', () => {
+      expect(() => validate(createValidConfig())).not.toThrow();
+    });
+
+    it('CALENDAR_PROVIDER=google 인데 GOOGLE_CALENDAR_ID가 없으면 실패한다', () => {
+      expect(() => {
+        validate({
+          ...createValidConfig(),
+          CALENDAR_PROVIDER: 'google',
+          GOOGLE_CALENDAR_KEY_FILE_PATH: '/app/gcp-key.json',
+        });
+      }).toThrow('GOOGLE_CALENDAR_ID');
+    });
+
+    it('CALENDAR_PROVIDER=google 인데 GOOGLE_CALENDAR_KEY_FILE_PATH가 없으면 실패한다', () => {
+      expect(() => {
+        validate({
+          ...createValidConfig(),
+          CALENDAR_PROVIDER: 'google',
+          GOOGLE_CALENDAR_ID: 'test@group.calendar.google.com',
+        });
+      }).toThrow('GOOGLE_CALENDAR_KEY_FILE_PATH');
+    });
+
+    it('CALENDAR_PROVIDER=google 이고 ID/KEY가 모두 있으면 통과한다', () => {
+      expect(() =>
+        validate({
+          ...createValidConfig(),
+          CALENDAR_PROVIDER: 'google',
+          GOOGLE_CALENDAR_ID: 'test@group.calendar.google.com',
+          GOOGLE_CALENDAR_KEY_FILE_PATH: '/app/gcp-key.json',
+        }),
+      ).not.toThrow();
+    });
+  });
 });

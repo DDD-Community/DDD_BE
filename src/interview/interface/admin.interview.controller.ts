@@ -147,4 +147,16 @@ export class AdminInterviewController {
     });
     return ApiResponse.ok(InterviewReservationResponseDto.from(reservation));
   }
+
+  @ApiDoc({
+    summary: '면접 예약 취소',
+    description: '면접 예약을 취소하고 연동된 구글 캘린더 이벤트를 삭제합니다.',
+    operationId: 'interview_cancelReservation',
+    auth: true,
+  })
+  @Delete('reservations/:reservationId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async cancelReservation(@Param('reservationId', ParseIntPipe) reservationId: number) {
+    await this.interviewService.cancelReservation({ id: reservationId });
+  }
 }

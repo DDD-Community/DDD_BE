@@ -24,13 +24,17 @@ const mockInterviewRepository = {
   deleteSlot: jest.fn(),
   countSlotsByCohortPartId: jest.fn(),
   saveReservation: jest.fn(),
+  findReservationById: jest.fn(),
   findReservationByApplicationFormId: jest.fn(),
   findReservations: jest.fn(),
   countActiveReservationsBySlotId: jest.fn(),
+  deleteReservation: jest.fn(),
 };
 
 const mockGoogleCalendarClient = {
   createEvent: jest.fn(),
+  updateEvent: jest.fn(),
+  deleteEvent: jest.fn(),
 };
 
 const mockNotificationService = {
@@ -209,6 +213,112 @@ describe('InterviewService', () => {
           ]),
         }),
       );
+    });
+  });
+
+  describe('cancelReservation', () => {
+    it('예약이 없으면 INTERVIEW_RESERVATION_NOT_FOUND(404)를 던진다', async () => {
+      // Given
+      mockInterviewRepository.findReservationById.mockResolvedValue(null);
+
+      // When / Then
+      await expect(service.cancelReservation({ id: 100 })).rejects.toThrow(
+        new AppException('INTERVIEW_RESERVATION_NOT_FOUND', HttpStatus.NOT_FOUND),
+      );
+    });
+
+    it('예약 soft delete 후 캘린더 이벤트도 삭제한다', async () => {
+      // Given
+      const reservation = buildReservation({ calendarEventId: 'event-123' });
+      mockInterviewRepository.findReservationById.mockResolvedValue(reservation);
+
+      // When
+      await service.cancelReservation({ id: 100 });
+
+      // Then
+      expect(mockInterviewRepository.deleteReservation).toHaveBeenCalledWith({ id: 100 });
+      expect(mockGoogleCalendarClient.deleteEvent).toHaveBeenCalledWith({ eventId: 'event-123' });
+    });
+
+    it('연동된 캘린더 이벤트가 없으면 deleteEvent를 호출하지 않는다', async () => {
+      // Given
+      const reservation = buildReservation({ calendarEventId: null });
+      mockInterviewRepository.findReservationById.mockResolvedValue(reservation);
+
+      // When
+      await service.cancelReservation({ id: 100 });
+
+      // Then
+      expect(mockInterviewRepository.deleteReservation).toHaveBeenCalledWith({ id: 100 });
+      expect(mockGoogleCalendarClient.deleteEvent).not.toHaveBeenCalled();
+    });
+
+    it('캘린더 이벤트 삭제 실패해도 예약 취소는 성공으로 마무리한다', async () => {
+      // Given
+      const reservation = buildReservation({ calendarEventId: 'event-123' });
+      mockInterviewRepository.findReservationById.mockResolvedValue(reservation);
+      mockGoogleCalendarClient.deleteEvent.mockRejectedValue(new Error('calendar down'));
+
+      // When / Then
+      await expect(service.cancelReservation({ id: 100 })).resolves.toBeUndefined();
+      expect(mockInterviewRepository.deleteReservation).toHaveBeenCalledWith({ id: 100 });
+    });
+  });
+
+  describe('updateSlot', () => {
+    const baseSlot = (): InterviewSlot =>
+      buildSlot({
+        reservations: [
+          buildReservation({ id: 101, calendarEventId: 'event-aaa' }),
+          buildReservation({ id: 102, calendarEventId: null }),
+          buildReservation({ id: 103, calendarEventId: 'event-bbb' }),
+        ] as InterviewSlot['reservations'],
+      });
+
+    it('startAt이 변경되면 calendarEventId가 있는 예약만 캘린더 이벤트 업데이트를 호출한다', async () => {
+      // Given
+      mockInterviewRepository.findSlotById.mockResolvedValue(baseSlot());
+      const nextStartAt = new Date('2026-05-01T11:00:00Z');
+      const nextEndAt = new Date('2026-05-01T11:30:00Z');
+
+      // When
+      await service.updateSlot({ id: 1, patch: { startAt: nextStartAt, endAt: nextEndAt } });
+
+      // Then
+      expect(mockInterviewRepository.updateSlot).toHaveBeenCalled();
+      expect(mockGoogleCalendarClient.updateEvent).toHaveBeenCalledTimes(2);
+      expect(mockGoogleCalendarClient.updateEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ eventId: 'event-aaa', startAt: nextStartAt, endAt: nextEndAt }),
+      );
+      expect(mockGoogleCalendarClient.updateEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ eventId: 'event-bbb', startAt: nextStartAt, endAt: nextEndAt }),
+      );
+    });
+
+    it('capacity만 변경되면 캘린더 이벤트는 동기화하지 않는다', async () => {
+      // Given
+      mockInterviewRepository.findSlotById.mockResolvedValue(baseSlot());
+
+      // When
+      await service.updateSlot({ id: 1, patch: { capacity: 2 } });
+
+      // Then
+      expect(mockInterviewRepository.updateSlot).toHaveBeenCalled();
+      expect(mockGoogleCalendarClient.updateEvent).not.toHaveBeenCalled();
+    });
+
+    it('일부 캘린더 이벤트 업데이트가 실패해도 나머지 이벤트는 계속 동기화한다', async () => {
+      // Given
+      mockInterviewRepository.findSlotById.mockResolvedValue(baseSlot());
+      mockGoogleCalendarClient.updateEvent
+        .mockRejectedValueOnce(new Error('calendar down'))
+        .mockResolvedValueOnce(undefined);
+
+      // When
+      await service.updateSlot({ id: 1, patch: { location: '판교' } });
+
+      // Then
+      expect(mockGoogleCalendarClient.updateEvent).toHaveBeenCalledTimes(2);
     });
   });
 

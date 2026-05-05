@@ -1,5 +1,15 @@
 import { plainToInstance } from 'class-transformer';
-import { IsNumber, IsOptional, IsString, Matches, Max, Min, validateSync } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Matches,
+  Max,
+  Min,
+  ValidateIf,
+  validateSync,
+} from 'class-validator';
 
 class EnvironmentVariables {
   @IsNumber()
@@ -102,12 +112,22 @@ class EnvironmentVariables {
   @IsOptional()
   CALENDAR_PROVIDER?: string = 'console';
 
-  @IsString()
-  @IsOptional()
+  @ValidateIf((env: EnvironmentVariables) => env.CALENDAR_PROVIDER === 'google')
+  @IsString({
+    message: 'CALENDAR_PROVIDER=google 일 때 GOOGLE_CALENDAR_ID는 필수입니다.',
+  })
+  @IsNotEmpty({
+    message: 'CALENDAR_PROVIDER=google 일 때 GOOGLE_CALENDAR_ID는 필수입니다.',
+  })
   GOOGLE_CALENDAR_ID?: string;
 
-  @IsString()
-  @IsOptional()
+  @ValidateIf((env: EnvironmentVariables) => env.CALENDAR_PROVIDER === 'google')
+  @IsString({
+    message: 'CALENDAR_PROVIDER=google 일 때 GOOGLE_CALENDAR_KEY_FILE_PATH는 필수입니다.',
+  })
+  @IsNotEmpty({
+    message: 'CALENDAR_PROVIDER=google 일 때 GOOGLE_CALENDAR_KEY_FILE_PATH는 필수입니다.',
+  })
   GOOGLE_CALENDAR_KEY_FILE_PATH?: string;
 
   @IsString()

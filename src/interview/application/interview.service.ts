@@ -64,6 +64,37 @@ export class InterviewService {
     }
 
     await this.interviewRepository.updateSlot({ id, patch });
+
+    const calendarRelevantChanged =
+      patch.startAt !== undefined ||
+      patch.endAt !== undefined ||
+      patch.location !== undefined ||
+      patch.description !== undefined;
+    if (!calendarRelevantChanged) {
+      return;
+    }
+
+    const nextLocation = patch.location ?? slot.location;
+    const nextDescription = patch.description ?? slot.description;
+    const reservationsToSync = (slot.reservations ?? []).filter(
+      (reservation) => reservation.calendarEventId,
+    );
+    for (const reservation of reservationsToSync) {
+      try {
+        await this.googleCalendarClient.updateEvent({
+          eventId: reservation.calendarEventId as string,
+          startAt: nextStartAt,
+          endAt: nextEndAt,
+          location: nextLocation,
+          description: nextDescription,
+        });
+      } catch (error) {
+        this.logger.error(
+          `구글 캘린더 이벤트 업데이트 실패 (eventId=${reservation.calendarEventId})`,
+          error,
+        );
+      }
+    }
   }
 
   @Transactional()
@@ -144,6 +175,29 @@ export class InterviewService {
 
   async findReservationsBySlotId({ slotId }: { slotId: number }): Promise<InterviewReservation[]> {
     return this.interviewRepository.findReservations({ where: { slotId } });
+  }
+
+  @Transactional()
+  async cancelReservation({ id }: { id: number }): Promise<void> {
+    const reservation = await this.interviewRepository.findReservationById({ id });
+    if (!reservation) {
+      throw new AppException('INTERVIEW_RESERVATION_NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+
+    await this.interviewRepository.deleteReservation({ id });
+
+    if (reservation.calendarEventId) {
+      try {
+        await this.googleCalendarClient.deleteEvent({
+          eventId: reservation.calendarEventId,
+        });
+      } catch (error) {
+        this.logger.error(
+          `구글 캘린더 이벤트 삭제 실패 (eventId=${reservation.calendarEventId})`,
+          error,
+        );
+      }
+    }
   }
 
   private validateSlotRange({ startAt, endAt }: { startAt: Date; endAt: Date }): void {

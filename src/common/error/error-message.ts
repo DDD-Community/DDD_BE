@@ -32,6 +32,7 @@ export const ErrorMessage = {
   INTERVIEW_SLOT_ALREADY_RESERVED: '이미 예약된 면접 슬롯입니다.',
   INTERVIEW_SLOTS_NOT_READY: '해당 파트의 면접 슬롯이 준비되지 않아 서류합격 처리할 수 없습니다.',
   INVALID_INTERVIEW_SLOT_RANGE: '면접 슬롯의 종료 시간은 시작 시간보다 늦어야 합니다.',
+  INTERVIEW_RESERVATION_NOT_FOUND: '면접 예약을 찾을 수 없습니다.',
 
   BLOG_POST_NOT_FOUND: '블로그 게시글을 찾을 수 없습니다.',
 
