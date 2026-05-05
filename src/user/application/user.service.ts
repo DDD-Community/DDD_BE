@@ -1,7 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 
+import { AppException } from '../../common/exception/app.exception';
 import { UserRepository } from '../domain/user.repository';
+import { UserRole } from '../domain/user.role';
 import type { RegisterResult, UserType } from '../domain/user.type';
 
 @Injectable()
@@ -61,5 +63,16 @@ export class UserService {
 
   async withdraw({ id }: { id: number }) {
     await this.userRepository.withdraw({ id });
+  }
+
+  @Transactional()
+  async assignRoles({ userId, roles }: { userId: number; roles: UserRole[] }) {
+    const user = await this.userRepository.findById({ id: userId });
+    if (!user) {
+      throw new AppException('USER_NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+
+    await this.userRepository.saveRoles({ userId, roles });
+    return user;
   }
 }

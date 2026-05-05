@@ -37,6 +37,10 @@ class EnvironmentVariables {
   JWT_EXPIRES_IN: string = '1d';
 
   @IsString()
+  @IsOptional()
+  ADMIN_BOOTSTRAP_TOKEN?: string;
+
+  @IsString()
   GOOGLE_CLIENT_ID: string;
 
   @IsString()

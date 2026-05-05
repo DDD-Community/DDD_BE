@@ -7,6 +7,8 @@ export const ErrorMessage = {
 
   USER_NOT_FOUND: '사용자를 찾을 수 없습니다.',
   GOOGLE_AUTH_FAILED: '구글 인증 정보를 가져올 수 없습니다.',
+  BOOTSTRAP_TOKEN_NOT_CONFIGURED: '부트스트랩 토큰이 서버에 설정되지 않았습니다.',
+  BOOTSTRAP_TOKEN_INVALID: '부트스트랩 토큰이 일치하지 않습니다.',
 
   COHORT_NOT_FOUND: '기수를 찾을 수 없습니다.',
   COHORT_ALREADY_EXISTS: '이미 진행 중인 기수가 존재합니다.',
