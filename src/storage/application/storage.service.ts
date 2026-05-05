@@ -3,8 +3,6 @@ import { extname } from 'path';
 
 import { AppException } from '../../common/exception/app.exception';
 import type {
-  DownloadResult,
-  FilePayload,
   ListFilesOptions,
   ListFilesResult,
   SignedUrlResult,
@@ -18,6 +16,12 @@ import {
   UploadCategory,
 } from '../domain/storage.type';
 import { GcsClient } from '../infrastructure/gcs.client';
+import type {
+  DownloadResult,
+  GenerateSignedUrlInput,
+  StoragePathInput,
+  UploadInput,
+} from './storage.type';
 
 const DEFAULT_LIST_LIMIT = 20;
 const MAX_LIST_LIMIT = 100;
@@ -36,13 +40,7 @@ export class StorageService {
 
   constructor(private readonly gcsClient: GcsClient) {}
 
-  async upload({
-    file,
-    category,
-  }: {
-    file: FilePayload | null;
-    category: UploadCategory;
-  }): Promise<UploadResult> {
+  async upload({ file, category }: UploadInput): Promise<UploadResult> {
     if (!file) {
       throw new AppException('FILE_NOT_PROVIDED', HttpStatus.BAD_REQUEST);
     }
@@ -51,6 +49,7 @@ export class StorageService {
 
     this.validateMimeType({ mimeType: file.mimeType, allowed: config.allowedMimeTypes });
     this.validateFileSize({ size: file.size, maxSize: config.maxSizeBytes });
+    this.assertStorageEnabled();
 
     try {
       const url = await this.gcsClient.upload({
@@ -74,6 +73,7 @@ export class StorageService {
   }
 
   async listFiles({ category, cursor, limit }: ListFilesOptions): Promise<ListFilesResult> {
+    this.assertStorageEnabled();
     const prefix = `${UPLOAD_CATEGORY_CONFIG[category].gcsPath}/`;
     const maxResults = this.normalizeLimit({ limit });
 
@@ -96,12 +96,12 @@ export class StorageService {
     }
   }
 
-  async deleteFile({ path }: { path: string }): Promise<void> {
+  async deleteFile({ path }: StoragePathInput): Promise<void> {
     this.assertAllowedPath({ path });
     this.assertStorageEnabled();
-    await this.assertFileExists({ path });
 
     try {
+      await this.assertFileExists({ path });
       await this.gcsClient.delete({ path });
     } catch (error) {
       if (error instanceof AppException) throw error;
@@ -114,12 +114,9 @@ export class StorageService {
     path,
     action,
     expiresInSeconds,
-  }: {
-    path: string;
-    action: SignedUrlAction;
-    expiresInSeconds?: number;
-  }): Promise<SignedUrlResult> {
+  }: GenerateSignedUrlInput): Promise<SignedUrlResult> {
     this.assertAllowedPath({ path });
+    this.assertStorageEnabled();
 
     const category = findCategoryByPath({ path });
     if (!category) {
@@ -132,12 +129,10 @@ export class StorageService {
 
     const expires = this.normalizeExpiresInSeconds({ expiresInSeconds });
 
-    if (action === SignedUrlAction.READ) {
-      this.assertStorageEnabled();
-      await this.assertFileExists({ path });
-    }
-
     try {
+      if (action === SignedUrlAction.READ) {
+        await this.assertFileExists({ path });
+      }
       return await this.gcsClient.getSignedUrl({
         path,
         action,
@@ -150,12 +145,12 @@ export class StorageService {
     }
   }
 
-  async download({ path }: { path: string }): Promise<DownloadResult> {
+  async download({ path }: StoragePathInput): Promise<DownloadResult> {
     this.assertAllowedPath({ path });
     this.assertStorageEnabled();
-    await this.assertFileExists({ path });
 
     try {
+      await this.assertFileExists({ path });
       return await this.gcsClient.download({ path });
     } catch (error) {
       if (error instanceof AppException) throw error;
