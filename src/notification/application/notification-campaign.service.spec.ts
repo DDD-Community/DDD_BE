@@ -17,10 +17,13 @@ import { NotificationCampaignService } from './notification-campaign.service';
 
 const mockNotificationCampaignRepository = {
   register: jest.fn(),
+  save: jest.fn(),
   findById: jest.fn(),
   findByCohort: jest.fn(),
   findDueScheduled: jest.fn(),
+  findStaleRunning: jest.fn(),
   transitionStatus: jest.fn(),
+  deleteById: jest.fn(),
 };
 
 const mockCohortRepository = {
@@ -346,6 +349,175 @@ describe('NotificationCampaignService', () => {
 
       // When
       await service.runDueCampaigns();
+
+      // Then
+      expect(mockAuditLogService.recordStatusChange).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('updateCampaign', () => {
+    const editPayload = { id: 5, subject: '수정된 제목', html: '<p>수정</p>' };
+
+    it('캠페인이 없으면 NOTIFICATION_CAMPAIGN_NOT_FOUND를 던진다', async () => {
+      // Given
+      mockNotificationCampaignRepository.findById.mockResolvedValue(null);
+
+      // When & Then
+      await expect(service.updateCampaign(editPayload)).rejects.toThrow(
+        new AppException('NOTIFICATION_CAMPAIGN_NOT_FOUND', HttpStatus.NOT_FOUND),
+      );
+      expect(mockNotificationCampaignRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('SCHEDULED/PAUSED가 아니면 INVALID_STATE를 던진다', async () => {
+      // Given
+      mockNotificationCampaignRepository.findById.mockResolvedValue({
+        id: 5,
+        status: NotificationCampaignStatus.RUNNING,
+        applyEdits: jest.fn(),
+      });
+
+      // When & Then
+      await expect(service.updateCampaign(editPayload)).rejects.toThrow(
+        new AppException('NOTIFICATION_CAMPAIGN_INVALID_STATE', HttpStatus.CONFLICT),
+      );
+      expect(mockNotificationCampaignRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('SCHEDULED 상태면 applyEdits 후 저장하고 반환한다', async () => {
+      // Given
+      const applyEdits = jest.fn();
+      const found = {
+        id: 5,
+        status: NotificationCampaignStatus.SCHEDULED,
+        applyEdits,
+      };
+      const saved = { ...found, subject: '수정된 제목' };
+      mockNotificationCampaignRepository.findById.mockResolvedValue(found);
+      mockNotificationCampaignRepository.save.mockResolvedValue(saved);
+
+      // When
+      const result = await service.updateCampaign(editPayload);
+
+      // Then
+      expect(applyEdits).toHaveBeenCalledWith({
+        scheduledAt: undefined,
+        subject: '수정된 제목',
+        html: '<p>수정</p>',
+        text: undefined,
+      });
+      expect(mockNotificationCampaignRepository.save).toHaveBeenCalledWith({ campaign: found });
+      expect(result).toBe(saved);
+    });
+
+    it('PAUSED 상태에서도 수정 가능하다', async () => {
+      // Given
+      const applyEdits = jest.fn();
+      const found = {
+        id: 5,
+        status: NotificationCampaignStatus.PAUSED,
+        applyEdits,
+      };
+      mockNotificationCampaignRepository.findById.mockResolvedValue(found);
+      mockNotificationCampaignRepository.save.mockResolvedValue(found);
+
+      // When
+      await service.updateCampaign(editPayload);
+
+      // Then
+      expect(applyEdits).toHaveBeenCalled();
+      expect(mockNotificationCampaignRepository.save).toHaveBeenCalled();
+    });
+  });
+
+  describe('deleteCampaign', () => {
+    it('캠페인이 없으면 NOTIFICATION_CAMPAIGN_NOT_FOUND를 던진다', async () => {
+      // Given
+      mockNotificationCampaignRepository.findById.mockResolvedValue(null);
+
+      // When & Then
+      await expect(service.deleteCampaign({ id: 5 })).rejects.toThrow(
+        new AppException('NOTIFICATION_CAMPAIGN_NOT_FOUND', HttpStatus.NOT_FOUND),
+      );
+      expect(mockNotificationCampaignRepository.deleteById).not.toHaveBeenCalled();
+    });
+
+    it('RUNNING 상태면 INVALID_STATE를 던진다', async () => {
+      // Given
+      mockNotificationCampaignRepository.findById.mockResolvedValue({
+        id: 5,
+        status: NotificationCampaignStatus.RUNNING,
+      });
+
+      // When & Then
+      await expect(service.deleteCampaign({ id: 5 })).rejects.toThrow(
+        new AppException('NOTIFICATION_CAMPAIGN_INVALID_STATE', HttpStatus.CONFLICT),
+      );
+      expect(mockNotificationCampaignRepository.deleteById).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      NotificationCampaignStatus.SCHEDULED,
+      NotificationCampaignStatus.PAUSED,
+      NotificationCampaignStatus.DONE,
+      NotificationCampaignStatus.FAILED,
+    ])('%s 상태에서는 soft delete 한다', async (status) => {
+      // Given
+      mockNotificationCampaignRepository.findById.mockResolvedValue({ id: 5, status });
+      mockNotificationCampaignRepository.deleteById.mockResolvedValue(undefined);
+
+      // When
+      await service.deleteCampaign({ id: 5 });
+
+      // Then
+      expect(mockNotificationCampaignRepository.deleteById).toHaveBeenCalledWith({ id: 5 });
+    });
+  });
+
+  describe('reapStaleRunning', () => {
+    it('stale 캠페인이 없으면 추가 호출이 없다', async () => {
+      // Given
+      mockNotificationCampaignRepository.findStaleRunning.mockResolvedValue([]);
+
+      // When
+      await service.reapStaleRunning();
+
+      // Then
+      expect(mockNotificationCampaignRepository.transitionStatus).not.toHaveBeenCalled();
+      expect(mockAuditLogService.recordStatusChange).not.toHaveBeenCalled();
+    });
+
+    it('stale 캠페인을 RUNNING→FAILED로 전이하고 audit 로그를 남긴다', async () => {
+      // Given
+      const stale = { id: 200 };
+      mockNotificationCampaignRepository.findStaleRunning.mockResolvedValue([stale]);
+      mockNotificationCampaignRepository.transitionStatus.mockResolvedValue(true);
+
+      // When
+      await service.reapStaleRunning();
+
+      // Then
+      expect(mockNotificationCampaignRepository.transitionStatus).toHaveBeenCalledWith({
+        id: 200,
+        fromStatus: NotificationCampaignStatus.RUNNING,
+        toStatus: NotificationCampaignStatus.FAILED,
+      });
+      expect(mockAuditLogService.recordStatusChange).toHaveBeenCalledWith({
+        entityType: 'notification_campaign',
+        entityId: 200,
+        fromValue: NotificationCampaignStatus.RUNNING,
+        toValue: NotificationCampaignStatus.FAILED,
+        adminId: 0,
+      });
+    });
+
+    it('전이가 race로 실패하면 audit 로그를 남기지 않는다', async () => {
+      // Given
+      mockNotificationCampaignRepository.findStaleRunning.mockResolvedValue([{ id: 201 }]);
+      mockNotificationCampaignRepository.transitionStatus.mockResolvedValue(false);
+
+      // When
+      await service.reapStaleRunning();
 
       // Then
       expect(mockAuditLogService.recordStatusChange).not.toHaveBeenCalled();

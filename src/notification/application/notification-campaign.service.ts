@@ -14,6 +14,7 @@ import { EarlyNotificationService } from './early-notification.service';
 
 const AUDIT_ENTITY_TYPE = 'notification_campaign';
 const SYSTEM_ADMIN_ID = 0;
+const STALE_RUNNING_THRESHOLD_MS = 30 * 60 * 1000;
 
 type CreateCampaignPayload = {
   cohortId: number;
@@ -26,6 +27,14 @@ type CreateCampaignPayload = {
 type ListByCohortPayload = {
   cohortId: number;
   status?: NotificationCampaignStatus;
+};
+
+type UpdateCampaignPayload = {
+  id: number;
+  scheduledAt?: Date;
+  subject?: string;
+  html?: string;
+  text?: string;
 };
 
 @Injectable()
@@ -56,6 +65,34 @@ export class NotificationCampaignService {
 
   async listByCohort({ cohortId, status }: ListByCohortPayload) {
     return this.notificationCampaignRepository.findByCohort({ cohortId, status });
+  }
+
+  @Transactional()
+  async updateCampaign({ id, scheduledAt, subject, html, text }: UpdateCampaignPayload) {
+    const found = await this.notificationCampaignRepository.findById({ id });
+    if (!found) {
+      throw new AppException('NOTIFICATION_CAMPAIGN_NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+    if (
+      found.status !== NotificationCampaignStatus.SCHEDULED &&
+      found.status !== NotificationCampaignStatus.PAUSED
+    ) {
+      throw new AppException('NOTIFICATION_CAMPAIGN_INVALID_STATE', HttpStatus.CONFLICT);
+    }
+    found.applyEdits({ scheduledAt, subject, html, text });
+    return this.notificationCampaignRepository.save({ campaign: found });
+  }
+
+  @Transactional()
+  async deleteCampaign({ id }: { id: number }): Promise<void> {
+    const found = await this.notificationCampaignRepository.findById({ id });
+    if (!found) {
+      throw new AppException('NOTIFICATION_CAMPAIGN_NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+    if (found.status === NotificationCampaignStatus.RUNNING) {
+      throw new AppException('NOTIFICATION_CAMPAIGN_INVALID_STATE', HttpStatus.CONFLICT);
+    }
+    await this.notificationCampaignRepository.deleteById({ id });
   }
 
   @Transactional()
@@ -115,6 +152,36 @@ export class NotificationCampaignService {
     for (const campaign of due) {
       await this.executeCampaign(campaign);
     }
+  }
+
+  async reapStaleRunning(): Promise<void> {
+    const threshold = new Date(Date.now() - STALE_RUNNING_THRESHOLD_MS);
+    const stale = await this.notificationCampaignRepository.findStaleRunning({
+      updatedAtBefore: threshold,
+    });
+    for (const campaign of stale) {
+      await this.recoverStaleCampaign(campaign);
+    }
+  }
+
+  @Transactional()
+  async recoverStaleCampaign(campaign: NotificationCampaign): Promise<void> {
+    const recovered = await this.notificationCampaignRepository.transitionStatus({
+      id: campaign.id,
+      fromStatus: NotificationCampaignStatus.RUNNING,
+      toStatus: NotificationCampaignStatus.FAILED,
+    });
+    if (!recovered) {
+      return;
+    }
+    this.logger.warn(`stale RUNNING 캠페인 복구 id=${campaign.id}`);
+    await this.auditLogService.recordStatusChange({
+      entityType: AUDIT_ENTITY_TYPE,
+      entityId: campaign.id,
+      fromValue: NotificationCampaignStatus.RUNNING,
+      toValue: NotificationCampaignStatus.FAILED,
+      adminId: SYSTEM_ADMIN_ID,
+    });
   }
 
   async executeCampaign(campaign: NotificationCampaign): Promise<void> {

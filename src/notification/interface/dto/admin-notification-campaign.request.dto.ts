@@ -45,6 +45,37 @@ export class CreateNotificationCampaignRequestDto {
   text: string;
 }
 
+export class UpdateNotificationCampaignRequestDto {
+  @ApiPropertyOptional({
+    description: '발송 예정 시각 (ISO 8601)',
+    example: '2026-06-01T10:00:00.000Z',
+  })
+  @IsOptional()
+  @IsISO8601()
+  scheduledAt?: string;
+
+  @ApiPropertyOptional({ description: '메일 제목' })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
+  subject?: string;
+
+  @ApiPropertyOptional({ description: 'HTML 본문' })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(50000)
+  html?: string;
+
+  @ApiPropertyOptional({ description: '플레인텍스트 본문' })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(20000)
+  text?: string;
+}
+
 export class FindAdminNotificationCampaignsQueryDto {
   @ApiProperty({ description: '대상 기수 ID', example: 1 })
   @Type(() => Number)
