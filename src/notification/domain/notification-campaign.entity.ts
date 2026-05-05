@@ -70,4 +70,29 @@ export class NotificationCampaign extends BaseEntity {
     campaign.result = null;
     return campaign;
   }
+
+  applyEdits({
+    scheduledAt,
+    subject,
+    html,
+    text,
+  }: {
+    scheduledAt?: Date;
+    subject?: string;
+    html?: string;
+    text?: string;
+  }): void {
+    if (scheduledAt !== undefined) {
+      this.scheduledAt = scheduledAt;
+    }
+    if (subject !== undefined) {
+      this.subject = subject;
+    }
+    if (html !== undefined) {
+      this.html = html;
+    }
+    if (text !== undefined) {
+      this.text = text;
+    }
+  }
 }

@@ -5,4 +5,5 @@ export type NotificationCampaignFilter = {
   cohortId?: number;
   status?: NotificationCampaignStatus;
   scheduledAtLte?: Date;
+  updatedAtLt?: Date;
 };
