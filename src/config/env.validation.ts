@@ -80,12 +80,14 @@ class EnvironmentVariables {
   @IsOptional()
   EMAIL_PROVIDER: string = 'console';
 
-  @IsString()
-  @IsOptional()
+  @ValidateIf((env: EnvironmentVariables) => env.EMAIL_PROVIDER === 'resend')
+  @IsString({ message: 'EMAIL_PROVIDER=resend 일 때 RESEND_API_KEY는 필수입니다.' })
+  @IsNotEmpty({ message: 'EMAIL_PROVIDER=resend 일 때 RESEND_API_KEY는 필수입니다.' })
   RESEND_API_KEY?: string;
 
-  @IsString()
-  @IsOptional()
+  @ValidateIf((env: EnvironmentVariables) => env.EMAIL_PROVIDER === 'resend')
+  @IsString({ message: 'EMAIL_PROVIDER=resend 일 때 EMAIL_FROM은 필수입니다.' })
+  @IsNotEmpty({ message: 'EMAIL_PROVIDER=resend 일 때 EMAIL_FROM은 필수입니다.' })
   EMAIL_FROM?: string;
 
   @IsString()
@@ -106,16 +108,19 @@ class EnvironmentVariables {
   @IsOptional()
   STORAGE_PROVIDER?: StorageProvider = 'console';
 
-  @IsString()
-  @IsOptional()
+  @ValidateIf((env: EnvironmentVariables) => env.STORAGE_PROVIDER === 'gcs')
+  @IsString({ message: 'STORAGE_PROVIDER=gcs 일 때 GCS_BUCKET_NAME은 필수입니다.' })
+  @IsNotEmpty({ message: 'STORAGE_PROVIDER=gcs 일 때 GCS_BUCKET_NAME은 필수입니다.' })
   GCS_BUCKET_NAME?: string;
 
-  @IsString()
-  @IsOptional()
+  @ValidateIf((env: EnvironmentVariables) => env.STORAGE_PROVIDER === 'gcs')
+  @IsString({ message: 'STORAGE_PROVIDER=gcs 일 때 GCS_PROJECT_ID는 필수입니다.' })
+  @IsNotEmpty({ message: 'STORAGE_PROVIDER=gcs 일 때 GCS_PROJECT_ID는 필수입니다.' })
   GCS_PROJECT_ID?: string;
 
-  @IsString()
-  @IsOptional()
+  @ValidateIf((env: EnvironmentVariables) => env.STORAGE_PROVIDER === 'gcs')
+  @IsString({ message: 'STORAGE_PROVIDER=gcs 일 때 GCS_KEY_FILE_PATH는 필수입니다.' })
+  @IsNotEmpty({ message: 'STORAGE_PROVIDER=gcs 일 때 GCS_KEY_FILE_PATH는 필수입니다.' })
   GCS_KEY_FILE_PATH?: string;
 
   @IsString()
@@ -144,24 +149,29 @@ class EnvironmentVariables {
   @IsOptional()
   DISCORD_PROVIDER?: string = 'console';
 
-  @IsString()
-  @IsOptional()
+  @ValidateIf((env: EnvironmentVariables) => env.DISCORD_PROVIDER === 'discord')
+  @IsString({ message: 'DISCORD_PROVIDER=discord 일 때 DISCORD_CLIENT_ID는 필수입니다.' })
+  @IsNotEmpty({ message: 'DISCORD_PROVIDER=discord 일 때 DISCORD_CLIENT_ID는 필수입니다.' })
   DISCORD_CLIENT_ID?: string;
 
-  @IsString()
-  @IsOptional()
+  @ValidateIf((env: EnvironmentVariables) => env.DISCORD_PROVIDER === 'discord')
+  @IsString({ message: 'DISCORD_PROVIDER=discord 일 때 DISCORD_CLIENT_SECRET은 필수입니다.' })
+  @IsNotEmpty({ message: 'DISCORD_PROVIDER=discord 일 때 DISCORD_CLIENT_SECRET은 필수입니다.' })
   DISCORD_CLIENT_SECRET?: string;
 
-  @IsString()
-  @IsOptional()
+  @ValidateIf((env: EnvironmentVariables) => env.DISCORD_PROVIDER === 'discord')
+  @IsString({ message: 'DISCORD_PROVIDER=discord 일 때 DISCORD_CALLBACK_URL은 필수입니다.' })
+  @IsNotEmpty({ message: 'DISCORD_PROVIDER=discord 일 때 DISCORD_CALLBACK_URL은 필수입니다.' })
   DISCORD_CALLBACK_URL?: string;
 
-  @IsString()
-  @IsOptional()
+  @ValidateIf((env: EnvironmentVariables) => env.DISCORD_PROVIDER === 'discord')
+  @IsString({ message: 'DISCORD_PROVIDER=discord 일 때 DISCORD_BOT_TOKEN은 필수입니다.' })
+  @IsNotEmpty({ message: 'DISCORD_PROVIDER=discord 일 때 DISCORD_BOT_TOKEN은 필수입니다.' })
   DISCORD_BOT_TOKEN?: string;
 
-  @IsString()
-  @IsOptional()
+  @ValidateIf((env: EnvironmentVariables) => env.DISCORD_PROVIDER === 'discord')
+  @IsString({ message: 'DISCORD_PROVIDER=discord 일 때 DISCORD_GUILD_ID는 필수입니다.' })
+  @IsNotEmpty({ message: 'DISCORD_PROVIDER=discord 일 때 DISCORD_GUILD_ID는 필수입니다.' })
   DISCORD_GUILD_ID?: string;
 
   @IsString()
