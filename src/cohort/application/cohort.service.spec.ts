@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 
 import { AuditLogService } from '../../audit/application/audit-log.service';
 import { AppException } from '../../common/exception/app.exception';
+import { GeneralEarlyNotificationService } from '../../notification/application/general-early-notification.service';
 import { CohortRepository } from '../domain/cohort.repository';
 import { CohortStatus } from '../domain/cohort.status';
 import { CohortService } from './cohort.service';
@@ -26,6 +27,11 @@ const mockAuditLogService = {
   recordStatusChange: jest.fn(),
 };
 
+const mockGeneralEarlyNotificationService = {
+  promoteToCohort: jest.fn(),
+  subscribe: jest.fn(),
+};
+
 describe('CohortService', () => {
   let cohortService: CohortService;
 
@@ -35,6 +41,10 @@ describe('CohortService', () => {
         CohortService,
         { provide: CohortRepository, useValue: mockCohortRepository },
         { provide: AuditLogService, useValue: mockAuditLogService },
+        {
+          provide: GeneralEarlyNotificationService,
+          useValue: mockGeneralEarlyNotificationService,
+        },
       ],
     }).compile();
 
@@ -64,11 +74,16 @@ describe('CohortService', () => {
     });
 
     describe('활성 기수가 없을 때', () => {
-      it('기수를 생성하고 반환한다', async () => {
+      it('기수를 생성하고 대기열을 신규 기수로 일괄 승격한 뒤 반환한다', async () => {
         // Given
         const createdCohort = { id: 1, ...cohortInput };
         mockCohortRepository.checkActiveCohortExists.mockResolvedValue(false);
         mockCohortRepository.register.mockResolvedValue(createdCohort);
+        mockGeneralEarlyNotificationService.promoteToCohort.mockResolvedValue({
+          total: 0,
+          promoted: 0,
+          skippedDuplicate: 0,
+        });
 
         // When
         const result = await cohortService.createCohort({ cohort: cohortInput });
@@ -76,6 +91,24 @@ describe('CohortService', () => {
         // Then
         expect(result).toEqual(createdCohort);
         expect(mockCohortRepository.register).toHaveBeenCalledWith({ cohort: cohortInput });
+        expect(mockGeneralEarlyNotificationService.promoteToCohort).toHaveBeenCalledWith({
+          cohortId: 1,
+        });
+      });
+
+      it('대기열 승격이 실패하면 createCohort 자체가 실패한다 (트랜잭션 롤백)', async () => {
+        // Given
+        const createdCohort = { id: 2, ...cohortInput };
+        mockCohortRepository.checkActiveCohortExists.mockResolvedValue(false);
+        mockCohortRepository.register.mockResolvedValue(createdCohort);
+        mockGeneralEarlyNotificationService.promoteToCohort.mockRejectedValue(
+          new Error('promote failed'),
+        );
+
+        // When & Then
+        await expect(cohortService.createCohort({ cohort: cohortInput })).rejects.toThrow(
+          'promote failed',
+        );
       });
     });
   });
