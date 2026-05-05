@@ -10,6 +10,15 @@ type CreateEventPayload = {
   location?: string;
 };
 
+type UpdateEventPayload = {
+  eventId: string;
+  summary?: string;
+  description?: string;
+  startAt?: Date;
+  endAt?: Date;
+  location?: string;
+};
+
 @Injectable()
 export class GoogleCalendarClient {
   private readonly logger = new Logger(GoogleCalendarClient.name);
@@ -26,10 +35,9 @@ export class GoogleCalendarClient {
       const calendarId = this.configService.get<string>('GOOGLE_CALENDAR_ID');
 
       if (!keyFilename || !calendarId) {
-        this.logger.error(
+        throw new Error(
           'CALENDAR_PROVIDER=google 이지만 GOOGLE_CALENDAR_KEY_FILE_PATH 또는 GOOGLE_CALENDAR_ID가 누락되었습니다.',
         );
-        return;
       }
 
       const auth = new google.auth.GoogleAuth({
@@ -72,6 +80,45 @@ export class GoogleCalendarClient {
     }
 
     return response.data.id;
+  }
+
+  async updateEvent({
+    eventId,
+    summary,
+    description,
+    startAt,
+    endAt,
+    location,
+  }: UpdateEventPayload): Promise<void> {
+    if (!this.calendar || !this.calendarId) {
+      this.logger.log(
+        `[캘린더 미리보기] update eventId=${eventId}, start=${startAt?.toISOString() ?? '(unchanged)'}`,
+      );
+      return;
+    }
+
+    const requestBody: calendar_v3.Schema$Event = {};
+    if (summary !== undefined) {
+      requestBody.summary = summary;
+    }
+    if (description !== undefined) {
+      requestBody.description = description;
+    }
+    if (location !== undefined) {
+      requestBody.location = location;
+    }
+    if (startAt !== undefined) {
+      requestBody.start = { dateTime: startAt.toISOString(), timeZone: 'Asia/Seoul' };
+    }
+    if (endAt !== undefined) {
+      requestBody.end = { dateTime: endAt.toISOString(), timeZone: 'Asia/Seoul' };
+    }
+
+    await this.calendar.events.patch({
+      calendarId: this.calendarId,
+      eventId,
+      requestBody,
+    });
   }
 
   async deleteEvent({ eventId }: { eventId: string }): Promise<void> {
