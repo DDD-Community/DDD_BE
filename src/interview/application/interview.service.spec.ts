@@ -1,4 +1,5 @@
 import { HttpStatus } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { QueryFailedError } from 'typeorm';
 
@@ -13,8 +14,19 @@ import { InterviewService } from './interview.service';
 jest.mock('typeorm-transactional', () => ({
   Transactional: () => (_target: unknown, _key: string, descriptor: PropertyDescriptor) =>
     descriptor,
+  runOnTransactionCommit: (callback: () => void) => {
+    callback();
+  },
   initializeTransactionalContext: jest.fn(),
 }));
+
+const flushPostCommitTasks = async (target: InterviewService): Promise<void> => {
+  const pending = (target as unknown as { pendingPostCommitTasks: Set<Promise<unknown>> })
+    .pendingPostCommitTasks;
+  while (pending.size > 0) {
+    await Promise.all([...pending]);
+  }
+};
 
 const mockInterviewRepository = {
   saveSlot: jest.fn(),
@@ -39,6 +51,10 @@ const mockGoogleCalendarClient = {
 
 const mockNotificationService = {
   sendEmail: jest.fn(),
+};
+
+const mockConfigService = {
+  get: jest.fn(),
 };
 
 const buildSlot = (overrides: Partial<InterviewSlot> = {}): InterviewSlot =>
@@ -77,11 +93,13 @@ describe('InterviewService', () => {
         { provide: InterviewRepository, useValue: mockInterviewRepository },
         { provide: GoogleCalendarClient, useValue: mockGoogleCalendarClient },
         { provide: NotificationService, useValue: mockNotificationService },
+        { provide: ConfigService, useValue: mockConfigService },
       ],
     }).compile();
 
     service = module.get(InterviewService);
     jest.clearAllMocks();
+    mockConfigService.get.mockReturnValue(undefined);
   });
 
   describe('createSlot', () => {
@@ -174,36 +192,38 @@ describe('InterviewService', () => {
 
       // When
       const result = await service.createReservation({ input });
+      await flushPostCommitTasks(service);
 
       // Then
       expect(result).toBe(saved);
-      expect(mockInterviewRepository.saveReservation).toHaveBeenCalledTimes(1);
+      expect(mockGoogleCalendarClient.createEvent).toHaveBeenCalled();
     });
 
-    it('정상 시나리오: 예약 저장 → 캘린더 이벤트 ID 할당 → 재저장', async () => {
+    it('정상 시나리오: 예약 저장 → 캘린더 이벤트 생성 → 별도 트랜잭션으로 eventId 저장 → 안내 메일 발송', async () => {
       // Given
       const slot = buildSlot();
       const saved = buildReservation();
       mockInterviewRepository.findSlotById.mockResolvedValue(slot);
       mockInterviewRepository.countActiveReservationsBySlotId.mockResolvedValue(0);
       mockInterviewRepository.findReservationByApplicationFormId.mockResolvedValue(null);
-      mockInterviewRepository.saveReservation.mockResolvedValueOnce(saved);
-      mockInterviewRepository.saveReservation.mockResolvedValueOnce(saved);
+      mockInterviewRepository.saveReservation.mockResolvedValue(saved);
+      mockInterviewRepository.findReservationById.mockResolvedValue(saved);
       mockGoogleCalendarClient.createEvent.mockResolvedValue('event-123');
 
       // When
       await service.createReservation({ input });
+      await flushPostCommitTasks(service);
 
       // Then
       expect(mockGoogleCalendarClient.createEvent).toHaveBeenCalledWith(
-        expect.objectContaining({
-          summary: '[DDD] 면접 - 홍길동',
-        }),
+        expect.objectContaining({ summary: '[DDD] 면접 - 홍길동' }),
       );
       expect(mockGoogleCalendarClient.createEvent).not.toHaveBeenCalledWith(
         expect.objectContaining({ attendees: expect.anything() }),
       );
+      expect(mockInterviewRepository.findReservationById).toHaveBeenCalledWith({ id: saved.id });
       expect(mockInterviewRepository.saveReservation).toHaveBeenCalledTimes(2);
+      expect(saved.calendarEventId).toBe('event-123');
       expect(mockNotificationService.sendEmail).toHaveBeenCalledWith(
         expect.objectContaining({
           to: 'hong@example.com',
@@ -212,6 +232,52 @@ describe('InterviewService', () => {
             expect.objectContaining({ filename: 'interview.ics' }),
           ]),
         }),
+      );
+    });
+
+    it('캘린더 실패 + OPS_ALERT_EMAIL 설정 시 운영 알림 메일을 발송한다', async () => {
+      // Given
+      mockConfigService.get.mockImplementation((key: string) =>
+        key === 'OPS_ALERT_EMAIL' ? 'ops@dddsite.co.kr' : undefined,
+      );
+      const slot = buildSlot();
+      const saved = buildReservation();
+      mockInterviewRepository.findSlotById.mockResolvedValue(slot);
+      mockInterviewRepository.countActiveReservationsBySlotId.mockResolvedValue(0);
+      mockInterviewRepository.findReservationByApplicationFormId.mockResolvedValue(null);
+      mockInterviewRepository.saveReservation.mockResolvedValue(saved);
+      mockGoogleCalendarClient.createEvent.mockRejectedValue(new Error('calendar down'));
+
+      // When
+      await service.createReservation({ input });
+      await flushPostCommitTasks(service);
+
+      // Then
+      expect(mockNotificationService.sendEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'ops@dddsite.co.kr',
+          subject: expect.stringContaining('이벤트 생성'),
+        }),
+      );
+    });
+
+    it('캘린더 실패 + OPS_ALERT_EMAIL 미설정 시 운영 알림 메일은 발송하지 않는다', async () => {
+      // Given
+      const slot = buildSlot();
+      const saved = buildReservation();
+      mockInterviewRepository.findSlotById.mockResolvedValue(slot);
+      mockInterviewRepository.countActiveReservationsBySlotId.mockResolvedValue(0);
+      mockInterviewRepository.findReservationByApplicationFormId.mockResolvedValue(null);
+      mockInterviewRepository.saveReservation.mockResolvedValue(saved);
+      mockGoogleCalendarClient.createEvent.mockRejectedValue(new Error('calendar down'));
+
+      // When
+      await service.createReservation({ input });
+      await flushPostCommitTasks(service);
+
+      // Then — 안내 메일은 발송, 운영 알림(ops 도메인)은 미발송
+      expect(mockNotificationService.sendEmail).not.toHaveBeenCalledWith(
+        expect.objectContaining({ to: 'ops@dddsite.co.kr' }),
       );
     });
   });
@@ -234,6 +300,7 @@ describe('InterviewService', () => {
 
       // When
       await service.cancelReservation({ id: 100 });
+      await flushPostCommitTasks(service);
 
       // Then
       expect(mockInterviewRepository.deleteReservation).toHaveBeenCalledWith({ id: 100 });
@@ -247,6 +314,7 @@ describe('InterviewService', () => {
 
       // When
       await service.cancelReservation({ id: 100 });
+      await flushPostCommitTasks(service);
 
       // Then
       expect(mockInterviewRepository.deleteReservation).toHaveBeenCalledWith({ id: 100 });
@@ -259,9 +327,34 @@ describe('InterviewService', () => {
       mockInterviewRepository.findReservationById.mockResolvedValue(reservation);
       mockGoogleCalendarClient.deleteEvent.mockRejectedValue(new Error('calendar down'));
 
-      // When / Then
-      await expect(service.cancelReservation({ id: 100 })).resolves.toBeUndefined();
+      // When
+      await service.cancelReservation({ id: 100 });
+      await flushPostCommitTasks(service);
+
+      // Then
       expect(mockInterviewRepository.deleteReservation).toHaveBeenCalledWith({ id: 100 });
+    });
+
+    it('캘린더 삭제 실패 + OPS_ALERT_EMAIL 설정 시 운영 알림 메일을 발송한다', async () => {
+      // Given
+      mockConfigService.get.mockImplementation((key: string) =>
+        key === 'OPS_ALERT_EMAIL' ? 'ops@dddsite.co.kr' : undefined,
+      );
+      const reservation = buildReservation({ calendarEventId: 'event-123' });
+      mockInterviewRepository.findReservationById.mockResolvedValue(reservation);
+      mockGoogleCalendarClient.deleteEvent.mockRejectedValue(new Error('calendar down'));
+
+      // When
+      await service.cancelReservation({ id: 100 });
+      await flushPostCommitTasks(service);
+
+      // Then
+      expect(mockNotificationService.sendEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'ops@dddsite.co.kr',
+          subject: expect.stringContaining('이벤트 삭제'),
+        }),
+      );
     });
   });
 
@@ -283,6 +376,7 @@ describe('InterviewService', () => {
 
       // When
       await service.updateSlot({ id: 1, patch: { startAt: nextStartAt, endAt: nextEndAt } });
+      await flushPostCommitTasks(service);
 
       // Then
       expect(mockInterviewRepository.updateSlot).toHaveBeenCalled();
@@ -301,6 +395,7 @@ describe('InterviewService', () => {
 
       // When
       await service.updateSlot({ id: 1, patch: { capacity: 2 } });
+      await flushPostCommitTasks(service);
 
       // Then
       expect(mockInterviewRepository.updateSlot).toHaveBeenCalled();
@@ -316,9 +411,31 @@ describe('InterviewService', () => {
 
       // When
       await service.updateSlot({ id: 1, patch: { location: '판교' } });
+      await flushPostCommitTasks(service);
 
       // Then
       expect(mockGoogleCalendarClient.updateEvent).toHaveBeenCalledTimes(2);
+    });
+
+    it('캘린더 업데이트 실패 + OPS_ALERT_EMAIL 설정 시 운영 알림 메일을 발송한다', async () => {
+      // Given
+      mockConfigService.get.mockImplementation((key: string) =>
+        key === 'OPS_ALERT_EMAIL' ? 'ops@dddsite.co.kr' : undefined,
+      );
+      mockInterviewRepository.findSlotById.mockResolvedValue(baseSlot());
+      mockGoogleCalendarClient.updateEvent.mockRejectedValue(new Error('calendar down'));
+
+      // When
+      await service.updateSlot({ id: 1, patch: { location: '판교' } });
+      await flushPostCommitTasks(service);
+
+      // Then
+      expect(mockNotificationService.sendEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'ops@dddsite.co.kr',
+          subject: expect.stringContaining('이벤트 업데이트'),
+        }),
+      );
     });
   });
 

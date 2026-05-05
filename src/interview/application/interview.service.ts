@@ -1,5 +1,7 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
-import { Transactional } from 'typeorm-transactional';
+import { ConfigService } from '@nestjs/config';
+import { match } from 'ts-pattern';
+import { runOnTransactionCommit, Transactional } from 'typeorm-transactional';
 
 import { AppException } from '../../common/exception/app.exception';
 import { hasDefinedValues } from '../../common/util/object-utils';
@@ -16,14 +18,23 @@ import { InterviewReservation } from '../domain/interview-reservation.entity';
 import { InterviewSlot } from '../domain/interview-slot.entity';
 import { GoogleCalendarClient } from '../infrastructure/google-calendar.client';
 
+type CalendarFailureContext = {
+  operation: 'create' | 'update' | 'delete';
+  reservationId?: number;
+  slotId?: number;
+  eventId?: string;
+};
+
 @Injectable()
 export class InterviewService {
   private readonly logger = new Logger(InterviewService.name);
+  private readonly pendingPostCommitTasks = new Set<Promise<unknown>>();
 
   constructor(
     private readonly interviewRepository: InterviewRepository,
     private readonly googleCalendarClient: GoogleCalendarClient,
     private readonly notificationService: NotificationService,
+    private readonly configService: ConfigService,
   ) {}
 
   @Transactional()
@@ -74,27 +85,28 @@ export class InterviewService {
       return;
     }
 
-    const nextLocation = patch.location ?? slot.location;
-    const nextDescription = patch.description ?? slot.description;
     const reservationsToSync = (slot.reservations ?? []).filter(
       (reservation) => reservation.calendarEventId,
     );
-    for (const reservation of reservationsToSync) {
-      try {
-        await this.googleCalendarClient.updateEvent({
-          eventId: reservation.calendarEventId as string,
+    if (reservationsToSync.length === 0) {
+      return;
+    }
+
+    const nextLocation = patch.location ?? slot.location;
+    const nextDescription = patch.description ?? slot.description;
+
+    runOnTransactionCommit(() => {
+      this.schedulePostCommit(() =>
+        this.afterUpdateSlot({
+          slotId: id,
           startAt: nextStartAt,
           endAt: nextEndAt,
           location: nextLocation,
           description: nextDescription,
-        });
-      } catch (error) {
-        this.logger.error(
-          `구글 캘린더 이벤트 업데이트 실패 (eventId=${reservation.calendarEventId})`,
-          error,
-        );
-      }
-    }
+          reservations: reservationsToSync,
+        }),
+      );
+    });
   }
 
   @Transactional()
@@ -144,24 +156,15 @@ export class InterviewService {
     try {
       const saved = await this.interviewRepository.saveReservation({ reservation });
 
-      try {
-        const eventId = await this.googleCalendarClient.createEvent({
-          summary: `[DDD] 면접 - ${input.applicantName}`,
-          startAt: slot.startAt,
-          endAt: slot.endAt,
-          location: slot.location,
-          description: slot.description,
-        });
-        saved.assignCalendarEvent(eventId);
-        await this.interviewRepository.saveReservation({ reservation: saved });
-      } catch (error) {
-        this.logger.error('구글 캘린더 이벤트 생성 실패 (예약은 저장됨)', error);
-      }
-
-      await this.sendInterviewInviteEmail({
-        applicantName: input.applicantName,
-        applicantEmail: input.applicantEmail,
-        slot,
+      runOnTransactionCommit(() => {
+        this.schedulePostCommit(() =>
+          this.afterCreateReservation({
+            reservationId: saved.id,
+            applicantName: input.applicantName,
+            applicantEmail: input.applicantEmail,
+            slot,
+          }),
+        );
       });
 
       return saved;
@@ -186,18 +189,179 @@ export class InterviewService {
 
     await this.interviewRepository.deleteReservation({ id });
 
-    if (reservation.calendarEventId) {
+    const eventId = reservation.calendarEventId;
+    if (!eventId) {
+      return;
+    }
+
+    runOnTransactionCommit(() => {
+      this.schedulePostCommit(() => this.afterCancelReservation({ reservationId: id, eventId }));
+    });
+  }
+
+  private async afterCreateReservation({
+    reservationId,
+    applicantName,
+    applicantEmail,
+    slot,
+  }: {
+    reservationId: number;
+    applicantName: string;
+    applicantEmail: string;
+    slot: InterviewSlot;
+  }): Promise<void> {
+    try {
+      const eventId = await this.googleCalendarClient.createEvent({
+        summary: `[DDD] 면접 - ${applicantName}`,
+        startAt: slot.startAt,
+        endAt: slot.endAt,
+        location: slot.location,
+        description: slot.description,
+      });
+      await this.persistReservationCalendarEvent({ reservationId, eventId });
+    } catch (error) {
+      this.logger.error('구글 캘린더 이벤트 생성 실패 (예약은 저장됨)', error);
+      await this.notifyOpsCalendarFailure({
+        context: { operation: 'create', reservationId, slotId: slot.id },
+        error,
+      });
+    }
+
+    await this.sendInterviewInviteEmail({ applicantName, applicantEmail, slot });
+  }
+
+  private async afterCancelReservation({
+    reservationId,
+    eventId,
+  }: {
+    reservationId: number;
+    eventId: string;
+  }): Promise<void> {
+    try {
+      await this.googleCalendarClient.deleteEvent({ eventId });
+    } catch (error) {
+      this.logger.error(`구글 캘린더 이벤트 삭제 실패 (eventId=${eventId})`, error);
+      await this.notifyOpsCalendarFailure({
+        context: { operation: 'delete', reservationId, eventId },
+        error,
+      });
+    }
+  }
+
+  private async afterUpdateSlot({
+    slotId,
+    startAt,
+    endAt,
+    location,
+    description,
+    reservations,
+  }: {
+    slotId: number;
+    startAt: Date;
+    endAt: Date;
+    location?: string;
+    description?: string;
+    reservations: InterviewReservation[];
+  }): Promise<void> {
+    for (const reservation of reservations) {
+      const eventId = reservation.calendarEventId;
+      if (!eventId) {
+        continue;
+      }
       try {
-        await this.googleCalendarClient.deleteEvent({
-          eventId: reservation.calendarEventId,
+        await this.googleCalendarClient.updateEvent({
+          eventId,
+          startAt,
+          endAt,
+          location,
+          description,
         });
       } catch (error) {
-        this.logger.error(
-          `구글 캘린더 이벤트 삭제 실패 (eventId=${reservation.calendarEventId})`,
+        this.logger.error(`구글 캘린더 이벤트 업데이트 실패 (eventId=${eventId})`, error);
+        await this.notifyOpsCalendarFailure({
+          context: { operation: 'update', reservationId: reservation.id, slotId, eventId },
           error,
-        );
+        });
       }
     }
+  }
+
+  @Transactional()
+  private async persistReservationCalendarEvent({
+    reservationId,
+    eventId,
+  }: {
+    reservationId: number;
+    eventId: string;
+  }): Promise<void> {
+    const reservation = await this.interviewRepository.findReservationById({ id: reservationId });
+    if (!reservation) {
+      this.logger.warn(
+        `캘린더 이벤트 ID 저장 대상 예약을 찾을 수 없습니다 (reservationId=${reservationId}).`,
+      );
+      return;
+    }
+    reservation.assignCalendarEvent(eventId);
+    await this.interviewRepository.saveReservation({ reservation });
+  }
+
+  private async notifyOpsCalendarFailure({
+    context,
+    error,
+  }: {
+    context: CalendarFailureContext;
+    error: unknown;
+  }): Promise<void> {
+    const opsEmail = this.configService.get<string>('OPS_ALERT_EMAIL');
+    if (!opsEmail) {
+      this.logger.warn(`OPS_ALERT_EMAIL 미설정으로 운영 알림을 건너뜁니다 (${context.operation}).`);
+      return;
+    }
+
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const subject = `[DDD][경고] 구글 캘린더 ${this.formatOperation(context.operation)} 실패`;
+    const detailLines = [
+      `작업: ${this.formatOperation(context.operation)}`,
+      context.reservationId ? `예약 ID: ${context.reservationId}` : null,
+      context.slotId ? `슬롯 ID: ${context.slotId}` : null,
+      context.eventId ? `이벤트 ID: ${context.eventId}` : null,
+      `에러: ${errorMessage}`,
+    ].filter((line): line is string => Boolean(line));
+
+    try {
+      await this.notificationService.sendEmail({
+        to: opsEmail,
+        subject,
+        html: `<pre style="font-family:'Apple SD Gothic Neo','Malgun Gothic',monospace;font-size:13px;line-height:1.6;color:#111;">${detailLines
+          .map((line) => this.escapeHtml(line))
+          .join('\n')}</pre>`,
+        text: detailLines.join('\n'),
+      });
+    } catch (notifyError) {
+      this.logger.error(
+        '운영 알림 메일 발송 실패 (캘린더 실패 알림)',
+        notifyError instanceof Error ? notifyError.stack : String(notifyError),
+      );
+    }
+  }
+
+  private formatOperation(operation: CalendarFailureContext['operation']): string {
+    return match(operation)
+      .with('create', () => '이벤트 생성')
+      .with('update', () => '이벤트 업데이트')
+      .with('delete', () => '이벤트 삭제')
+      .exhaustive();
+  }
+
+  private schedulePostCommit(task: () => Promise<void>): void {
+    const promise = task()
+      .catch((error: unknown) => {
+        this.logger.error('post-commit task failed', error);
+      })
+      .finally(() => {
+        this.pendingPostCommitTasks.delete(promise);
+      });
+    this.pendingPostCommitTasks.add(promise);
   }
 
   private validateSlotRange({ startAt, endAt }: { startAt: Date; endAt: Date }): void {
@@ -258,7 +422,6 @@ export class InterviewService {
   }
 
   private buildGreeting(name: string): string {
-    // 이름에 Unicode replacement character(U+FFFD)가 있으면 인코딩 손상으로 보고 generic greeting 사용
     if (!name || name.includes('�')) {
       return '안녕하세요, 지원자님';
     }

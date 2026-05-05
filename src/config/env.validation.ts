@@ -86,6 +86,10 @@ class EnvironmentVariables {
 
   @IsString()
   @IsOptional()
+  OPS_ALERT_EMAIL?: string;
+
+  @IsString()
+  @IsOptional()
   INTERVIEW_BOOKING_URL?: string;
 
   @IsString()
