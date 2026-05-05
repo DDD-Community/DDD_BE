@@ -5,8 +5,9 @@ import { randomUUID } from 'crypto';
 import { extname } from 'path';
 import { Readable } from 'stream';
 
+import type { StorageProvider } from '../../config/env.validation';
+import { DownloadResult } from '../application/storage.type';
 import {
-  DownloadResult,
   SignedUrlAction,
   SignedUrlOptions,
   SignedUrlResult,
@@ -38,9 +39,7 @@ export class GcsClient {
   private readonly bucketName: string | null = null;
 
   constructor(private readonly configService: ConfigService) {
-    const provider = (
-      this.configService.get<string>('STORAGE_PROVIDER') ?? 'console'
-    ).toLowerCase();
+    const provider = this.configService.get<StorageProvider>('STORAGE_PROVIDER') ?? 'console';
 
     if (provider === 'gcs') {
       const projectId = this.configService.get<string>('GCS_PROJECT_ID');
@@ -163,9 +162,6 @@ export class GcsClient {
 
     const file = this.storage.bucket(this.bucketName).file(path);
     const [metadata] = await file.getMetadata();
-    const sizeRaw = metadata.size;
-    const contentLength =
-      typeof sizeRaw === 'string' ? Number(sizeRaw) : typeof sizeRaw === 'number' ? sizeRaw : null;
 
     return {
       stream: file.createReadStream(),
@@ -173,25 +169,34 @@ export class GcsClient {
         typeof metadata.contentType === 'string'
           ? metadata.contentType
           : 'application/octet-stream',
-      contentLength: Number.isFinite(contentLength) ? (contentLength as number) : null,
+      contentLength: this.parseFiniteNumber(metadata.size),
       fileName: path.split('/').pop() ?? 'file',
     };
   }
 
   private toStorageObject(file: File): StorageObject {
     const metadata = file.metadata;
-    const sizeRaw = metadata.size;
-    const size = typeof sizeRaw === 'string' ? Number(sizeRaw) : (sizeRaw ?? 0);
     const updated = typeof metadata.updated === 'string' ? metadata.updated : null;
     const contentType = typeof metadata.contentType === 'string' ? metadata.contentType : null;
 
     return {
       path: file.name,
-      size: Number.isFinite(size) ? size : 0,
+      size: this.parseFiniteNumber(metadata.size) ?? 0,
       contentType,
       updatedAt: updated,
       url: `https://storage.googleapis.com/${this.bucketName}/${file.name}`,
     };
+  }
+
+  private parseFiniteNumber(value: unknown): number | null {
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value : null;
+    }
+    if (typeof value === 'string') {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    return null;
   }
 
   private extractPageToken(nextQuery: unknown): string | null {

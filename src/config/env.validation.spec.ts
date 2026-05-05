@@ -74,4 +74,28 @@ describe('env validation', () => {
       ).not.toThrow();
     });
   });
+
+  describe('STORAGE_PROVIDER 화이트리스트 검증', () => {
+    it('STORAGE_PROVIDER 미설정이면 기본값 console 로 통과한다', () => {
+      const result = validate(createValidConfig());
+
+      expect(result.STORAGE_PROVIDER).toBe('console');
+    });
+
+    it('STORAGE_PROVIDER=gcs 는 통과한다', () => {
+      expect(() => validate({ ...createValidConfig(), STORAGE_PROVIDER: 'gcs' })).not.toThrow();
+    });
+
+    it('알 수 없는 STORAGE_PROVIDER 값은 앱 시작 전에 실패한다', () => {
+      expect(() => {
+        validate({ ...createValidConfig(), STORAGE_PROVIDER: 'GCS' });
+      }).toThrow('STORAGE_PROVIDER');
+    });
+
+    it('대문자/오타 STORAGE_PROVIDER 도 거부한다', () => {
+      expect(() => {
+        validate({ ...createValidConfig(), STORAGE_PROVIDER: 'aws-s3' });
+      }).toThrow('STORAGE_PROVIDER');
+    });
+  });
 });

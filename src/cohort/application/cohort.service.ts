@@ -1,9 +1,10 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { forwardRef, HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 
 import { AuditLogService } from '../../audit/application/audit-log.service';
 import { AppException } from '../../common/exception/app.exception';
 import { hasDefinedValues } from '../../common/util/object-utils';
+import { GeneralEarlyNotificationService } from '../../notification/application/general-early-notification.service';
 import { CohortRepository } from '../domain/cohort.repository';
 import { CohortStatus } from '../domain/cohort.status';
 import type {
@@ -20,6 +21,8 @@ export class CohortService {
   constructor(
     private readonly cohortRepository: CohortRepository,
     private readonly auditLogService: AuditLogService,
+    @Inject(forwardRef(() => GeneralEarlyNotificationService))
+    private readonly generalEarlyNotificationService: GeneralEarlyNotificationService,
   ) {}
 
   @Transactional()
@@ -29,7 +32,9 @@ export class CohortService {
       throw new AppException('COHORT_ALREADY_EXISTS', HttpStatus.CONFLICT);
     }
 
-    return this.cohortRepository.register({ cohort });
+    const created = await this.cohortRepository.register({ cohort });
+    await this.generalEarlyNotificationService.promoteToCohort({ cohortId: created.id });
+    return created;
   }
 
   async findAllCohorts() {

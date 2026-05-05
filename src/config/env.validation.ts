@@ -1,5 +1,6 @@
 import { plainToInstance } from 'class-transformer';
 import {
+  IsIn,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -10,6 +11,9 @@ import {
   ValidateIf,
   validateSync,
 } from 'class-validator';
+
+export const STORAGE_PROVIDERS = ['console', 'gcs'] as const;
+export type StorageProvider = (typeof STORAGE_PROVIDERS)[number];
 
 class EnvironmentVariables {
   @IsNumber()
@@ -96,9 +100,11 @@ class EnvironmentVariables {
   @IsOptional()
   DISCORD_INVITE_URL?: string;
 
-  @IsString()
+  @IsIn(STORAGE_PROVIDERS, {
+    message: `STORAGE_PROVIDER 는 ${STORAGE_PROVIDERS.join(' | ')} 중 하나여야 합니다.`,
+  })
   @IsOptional()
-  STORAGE_PROVIDER?: string = 'console';
+  STORAGE_PROVIDER?: StorageProvider = 'console';
 
   @IsString()
   @IsOptional()

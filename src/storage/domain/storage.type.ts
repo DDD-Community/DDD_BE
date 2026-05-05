@@ -1,5 +1,3 @@
-import type { Readable } from 'stream';
-
 export enum UploadCategory {
   PROJECT_THUMBNAIL = 'project-thumbnail',
   PROJECT_PDF = 'project-pdf',
@@ -109,11 +107,4 @@ export type SignedUrlOptions = {
 export type SignedUrlResult = {
   url: string;
   expiresAt: string;
-};
-
-export type DownloadResult = {
-  stream: Readable;
-  contentType: string;
-  contentLength: number | null;
-  fileName: string;
 };
