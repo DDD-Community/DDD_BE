@@ -1,5 +1,6 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { match } from 'ts-pattern';
 import { runOnTransactionCommit, Transactional } from 'typeorm-transactional';
 
 import { AppException } from '../../common/exception/app.exception';
@@ -27,6 +28,7 @@ type CalendarFailureContext = {
 @Injectable()
 export class InterviewService {
   private readonly logger = new Logger(InterviewService.name);
+  private readonly pendingPostCommitTasks = new Set<Promise<unknown>>();
 
   constructor(
     private readonly interviewRepository: InterviewRepository,
@@ -93,16 +95,18 @@ export class InterviewService {
     const nextLocation = patch.location ?? slot.location;
     const nextDescription = patch.description ?? slot.description;
 
-    runOnTransactionCommit(() =>
-      this.afterUpdateSlot({
-        slotId: id,
-        startAt: nextStartAt,
-        endAt: nextEndAt,
-        location: nextLocation,
-        description: nextDescription,
-        reservations: reservationsToSync,
-      }),
-    );
+    runOnTransactionCommit(() => {
+      this.schedulePostCommit(() =>
+        this.afterUpdateSlot({
+          slotId: id,
+          startAt: nextStartAt,
+          endAt: nextEndAt,
+          location: nextLocation,
+          description: nextDescription,
+          reservations: reservationsToSync,
+        }),
+      );
+    });
   }
 
   @Transactional()
@@ -152,14 +156,16 @@ export class InterviewService {
     try {
       const saved = await this.interviewRepository.saveReservation({ reservation });
 
-      runOnTransactionCommit(() =>
-        this.afterCreateReservation({
-          reservationId: saved.id,
-          applicantName: input.applicantName,
-          applicantEmail: input.applicantEmail,
-          slot,
-        }),
-      );
+      runOnTransactionCommit(() => {
+        this.schedulePostCommit(() =>
+          this.afterCreateReservation({
+            reservationId: saved.id,
+            applicantName: input.applicantName,
+            applicantEmail: input.applicantEmail,
+            slot,
+          }),
+        );
+      });
 
       return saved;
     } catch (error) {
@@ -188,7 +194,9 @@ export class InterviewService {
       return;
     }
 
-    runOnTransactionCommit(() => this.afterCancelReservation({ reservationId: id, eventId }));
+    runOnTransactionCommit(() => {
+      this.schedulePostCommit(() => this.afterCancelReservation({ reservationId: id, eventId }));
+    });
   }
 
   private async afterCreateReservation({
@@ -269,10 +277,7 @@ export class InterviewService {
           description,
         });
       } catch (error) {
-        this.logger.error(
-          `구글 캘린더 이벤트 업데이트 실패 (eventId=${eventId})`,
-          error,
-        );
+        this.logger.error(`구글 캘린더 이벤트 업데이트 실패 (eventId=${eventId})`, error);
         await this.notifyOpsCalendarFailure({
           context: { operation: 'update', reservationId: reservation.id, slotId, eventId },
           error,
@@ -309,9 +314,7 @@ export class InterviewService {
   }): Promise<void> {
     const opsEmail = this.configService.get<string>('OPS_ALERT_EMAIL');
     if (!opsEmail) {
-      this.logger.warn(
-        `OPS_ALERT_EMAIL 미설정으로 운영 알림을 건너뜁니다 (${context.operation}).`,
-      );
+      this.logger.warn(`OPS_ALERT_EMAIL 미설정으로 운영 알림을 건너뜁니다 (${context.operation}).`);
       return;
     }
 
@@ -343,13 +346,22 @@ export class InterviewService {
   }
 
   private formatOperation(operation: CalendarFailureContext['operation']): string {
-    if (operation === 'create') {
-      return '이벤트 생성';
-    }
-    if (operation === 'update') {
-      return '이벤트 업데이트';
-    }
-    return '이벤트 삭제';
+    return match(operation)
+      .with('create', () => '이벤트 생성')
+      .with('update', () => '이벤트 업데이트')
+      .with('delete', () => '이벤트 삭제')
+      .exhaustive();
+  }
+
+  private schedulePostCommit(task: () => Promise<void>): void {
+    const promise = task()
+      .catch((error: unknown) => {
+        this.logger.error('post-commit task failed', error);
+      })
+      .finally(() => {
+        this.pendingPostCommitTasks.delete(promise);
+      });
+    this.pendingPostCommitTasks.add(promise);
   }
 
   private validateSlotRange({ startAt, endAt }: { startAt: Date; endAt: Date }): void {

@@ -11,26 +11,20 @@ import type { InterviewSlot } from '../domain/interview-slot.entity';
 import { GoogleCalendarClient } from '../infrastructure/google-calendar.client';
 import { InterviewService } from './interview.service';
 
-const mockPostCommitTasks: Array<Promise<unknown>> = [];
-
 jest.mock('typeorm-transactional', () => ({
   Transactional: () => (_target: unknown, _key: string, descriptor: PropertyDescriptor) =>
     descriptor,
-  runOnTransactionCommit: (callback: () => unknown) => {
-    const result = callback();
-    if (result && typeof (result as Promise<unknown>).then === 'function') {
-      mockPostCommitTasks.push(Promise.resolve(result).catch(() => undefined));
-    }
+  runOnTransactionCommit: (callback: () => void) => {
+    callback();
   },
   initializeTransactionalContext: jest.fn(),
 }));
 
-const flushPostCommitTasks = async (): Promise<void> => {
-  while (mockPostCommitTasks.length > 0) {
-    const task = mockPostCommitTasks.shift();
-    if (task) {
-      await task;
-    }
+const flushPostCommitTasks = async (target: InterviewService): Promise<void> => {
+  const pending = (target as unknown as { pendingPostCommitTasks: Set<Promise<unknown>> })
+    .pendingPostCommitTasks;
+  while (pending.size > 0) {
+    await Promise.all([...pending]);
   }
 };
 
@@ -106,7 +100,6 @@ describe('InterviewService', () => {
     service = module.get(InterviewService);
     jest.clearAllMocks();
     mockConfigService.get.mockReturnValue(undefined);
-    mockPostCommitTasks.length = 0;
   });
 
   describe('createSlot', () => {
@@ -199,7 +192,7 @@ describe('InterviewService', () => {
 
       // When
       const result = await service.createReservation({ input });
-      await flushPostCommitTasks();
+      await flushPostCommitTasks(service);
 
       // Then
       expect(result).toBe(saved);
@@ -219,7 +212,7 @@ describe('InterviewService', () => {
 
       // When
       await service.createReservation({ input });
-      await flushPostCommitTasks();
+      await flushPostCommitTasks(service);
 
       // Then
       expect(mockGoogleCalendarClient.createEvent).toHaveBeenCalledWith(
@@ -257,7 +250,7 @@ describe('InterviewService', () => {
 
       // When
       await service.createReservation({ input });
-      await flushPostCommitTasks();
+      await flushPostCommitTasks(service);
 
       // Then
       expect(mockNotificationService.sendEmail).toHaveBeenCalledWith(
@@ -280,7 +273,7 @@ describe('InterviewService', () => {
 
       // When
       await service.createReservation({ input });
-      await flushPostCommitTasks();
+      await flushPostCommitTasks(service);
 
       // Then — 안내 메일은 발송, 운영 알림(ops 도메인)은 미발송
       expect(mockNotificationService.sendEmail).not.toHaveBeenCalledWith(
@@ -307,7 +300,7 @@ describe('InterviewService', () => {
 
       // When
       await service.cancelReservation({ id: 100 });
-      await flushPostCommitTasks();
+      await flushPostCommitTasks(service);
 
       // Then
       expect(mockInterviewRepository.deleteReservation).toHaveBeenCalledWith({ id: 100 });
@@ -321,7 +314,7 @@ describe('InterviewService', () => {
 
       // When
       await service.cancelReservation({ id: 100 });
-      await flushPostCommitTasks();
+      await flushPostCommitTasks(service);
 
       // Then
       expect(mockInterviewRepository.deleteReservation).toHaveBeenCalledWith({ id: 100 });
@@ -336,7 +329,7 @@ describe('InterviewService', () => {
 
       // When
       await service.cancelReservation({ id: 100 });
-      await flushPostCommitTasks();
+      await flushPostCommitTasks(service);
 
       // Then
       expect(mockInterviewRepository.deleteReservation).toHaveBeenCalledWith({ id: 100 });
@@ -353,7 +346,7 @@ describe('InterviewService', () => {
 
       // When
       await service.cancelReservation({ id: 100 });
-      await flushPostCommitTasks();
+      await flushPostCommitTasks(service);
 
       // Then
       expect(mockNotificationService.sendEmail).toHaveBeenCalledWith(
@@ -383,7 +376,7 @@ describe('InterviewService', () => {
 
       // When
       await service.updateSlot({ id: 1, patch: { startAt: nextStartAt, endAt: nextEndAt } });
-      await flushPostCommitTasks();
+      await flushPostCommitTasks(service);
 
       // Then
       expect(mockInterviewRepository.updateSlot).toHaveBeenCalled();
@@ -402,7 +395,7 @@ describe('InterviewService', () => {
 
       // When
       await service.updateSlot({ id: 1, patch: { capacity: 2 } });
-      await flushPostCommitTasks();
+      await flushPostCommitTasks(service);
 
       // Then
       expect(mockInterviewRepository.updateSlot).toHaveBeenCalled();
@@ -418,7 +411,7 @@ describe('InterviewService', () => {
 
       // When
       await service.updateSlot({ id: 1, patch: { location: '판교' } });
-      await flushPostCommitTasks();
+      await flushPostCommitTasks(service);
 
       // Then
       expect(mockGoogleCalendarClient.updateEvent).toHaveBeenCalledTimes(2);
@@ -434,7 +427,7 @@ describe('InterviewService', () => {
 
       // When
       await service.updateSlot({ id: 1, patch: { location: '판교' } });
-      await flushPostCommitTasks();
+      await flushPostCommitTasks(service);
 
       // Then
       expect(mockNotificationService.sendEmail).toHaveBeenCalledWith(
