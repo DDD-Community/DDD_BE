@@ -77,10 +77,8 @@ jobs:
             printf 'CLIENT_REDIRECT_URL=%s\n' "$CLIENT_REDIRECT_URL" >> .env.production
             printf 'ENCRYPTION_KEY=%s\n'     "$ENCRYPTION_KEY"       >> .env.production
             
-            # Email
-            printf 'EMAIL_PROVIDER=%s\n'     "resend"                >> .env.production
-            printf 'EMAIL_FROM=%s\n'         "$EMAIL_FROM"           >> .env.production
-            printf 'RESEND_API_KEY=%s\n'     "$RESEND_API_KEY"       >> .env.production
+            # Email (console 모드 - Resend 미사용)
+            printf 'EMAIL_PROVIDER=%s\n'     "console"               >> .env.production
             
             # Interview & Calendar
             printf 'INTERVIEW_BOOKING_URL=%s\n' "https://admin.dddstudy.kr/interview" >> .env.production
