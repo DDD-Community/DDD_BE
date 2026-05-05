@@ -28,6 +28,10 @@ export class NotificationCampaignRepository {
     return this.writeRepository.save({ campaign });
   }
 
+  async save({ campaign }: { campaign: NotificationCampaign }) {
+    return this.writeRepository.save({ campaign });
+  }
+
   async findById({ id }: { id: number }) {
     return this.writeRepository.findOne({ where: { id } });
   }
@@ -46,6 +50,16 @@ export class NotificationCampaignRepository {
     return this.writeRepository.findMany({
       where: { status: NotificationCampaignStatus.SCHEDULED, scheduledAtLte: now },
     });
+  }
+
+  async findStaleRunning({ updatedAtBefore }: { updatedAtBefore: Date }) {
+    return this.writeRepository.findMany({
+      where: { status: NotificationCampaignStatus.RUNNING, updatedAtLt: updatedAtBefore },
+    });
+  }
+
+  async deleteById({ id }: { id: number }): Promise<void> {
+    return this.writeRepository.softDeleteById({ id });
   }
 
   async transitionStatus({

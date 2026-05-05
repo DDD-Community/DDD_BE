@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { DataSource, LessThanOrEqual, Repository } from 'typeorm';
+import { DataSource, LessThan, LessThanOrEqual, Repository } from 'typeorm';
 
 import {
   NotificationCampaign,
@@ -49,6 +49,10 @@ export class NotificationCampaignWriteRepository {
     return (updateResult.affected ?? 0) > 0;
   }
 
+  async softDeleteById({ id }: { id: number }): Promise<void> {
+    await this.repository.softDelete({ id });
+  }
+
   private buildWhere(filter: NotificationCampaignFilter) {
     const where: Record<string, unknown> = {};
 
@@ -66,6 +70,10 @@ export class NotificationCampaignWriteRepository {
 
     if (filter.scheduledAtLte !== undefined) {
       where.scheduledAt = LessThanOrEqual(filter.scheduledAtLte);
+    }
+
+    if (filter.updatedAtLt !== undefined) {
+      where.updatedAt = LessThan(filter.updatedAtLt);
     }
 
     return where;

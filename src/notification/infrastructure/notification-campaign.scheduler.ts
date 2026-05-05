@@ -12,6 +12,7 @@ export class NotificationCampaignScheduler {
   @Cron(CronExpression.EVERY_5_MINUTES)
   async runDueCampaigns(): Promise<void> {
     this.logger.log('사전 알림 캠페인 스케줄러 실행');
+    await this.notificationCampaignService.reapStaleRunning();
     await this.notificationCampaignService.runDueCampaigns();
   }
 }

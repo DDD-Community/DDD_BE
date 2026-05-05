@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -23,6 +24,7 @@ import { NotificationCampaignService } from '../application/notification-campaig
 import {
   CreateNotificationCampaignRequestDto,
   FindAdminNotificationCampaignsQueryDto,
+  UpdateNotificationCampaignRequestDto,
 } from './dto/admin-notification-campaign.request.dto';
 import { NotificationCampaignResponseDto } from './dto/admin-notification-campaign.response.dto';
 
@@ -68,6 +70,43 @@ export class AdminNotificationCampaignController {
       status: query.status,
     });
     return ApiResponse.ok(records.map((record) => NotificationCampaignResponseDto.from(record)));
+  }
+
+  @ApiDoc({
+    summary: '캠페인 수정',
+    description:
+      'SCHEDULED 또는 PAUSED 상태에서 본문/예약 시각을 수정합니다. RUNNING/DONE/FAILED 상태에서는 수정할 수 없습니다.',
+    operationId: 'notificationCampaign_updateAdmin',
+    auth: true,
+  })
+  @Patch(':id')
+  async updateCampaign(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: UpdateNotificationCampaignRequestDto,
+  ) {
+    const updated = await this.notificationCampaignService.updateCampaign({
+      id,
+      scheduledAt: body.scheduledAt !== undefined ? new Date(body.scheduledAt) : undefined,
+      subject: body.subject,
+      html: body.html,
+      text: body.text,
+    });
+    return ApiResponse.ok(
+      NotificationCampaignResponseDto.from(updated),
+      '캠페인이 수정되었습니다.',
+    );
+  }
+
+  @ApiDoc({
+    summary: '캠페인 삭제',
+    description: 'RUNNING 외 상태의 캠페인을 soft delete 합니다.',
+    operationId: 'notificationCampaign_deleteAdmin',
+    auth: true,
+  })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Delete(':id')
+  async deleteCampaign(@Param('id', ParseIntPipe) id: number): Promise<void> {
+    await this.notificationCampaignService.deleteCampaign({ id });
   }
 
   @ApiDoc({
