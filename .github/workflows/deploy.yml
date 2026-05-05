@@ -43,7 +43,8 @@ jobs:
           key: ${{ secrets.GCP_VM_SSH_KEY }}
           envs: >
             GHCR_TOKEN,GITHUB_ACTOR,APP_IMAGE,APP_PORT,DB_PORT,DB_USERNAME,DB_PASSWORD,DB_NAME,
-            JWT_SECRET,JWT_EXPIRES_IN,GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET,GOOGLE_CALLBACK_URL,
+            JWT_SECRET,JWT_EXPIRES_IN,ADMIN_BOOTSTRAP_TOKEN,ADMIN_BOOTSTRAP_TOKEN_EXPIRES_AT,
+            GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET,GOOGLE_CALLBACK_URL,
             CLIENT_REDIRECT_URL,ENCRYPTION_KEY,EMAIL_FROM,RESEND_API_KEY,GOOGLE_CALENDAR_ID,
             GCS_BUCKET_NAME,GCP_SERVICE_ACCOUNT_JSON,DISCORD_CLIENT_ID,DISCORD_CLIENT_SECRET,
             DISCORD_CALLBACK_URL,DISCORD_BOT_TOKEN,DISCORD_GUILD_ID,DISCORD_INVITE_URL,
@@ -68,6 +69,8 @@ jobs:
             printf 'APP_IMAGE=%s\n'   "$APP_IMAGE"   >> .env.production
             printf 'JWT_SECRET=%s\n'         "$JWT_SECRET"           >> .env.production
             printf 'JWT_EXPIRES_IN=%s\n'     "$JWT_EXPIRES_IN"       >> .env.production
+            printf 'ADMIN_BOOTSTRAP_TOKEN=%s\n'           "$ADMIN_BOOTSTRAP_TOKEN"           >> .env.production
+            printf 'ADMIN_BOOTSTRAP_TOKEN_EXPIRES_AT=%s\n' "$ADMIN_BOOTSTRAP_TOKEN_EXPIRES_AT" >> .env.production
             printf 'GOOGLE_CLIENT_ID=%s\n'   "$GOOGLE_CLIENT_ID"     >> .env.production
             printf 'GOOGLE_CLIENT_SECRET=%s\n' "$GOOGLE_CLIENT_SECRET" >> .env.production
             printf 'GOOGLE_CALLBACK_URL=%s\n' "$GOOGLE_CALLBACK_URL" >> .env.production
@@ -129,6 +132,8 @@ jobs:
           DB_NAME: ${{ secrets.DB_NAME }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           JWT_EXPIRES_IN: ${{ secrets.JWT_EXPIRES_IN }}
+          ADMIN_BOOTSTRAP_TOKEN: ${{ secrets.ADMIN_BOOTSTRAP_TOKEN }}
+          ADMIN_BOOTSTRAP_TOKEN_EXPIRES_AT: ${{ secrets.ADMIN_BOOTSTRAP_TOKEN_EXPIRES_AT }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           GOOGLE_CALLBACK_URL: ${{ secrets.GOOGLE_CALLBACK_URL }}
