@@ -41,6 +41,9 @@ export const ErrorMessage = {
   EARLY_NOTIFICATION_CONFLICT: '사전 알림 처리 중 일시적인 충돌이 발생했습니다. 다시 시도해주세요.',
   GENERAL_EARLY_NOTIFICATION_CONFLICT:
     '대기열 사전 알림 처리 중 일시적인 충돌이 발생했습니다. 다시 시도해주세요.',
+  NOTIFICATION_CAMPAIGN_NOT_FOUND: '사전 알림 캠페인을 찾을 수 없습니다.',
+  NOTIFICATION_CAMPAIGN_INVALID_STATE: '현재 상태에서 허용되지 않는 캠페인 변경입니다.',
+  NOTIFICATION_CAMPAIGN_INVALID_SCHEDULE: '발송 예정 시각이 유효하지 않습니다.',
 
   FILE_NOT_PROVIDED: '업로드할 파일이 없습니다.',
   FILE_TYPE_NOT_ALLOWED: '허용되지 않는 파일 형식입니다.',
