@@ -1,5 +1,7 @@
+import { HttpStatus } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 
+import { AppException } from '../../common/exception/app.exception';
 import { UserRepository } from '../domain/user.repository';
 import { UserRole } from '../domain/user.role';
 import { UserService } from './user.service';
@@ -16,6 +18,7 @@ const mockUserRepository = {
   findByRefreshToken: jest.fn(),
   register: jest.fn(),
   saveRefreshToken: jest.fn(),
+  saveRoles: jest.fn(),
   restore: jest.fn(),
   withdraw: jest.fn(),
   updateGoogleTokens: jest.fn(),
@@ -173,6 +176,44 @@ describe('UserService', () => {
 
       // Then
       expect(result).toBeNull();
+    });
+  });
+
+  describe('assignRoles', () => {
+    it('대상 사용자가 존재하지 않으면 USER_NOT_FOUND를 던진다', async () => {
+      mockUserRepository.findById.mockResolvedValue(null);
+
+      await expect(
+        userService.assignRoles({ userId: 99, roles: [UserRole.계정관리] }),
+      ).rejects.toThrow(new AppException('USER_NOT_FOUND', HttpStatus.NOT_FOUND));
+      expect(mockUserRepository.saveRoles).not.toHaveBeenCalled();
+    });
+
+    it('사용자가 존재하면 권한 목록을 저장하고 사용자를 반환한다', async () => {
+      const user = { id: 3, email: 'admin@example.com' };
+      mockUserRepository.findById.mockResolvedValue(user);
+      mockUserRepository.saveRoles.mockResolvedValue(undefined);
+
+      const result = await userService.assignRoles({
+        userId: 3,
+        roles: [UserRole.계정관리, UserRole.운영자],
+      });
+
+      expect(mockUserRepository.saveRoles).toHaveBeenCalledWith({
+        userId: 3,
+        roles: [UserRole.계정관리, UserRole.운영자],
+      });
+      expect(result).toBe(user);
+    });
+
+    it('빈 권한 배열을 전달하면 모든 권한을 제거한다', async () => {
+      const user = { id: 3, email: 'admin@example.com' };
+      mockUserRepository.findById.mockResolvedValue(user);
+      mockUserRepository.saveRoles.mockResolvedValue(undefined);
+
+      await userService.assignRoles({ userId: 3, roles: [] });
+
+      expect(mockUserRepository.saveRoles).toHaveBeenCalledWith({ userId: 3, roles: [] });
     });
   });
 });

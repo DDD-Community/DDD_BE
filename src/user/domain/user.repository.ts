@@ -1,12 +1,21 @@
 import { Injectable } from '@nestjs/common';
 
 import type { UserType } from '../domain/user.type';
+import { RoleWriteRepository } from '../infrastructure/role.write.repository';
 import { WriteRepository } from '../infrastructure/write.repository';
 import type { UserUpdatePatch } from '../infrastructure/write.repository.type';
+import type { UserRole } from './user.role';
 
 @Injectable()
 export class UserRepository {
-  constructor(private readonly writeRepository: WriteRepository) {}
+  constructor(
+    private readonly writeRepository: WriteRepository,
+    private readonly roleWriteRepository: RoleWriteRepository,
+  ) {}
+
+  async saveRoles({ userId, roles }: { userId: number; roles: UserRole[] }) {
+    await this.roleWriteRepository.saveRoles({ userId, roles });
+  }
 
   async findByEmail({ email, withDeleted = false }: { email: string; withDeleted?: boolean }) {
     return this.writeRepository.findOne({
