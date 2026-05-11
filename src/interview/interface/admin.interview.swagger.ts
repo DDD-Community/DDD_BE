@@ -1,6 +1,7 @@
 import {
   CommonSwaggerResponses,
   successListResponseSchema,
+  successNullResponseSchema,
   successResponseSchema,
 } from '../../common/swagger/response-schema';
 import {
@@ -54,6 +55,7 @@ export const AdminInterviewSwagger = {
     success: {
       status: 200,
       description: '면접 슬롯이 수정되었습니다.',
+      ...successNullResponseSchema('면접 슬롯이 수정되었습니다.'),
     },
     unauthorized: CommonSwaggerResponses.unauthorized(
       'access_token 쿠키가 없거나 만료되었습니다.',
@@ -87,9 +89,18 @@ export const AdminInterviewSwagger = {
     unauthorized: CommonSwaggerResponses.unauthorized(
       'access_token 쿠키가 없거나 만료되었습니다.',
     ),
-    notFound: CommonSwaggerResponses.notFound(
+    notFound: CommonSwaggerResponses.notFoundOneOf(
       '슬롯 또는 지원서를 찾을 수 없습니다.',
-      'NOT_FOUND',
+      [
+        {
+          code: 'INTERVIEW_SLOT_NOT_FOUND',
+          message: '면접 슬롯을 찾을 수 없습니다.',
+        },
+        {
+          code: 'APPLICATION_NOT_FOUND',
+          message: '해당 지원서를 찾을 수 없습니다.',
+        },
+      ],
     ),
   },
 
