@@ -13,7 +13,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiExtraModels, ApiTags } from '@nestjs/swagger';
 
 import { ApplicationService } from '../../application/usecase/application.service';
 import { Roles } from '../../common/decorator/roles.decorator';
@@ -22,6 +22,7 @@ import { ApiResponse } from '../../common/response/api-response';
 import { ApiDoc } from '../../common/swagger/api-doc.decorator';
 import { UserRole } from '../../user/domain/user.role';
 import { InterviewService } from '../application/interview.service';
+import { AdminInterviewSwagger } from './admin.interview.swagger';
 import {
   InterviewReservationResponseDto,
   InterviewSlotResponseDto,
@@ -34,6 +35,7 @@ import {
 } from './dto/interview-slot.request.dto';
 
 @ApiTags('Admin - Interview')
+@ApiExtraModels(InterviewSlotResponseDto, InterviewReservationResponseDto)
 @Controller({ path: 'admin/interview-slots', version: '1' })
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 @Roles(UserRole.계정관리, UserRole.운영자)
@@ -48,6 +50,10 @@ export class AdminInterviewController {
     description: '새로운 면접 슬롯을 생성합니다.',
     operationId: 'interview_createSlot',
     auth: true,
+    responses: [
+      AdminInterviewSwagger.createSlot.success,
+      AdminInterviewSwagger.createSlot.unauthorized,
+    ],
   })
   @Post()
   async createSlot(@Body() body: CreateInterviewSlotRequestDto) {
@@ -70,6 +76,10 @@ export class AdminInterviewController {
     description: '기수/파트 필터로 슬롯을 조회합니다.',
     operationId: 'interview_listSlots',
     auth: true,
+    responses: [
+      AdminInterviewSwagger.listSlots.success,
+      AdminInterviewSwagger.listSlots.unauthorized,
+    ],
   })
   @Get()
   async findSlots(@Query() query: InterviewSlotListQueryDto) {
@@ -84,6 +94,11 @@ export class AdminInterviewController {
     summary: '면접 슬롯 상세 조회',
     operationId: 'interview_getSlot',
     auth: true,
+    responses: [
+      AdminInterviewSwagger.getSlot.success,
+      AdminInterviewSwagger.getSlot.unauthorized,
+      AdminInterviewSwagger.getSlot.notFound,
+    ],
   })
   @Get(':id')
   async findSlotById(@Param('id', ParseIntPipe) id: number) {
@@ -95,6 +110,11 @@ export class AdminInterviewController {
     summary: '면접 슬롯 수정',
     operationId: 'interview_updateSlot',
     auth: true,
+    responses: [
+      AdminInterviewSwagger.updateSlot.success,
+      AdminInterviewSwagger.updateSlot.unauthorized,
+      AdminInterviewSwagger.updateSlot.notFound,
+    ],
   })
   @Patch(':id')
   async updateSlot(
@@ -118,6 +138,11 @@ export class AdminInterviewController {
     summary: '면접 슬롯 삭제',
     operationId: 'interview_deleteSlot',
     auth: true,
+    responses: [
+      AdminInterviewSwagger.deleteSlot.noContent,
+      AdminInterviewSwagger.deleteSlot.unauthorized,
+      AdminInterviewSwagger.deleteSlot.notFound,
+    ],
   })
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
@@ -130,6 +155,11 @@ export class AdminInterviewController {
     description: '지원자를 특정 슬롯에 배정하고 구글 캘린더 이벤트를 생성합니다.',
     operationId: 'interview_createReservation',
     auth: true,
+    responses: [
+      AdminInterviewSwagger.createReservation.success,
+      AdminInterviewSwagger.createReservation.unauthorized,
+      AdminInterviewSwagger.createReservation.notFound,
+    ],
   })
   @Post(':slotId/reservations')
   async createReservation(
@@ -153,6 +183,11 @@ export class AdminInterviewController {
     description: '면접 예약을 취소하고 연동된 구글 캘린더 이벤트를 삭제합니다.',
     operationId: 'interview_cancelReservation',
     auth: true,
+    responses: [
+      AdminInterviewSwagger.cancelReservation.noContent,
+      AdminInterviewSwagger.cancelReservation.unauthorized,
+      AdminInterviewSwagger.cancelReservation.notFound,
+    ],
   })
   @Delete('reservations/:reservationId')
   @HttpCode(HttpStatus.NO_CONTENT)

@@ -12,6 +12,20 @@ export const successResponseSchema = (model: Type<unknown>) => ({
   },
 });
 
+export const successListResponseSchema = (model: Type<unknown>) => ({
+  schema: {
+    type: 'object',
+    properties: {
+      code: { type: 'string', example: 'SUCCESS' },
+      message: { type: 'string', example: 'success' },
+      data: {
+        type: 'array',
+        items: { $ref: getSchemaPath(model) },
+      },
+    },
+  },
+});
+
 export const errorResponseSchema = (code: string, message: string) => ({
   schema: {
     type: 'object',
