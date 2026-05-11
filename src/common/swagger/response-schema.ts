@@ -12,12 +12,55 @@ export const successResponseSchema = (model: Type<unknown>) => ({
   },
 });
 
+export const successListResponseSchema = (model: Type<unknown>) => ({
+  schema: {
+    type: 'object',
+    properties: {
+      code: { type: 'string', example: 'SUCCESS' },
+      message: { type: 'string', example: 'success' },
+      data: {
+        type: 'array',
+        items: { $ref: getSchemaPath(model) },
+      },
+    },
+  },
+});
+
+export const successNullResponseSchema = (message = 'success') => ({
+  schema: {
+    type: 'object',
+    properties: {
+      code: { type: 'string', example: 'SUCCESS' },
+      message: { type: 'string', example: message },
+      data: { type: 'object', nullable: true, example: null },
+    },
+  },
+});
+
 export const errorResponseSchema = (code: string, message: string) => ({
   schema: {
     type: 'object',
     properties: {
       code: { type: 'string', example: code },
       message: { type: 'string', example: message },
+      data: { type: 'object', nullable: true, example: null },
+    },
+  },
+});
+
+const errorOneOfSchema = (cases: Array<{ code: string; message: string }>) => ({
+  schema: {
+    type: 'object',
+    properties: {
+      code: {
+        type: 'string',
+        enum: cases.map((c) => c.code),
+        example: cases[0].code,
+      },
+      message: {
+        type: 'string',
+        example: cases[0].message,
+      },
       data: { type: 'object', nullable: true, example: null },
     },
   },
@@ -33,5 +76,13 @@ export const CommonSwaggerResponses = {
     status: 404 as const,
     description,
     ...errorResponseSchema(code, description),
+  }),
+  notFoundOneOf: (
+    description: string,
+    cases: Array<{ code: string; message: string }>,
+  ) => ({
+    status: 404 as const,
+    description,
+    ...errorOneOfSchema(cases),
   }),
 };
