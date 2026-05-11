@@ -9,10 +9,11 @@ import { UserRoleEntity } from './domain/user-role.entity';
 import { RoleWriteRepository } from './infrastructure/role.write.repository';
 import { WriteRepository } from './infrastructure/write.repository';
 import { BootstrapUserController } from './interface/bootstrap.user.controller';
+import { UserController } from './interface/user.controller';
 
 @Module({
   imports: [TypeOrmModule.forFeature([User, UserRoleEntity]), AuditModule],
-  controllers: [BootstrapUserController],
+  controllers: [BootstrapUserController, UserController],
   providers: [UserService, UserRepository, WriteRepository, RoleWriteRepository],
   exports: [UserService],
 })
