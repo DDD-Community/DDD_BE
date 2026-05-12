@@ -56,11 +56,12 @@ jobs:
             cd /opt/ddd-be
             umask 077
 
-            # Frontend placeholder bootstrap (FE 첫 배포 전에 Caddy 가 404 나지 않도록)
-            mkdir -p /opt/ddd-be/frontend/current
-            if [ ! -f /opt/ddd-be/frontend/current/index.html ]; then
-              echo '<!doctype html><title>DDD</title><h1>Frontend not deployed yet</h1>' \
-                > /opt/ddd-be/frontend/current/index.html
+            # Frontend bootstrap precondition (FE 팀 release 패턴: /opt/admin/frontend/current 가 symlink 여야 함)
+            # 최초 1회 VM 부트스트랩이 누락되면 여기서 실패 — docs/admin-deploy.md §A 참고
+            if [ ! -e /opt/admin/frontend/current ]; then
+              echo "ERROR: /opt/admin/frontend/current 가 없습니다. VM 1회 부트스트랩이 필요합니다."
+              echo "  ssh dddstudy1@<VM> 후 docs/admin-deploy.md §A 의 5줄 실행"
+              exit 1
             fi
 
             # Create GCP Service Account Key file
