@@ -6,7 +6,7 @@ admin.dddstudy.kr {
     reverse_proxy @backend app:3000
 
     # 프론트엔드: 정적 파일 + SPA fallback (history 모드 지원)
-    root * /srv/frontend
+    root * /srv/frontend/current
     # SPA 라우팅, 새로고침 시 404 안나게하기위해
     try_files {path} /index.html
     # 정적 파일 서빙 핸들러를 활성화

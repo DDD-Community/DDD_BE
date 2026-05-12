@@ -39,11 +39,11 @@ services:
     container_name: ddd-be-caddy
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
+      - '80:80'
+      - '443:443'
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
-      - /opt/admin/frontend/current:/srv/frontend:ro
+      - /opt/admin/frontend:/srv/frontend:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
