@@ -55,7 +55,14 @@ jobs:
             sudo docker pull "$APP_IMAGE"
             cd /opt/ddd-be
             umask 077
-            
+
+            # Frontend placeholder bootstrap (FE 첫 배포 전에 Caddy 가 404 나지 않도록)
+            mkdir -p /opt/ddd-be/frontend/current
+            if [ ! -f /opt/ddd-be/frontend/current/index.html ]; then
+              echo '<!doctype html><title>DDD</title><h1>Frontend not deployed yet</h1>' \
+                > /opt/ddd-be/frontend/current/index.html
+            fi
+
             # Create GCP Service Account Key file
             echo "$GCP_SERVICE_ACCOUNT_JSON" > gcp-key.json
             
