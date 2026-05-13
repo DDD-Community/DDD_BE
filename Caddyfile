@@ -1,10 +1,6 @@
 admin.dddstudy.kr {
-    # 백엔드: API + Swagger
     # 백엔드: API + Swagger (먼저 매칭, 종료)
     handle /api/* {
-        reverse_proxy app:3000
-    }
-    handle /api-docs* {
         reverse_proxy app:3000
     }
 

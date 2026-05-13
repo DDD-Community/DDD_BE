@@ -178,7 +178,7 @@ jobs:
           echo "${{ secrets.GCP_VM_SSH_KEY }}" > private_key
           chmod 600 private_key
           ssh -i private_key -o StrictHostKeyChecking=no ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_HOST }} \
-            "curl -s http://localhost:${{ secrets.APP_PORT || 3000 }}/api-docs-json" > openapi.json
+            "curl -s http://localhost:${{ secrets.APP_PORT || 3000 }}/api/api-docs-json" > openapi.json
           rm private_key
 
       - name: Commit OpenAPI spec
