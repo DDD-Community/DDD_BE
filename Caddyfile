@@ -1,14 +1,19 @@
 admin.dddstudy.kr {
     # 백엔드: API + Swagger
-    @backend {
-        path /api/* /api-docs*
+    # 백엔드: API + Swagger (먼저 매칭, 종료)
+    handle /api/* {
+        reverse_proxy app:3000
     }
-    reverse_proxy @backend app:3000
+    handle /api-docs* {
+        reverse_proxy app:3000
+    }
 
-    # 프론트엔드: 정적 파일 + SPA fallback (history 모드 지원)
-    root * /srv/frontend/current
-    # SPA 라우팅, 새로고침 시 404 안나게하기위해
-    try_files {path} /index.html
-    # 정적 파일 서빙 핸들러를 활성화
-    file_server
+    # 프론트엔드: 나머지 모든 경로 (SPA fallback)
+    handle {
+        root * /srv/frontend/current
+        # SPA 라우팅, 새로고침 시 404 안나게하기위해
+        try_files {path} /index.html
+        # 정적 파일 서빙 핸들러를 활성화
+        file_server
+    }
 }
