@@ -118,6 +118,13 @@ jobs:
             printf 'DISCORD_ROLE_ID_AOS=%s\n' "$DISCORD_ROLE_ID_AOS" >> .env.production
             
             sudo APP_ENV_FILE=.env.production docker compose --env-file .env.production up -d
+
+            # Caddyfile 변경분 즉시 반영 (zero-downtime reload)
+            # docker compose up -d 는 이미지/마운트가 동일하면 caddy 컨테이너를 재생성하지 않으므로
+            # Caddyfile 만 바뀐 배포에서는 컨테이너 안 메모리 설정이 옛 상태로 남는다.
+            sudo docker exec ddd-be-caddy caddy reload \
+              --config /etc/caddy/Caddyfile --adapter caddyfile
+
             for i in $(seq 1 12); do
               curl -sf "http://localhost:${APP_PORT:-3000}/api/v1/health" && break
               if [ "$i" -eq 12 ]; then
