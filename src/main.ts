@@ -14,7 +14,12 @@ const bootstrap = async () => {
   app.use(cookieParser());
 
   app.enableCors({
-    origin: ['http://localhost:3000', 'http://localhost:5173'],
+    origin: [
+      'http://localhost:3000',
+      'http://localhost:5173',
+      'https://admin.dddstudy.kr',
+      /^https:\/\/ddd-fe-web(-[\w-]+)?\.vercel\.app$/,
+    ],
     credentials: true,
   });
 
