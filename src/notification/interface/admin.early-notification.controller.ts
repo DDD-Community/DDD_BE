@@ -10,7 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiExtraModels, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 
 import { Roles } from '../../common/decorator/roles.decorator';
@@ -19,14 +19,19 @@ import { ApiResponse } from '../../common/response/api-response';
 import { ApiDoc } from '../../common/swagger/api-doc.decorator';
 import { UserRole } from '../../user/domain/user.role';
 import { EarlyNotificationService } from '../application/early-notification.service';
+import { AdminEarlyNotificationSwagger } from './admin.early-notification.swagger';
 import {
   ExportAdminEarlyNotificationsQueryDto,
   FindAdminEarlyNotificationsQueryDto,
   SendBulkEarlyNotificationRequestDto,
 } from './dto/admin-early-notification.request.dto';
-import { AdminEarlyNotificationResponseDto } from './dto/admin-early-notification.response.dto';
+import {
+  AdminEarlyNotificationResponseDto,
+  SendBulkEarlyNotificationResponseDto,
+} from './dto/admin-early-notification.response.dto';
 
 @ApiTags('Admin - Early Notification')
+@ApiExtraModels(SendBulkEarlyNotificationResponseDto)
 @Controller({ path: 'admin/early-notifications', version: '1' })
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 @Roles(UserRole.계정관리, UserRole.운영자)
@@ -74,6 +79,10 @@ export class AdminEarlyNotificationController {
     description: '기수별 미발송 대상에게 사전 알림 이메일을 일괄 발송합니다.',
     operationId: 'earlyNotification_sendBulk',
     auth: true,
+    responses: [
+      AdminEarlyNotificationSwagger.sendBulk.success,
+      AdminEarlyNotificationSwagger.sendBulk.unauthorized,
+    ],
   })
   @HttpCode(HttpStatus.OK)
   @Post('send')
