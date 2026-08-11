@@ -53,14 +53,6 @@ export class CohortService {
     return cohort;
   }
 
-  async findActiveCohortOrThrow() {
-    const cohort = await this.findActiveCohort();
-    if (!cohort) {
-      throw new AppException('COHORT_NOT_FOUND', HttpStatus.NOT_FOUND);
-    }
-    return cohort;
-  }
-
   async findActiveCohort() {
     const cohorts = await this.cohortRepository.findActive();
     if (cohorts.length === 0) {
