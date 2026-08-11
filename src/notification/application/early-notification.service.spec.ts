@@ -62,7 +62,7 @@ describe('EarlyNotificationService', () => {
       expect(mockCohortRepository.findById).toHaveBeenCalledWith({ id: 1 });
     });
 
-    it('이미 신청한 이메일이면 기존 레코드를 반환한다', async () => {
+    it('이미 신청한 이메일이면 기존 레코드와 alreadySubscribed=true를 반환한다', async () => {
       // Given
       const found = { id: 10, cohortId: 1, email: 'test@example.com', notifiedAt: null };
       mockCohortRepository.findById.mockResolvedValue({ id: 1, name: '16기' });
@@ -72,11 +72,11 @@ describe('EarlyNotificationService', () => {
       const result = await earlyNotificationService.subscribe(payload);
 
       // Then
-      expect(result).toBe(found);
+      expect(result).toEqual({ record: found, alreadySubscribed: true });
       expect(mockEarlyNotificationRepository.register).not.toHaveBeenCalled();
     });
 
-    it('신규 이메일이면 등록하고 반환한다', async () => {
+    it('신규 이메일이면 등록 레코드와 alreadySubscribed=false를 반환한다', async () => {
       // Given
       const created = { id: 11, cohortId: 1, email: 'test@example.com', notifiedAt: null };
       mockCohortRepository.findById.mockResolvedValue({ id: 1, name: '16기' });
@@ -87,14 +87,14 @@ describe('EarlyNotificationService', () => {
       const result = await earlyNotificationService.subscribe(payload);
 
       // Then
-      expect(result).toBe(created);
+      expect(result).toEqual({ record: created, alreadySubscribed: false });
       expect(mockEarlyNotificationRepository.register).toHaveBeenCalledWith({
         cohortId: 1,
         email: 'test@example.com',
       });
     });
 
-    it('동시 요청으로 unique 제약 위반 시 기존 레코드를 반환한다', async () => {
+    it('동시 요청으로 unique 제약 위반 시 기존 레코드와 alreadySubscribed=true를 반환한다', async () => {
       // Given
       const record = { id: 12, cohortId: 1, email: 'test@example.com', notifiedAt: null };
       mockCohortRepository.findById.mockResolvedValue({ id: 1, name: '16기' });
@@ -112,7 +112,7 @@ describe('EarlyNotificationService', () => {
       const result = await earlyNotificationService.subscribe(payload);
 
       // Then
-      expect(result).toBe(record);
+      expect(result).toEqual({ record, alreadySubscribed: true });
       expect(mockEarlyNotificationRepository.findOne).toHaveBeenCalledTimes(2);
     });
 

@@ -18,13 +18,17 @@ export class EarlyNotificationResponseDto {
   @ApiPropertyOptional({ description: '알림 발송 일시', nullable: true })
   notifiedAt: Date | null;
 
-  static from(record: EarlyNotification): EarlyNotificationResponseDto {
+  @ApiProperty({ description: '기존 신청 여부', example: false })
+  alreadySubscribed: boolean;
+
+  static from(record: EarlyNotification, alreadySubscribed: boolean): EarlyNotificationResponseDto {
     const dto = new EarlyNotificationResponseDto();
     dto.id = record.id;
     dto.cohortId = record.cohortId;
     dto.email = record.email;
     dto.createdAt = record.createdAt;
     dto.notifiedAt = record.notifiedAt;
+    dto.alreadySubscribed = alreadySubscribed;
     return dto;
   }
 }
