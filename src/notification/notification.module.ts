@@ -23,6 +23,7 @@ import { GmailEmailClient } from './infrastructure/gmail-email.client';
 import { NotificationCampaignScheduler } from './infrastructure/notification-campaign.scheduler';
 import { NotificationCampaignWriteRepository } from './infrastructure/notification-campaign.write.repository';
 import { AdminEarlyNotificationController } from './interface/admin.early-notification.controller';
+import { AdminGeneralEarlyNotificationController } from './interface/admin.general-early-notification.controller';
 import { AdminNotificationCampaignController } from './interface/admin.notification-campaign.controller';
 import { PublicEarlyNotificationController } from './interface/public.early-notification.controller';
 import { PublicGeneralEarlyNotificationController } from './interface/public.general-early-notification.controller';
@@ -42,6 +43,7 @@ import { PublicGeneralEarlyNotificationController } from './interface/public.gen
     PublicEarlyNotificationController,
     PublicGeneralEarlyNotificationController,
     AdminEarlyNotificationController,
+    AdminGeneralEarlyNotificationController,
     AdminNotificationCampaignController,
   ],
   providers: [

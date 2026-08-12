@@ -24,6 +24,13 @@ export class GeneralEarlyNotificationRepository {
     });
   }
 
+  async findAll({ onlyUnpromoted }: { onlyUnpromoted?: boolean }) {
+    return this.writeRepository.findMany({
+      where: onlyUnpromoted ? { promotedAtIsNull: true } : {},
+      order: { createdAt: 'DESC', id: 'DESC' },
+    });
+  }
+
   async markManyPromoted({
     ids,
     promotedAt,

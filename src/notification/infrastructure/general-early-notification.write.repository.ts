@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { DataSource, In, IsNull, Repository } from 'typeorm';
+import { DataSource, FindOptionsOrder, In, IsNull, Repository } from 'typeorm';
 
 import { GeneralEarlyNotification } from '../domain/general-early-notification.entity';
 import type { GeneralEarlyNotificationFilter } from './general-early-notification.write.repository.type';
@@ -20,8 +20,14 @@ export class GeneralEarlyNotificationWriteRepository {
     return this.repository.findOne({ where: this.buildWhere(where) });
   }
 
-  async findMany({ where }: { where: GeneralEarlyNotificationFilter }) {
-    return this.repository.find({ where: this.buildWhere(where) });
+  async findMany({
+    where,
+    order,
+  }: {
+    where: GeneralEarlyNotificationFilter;
+    order?: FindOptionsOrder<GeneralEarlyNotification>;
+  }) {
+    return this.repository.find({ where: this.buildWhere(where), order });
   }
 
   async exists({ where }: { where: GeneralEarlyNotificationFilter }) {
