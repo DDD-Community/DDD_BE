@@ -1,6 +1,8 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 
+import { CohortRepository } from '../../cohort/domain/cohort.repository';
+import { CohortStatus } from '../../cohort/domain/cohort.status';
 import { AppException } from '../../common/exception/app.exception';
 import { isPostgresUniqueViolation } from '../../common/util/postgres-error';
 import { EarlyNotificationRepository } from '../domain/early-notification.repository';
@@ -18,13 +20,17 @@ export type PromoteToCohortResult = {
   total: number;
   promoted: number;
   skippedDuplicate: number;
+  skippedReason?: 'COHORT_NOT_PROMOTABLE';
 };
 
 @Injectable()
 export class GeneralEarlyNotificationService {
+  private readonly logger = new Logger(GeneralEarlyNotificationService.name);
+
   constructor(
     private readonly generalEarlyNotificationRepository: GeneralEarlyNotificationRepository,
     private readonly earlyNotificationRepository: EarlyNotificationRepository,
+    private readonly cohortRepository: CohortRepository,
   ) {}
 
   async subscribe({ email }: SubscribePayload) {
@@ -49,9 +55,28 @@ export class GeneralEarlyNotificationService {
     }
   }
 
+  async findForAdmin({ onlyUnpromoted }: { onlyUnpromoted?: boolean }) {
+    return this.generalEarlyNotificationRepository.findAll({ onlyUnpromoted });
+  }
+
   @Transactional()
   async promoteToCohort({ cohortId }: PromoteToCohortPayload): Promise<PromoteToCohortResult> {
+    const cohort = await this.cohortRepository.findById({ id: cohortId });
     const waitlist = await this.generalEarlyNotificationRepository.findUnpromoted();
+
+    const isPromotable =
+      cohort?.status === CohortStatus.UPCOMING || cohort?.status === CohortStatus.RECRUITING;
+    if (!isPromotable) {
+      const status = cohort?.status ?? 'NOT_FOUND';
+      this.logger.warn(`대기열 승격 건너뜀: cohortId=${cohortId}, status=${status}`);
+      return {
+        total: waitlist.length,
+        promoted: 0,
+        skippedDuplicate: 0,
+        skippedReason: 'COHORT_NOT_PROMOTABLE',
+      };
+    }
+
     if (waitlist.length === 0) {
       return { total: 0, promoted: 0, skippedDuplicate: 0 };
     }

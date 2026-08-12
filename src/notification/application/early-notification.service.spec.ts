@@ -9,6 +9,7 @@ import { Test } from '@nestjs/testing';
 import { QueryFailedError } from 'typeorm';
 
 import { CohortRepository } from '../../cohort/domain/cohort.repository';
+import { CohortStatus } from '../../cohort/domain/cohort.status';
 import { AppException } from '../../common/exception/app.exception';
 import { EarlyNotificationRepository } from '../domain/early-notification.repository';
 import { EarlyNotificationService } from './early-notification.service';
@@ -62,10 +63,30 @@ describe('EarlyNotificationService', () => {
       expect(mockCohortRepository.findById).toHaveBeenCalledWith({ id: 1 });
     });
 
+    it('CLOSED 기수면 EARLY_NOTIFICATION_COHORT_CLOSED 예외를 던진다', async () => {
+      // Given
+      mockCohortRepository.findById.mockResolvedValue({
+        id: 1,
+        name: '16기',
+        status: CohortStatus.CLOSED,
+      });
+
+      // When & Then
+      await expect(earlyNotificationService.subscribe(payload)).rejects.toThrow(
+        new AppException('EARLY_NOTIFICATION_COHORT_CLOSED', HttpStatus.BAD_REQUEST),
+      );
+      expect(mockEarlyNotificationRepository.findOne).not.toHaveBeenCalled();
+      expect(mockEarlyNotificationRepository.register).not.toHaveBeenCalled();
+    });
+
     it('이미 신청한 이메일이면 기존 레코드를 반환한다', async () => {
       // Given
       const found = { id: 10, cohortId: 1, email: 'test@example.com', notifiedAt: null };
-      mockCohortRepository.findById.mockResolvedValue({ id: 1, name: '16기' });
+      mockCohortRepository.findById.mockResolvedValue({
+        id: 1,
+        name: '16기',
+        status: CohortStatus.ACTIVE,
+      });
       mockEarlyNotificationRepository.findOne.mockResolvedValue(found);
 
       // When
@@ -76,28 +97,35 @@ describe('EarlyNotificationService', () => {
       expect(mockEarlyNotificationRepository.register).not.toHaveBeenCalled();
     });
 
-    it('신규 이메일이면 등록하고 반환한다', async () => {
-      // Given
-      const created = { id: 11, cohortId: 1, email: 'test@example.com', notifiedAt: null };
-      mockCohortRepository.findById.mockResolvedValue({ id: 1, name: '16기' });
-      mockEarlyNotificationRepository.findOne.mockResolvedValue(null);
-      mockEarlyNotificationRepository.register.mockResolvedValue(created);
+    it.each([CohortStatus.UPCOMING, CohortStatus.RECRUITING, CohortStatus.ACTIVE])(
+      '%s 기수면 신규 이메일을 등록하고 반환한다',
+      async (status) => {
+        // Given
+        const created = { id: 11, cohortId: 1, email: 'test@example.com', notifiedAt: null };
+        mockCohortRepository.findById.mockResolvedValue({ id: 1, name: '16기', status });
+        mockEarlyNotificationRepository.findOne.mockResolvedValue(null);
+        mockEarlyNotificationRepository.register.mockResolvedValue(created);
 
-      // When
-      const result = await earlyNotificationService.subscribe(payload);
+        // When
+        const result = await earlyNotificationService.subscribe(payload);
 
-      // Then
-      expect(result).toBe(created);
-      expect(mockEarlyNotificationRepository.register).toHaveBeenCalledWith({
-        cohortId: 1,
-        email: 'test@example.com',
-      });
-    });
+        // Then
+        expect(result).toBe(created);
+        expect(mockEarlyNotificationRepository.register).toHaveBeenCalledWith({
+          cohortId: 1,
+          email: 'test@example.com',
+        });
+      },
+    );
 
     it('동시 요청으로 unique 제약 위반 시 기존 레코드를 반환한다', async () => {
       // Given
       const record = { id: 12, cohortId: 1, email: 'test@example.com', notifiedAt: null };
-      mockCohortRepository.findById.mockResolvedValue({ id: 1, name: '16기' });
+      mockCohortRepository.findById.mockResolvedValue({
+        id: 1,
+        name: '16기',
+        status: CohortStatus.ACTIVE,
+      });
       mockEarlyNotificationRepository.findOne
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(record);
@@ -118,7 +146,11 @@ describe('EarlyNotificationService', () => {
 
     it('unique 제약 위반 후 재조회 결과가 null이면 EARLY_NOTIFICATION_CONFLICT(409)를 던진다', async () => {
       // Given
-      mockCohortRepository.findById.mockResolvedValue({ id: 1, name: '16기' });
+      mockCohortRepository.findById.mockResolvedValue({
+        id: 1,
+        name: '16기',
+        status: CohortStatus.ACTIVE,
+      });
       mockEarlyNotificationRepository.findOne
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(null);
