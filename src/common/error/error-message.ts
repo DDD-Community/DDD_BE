@@ -39,6 +39,7 @@ export const ErrorMessage = {
   PROJECT_NOT_FOUND: '프로젝트를 찾을 수 없습니다.',
 
   EARLY_NOTIFICATION_CONFLICT: '사전 알림 처리 중 일시적인 충돌이 발생했습니다. 다시 시도해주세요.',
+  EARLY_NOTIFICATION_COHORT_CLOSED: '모집이 종료된 기수에는 사전 알림을 신청할 수 없습니다.',
   GENERAL_EARLY_NOTIFICATION_CONFLICT:
     '대기열 사전 알림 처리 중 일시적인 충돌이 발생했습니다. 다시 시도해주세요.',
   NOTIFICATION_CAMPAIGN_NOT_FOUND: '사전 알림 캠페인을 찾을 수 없습니다.',
