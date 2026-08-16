@@ -211,7 +211,10 @@ function buildSql(args: {
   );
   lines.push('-- Strategy   : additive only. Aborts on any name collision.');
   lines.push(
-    '-- How to run : open in DataGrip on prod connection, execute the whole file, inspect, COMMIT.',
+    '-- How to run : open in DataGrip on prod connection, execute the whole file, inspect,',
+  );
+  lines.push(
+    '--              then run COMMIT (or ROLLBACK) by hand. The file does not commit itself.',
   );
   lines.push('-- =====================================================================');
   lines.push('');
@@ -371,7 +374,11 @@ function buildSql(args: {
   );
   lines.push('-- SELECT id, title, "externalUrl" FROM blog_posts ORDER BY id DESC LIMIT 5;');
   lines.push('');
-  lines.push('COMMIT;');
+  lines.push('-- 트랜잭션은 열린 채로 끝난다. 위 검사 결과를 확인한 뒤 아래 한 줄을');
+  lines.push('-- 직접 실행해 확정하거나 되돌린다. 파일 안에 COMMIT 을 두면 전체 실행이');
+  lines.push('-- 곧 운영 DB 확정이 되어 검사 단계가 무의미해진다.');
+  lines.push('--   COMMIT;    -- 검사 결과가 기대와 같을 때');
+  lines.push('--   ROLLBACK;  -- 그 외 전부');
   lines.push('');
 
   return lines.join('\n');
@@ -529,7 +536,7 @@ async function main() {
     console.log('[dry-run] No GCS upload performed. Re-run without --dry-run to upload.');
   }
   console.log(
-    '[next] Open the SQL in DataGrip on the prod connection, run it, inspect, then COMMIT.',
+    '[next] Open the SQL in DataGrip on the prod connection, run it, inspect, then COMMIT by hand.',
   );
 }
 

@@ -3,7 +3,8 @@
 -- Generated at: 2026-05-13T14:16:29.307Z
 -- Source     : Figma "2026 Web site_dev" (https://www.figma.com/design/dFy4bUmxNmS6WJ6QgwBa4I/)
 -- Strategy   : additive only. Aborts on any name collision.
--- How to run : open in DataGrip on prod connection, execute the whole file, inspect, COMMIT.
+-- How to run : open in DataGrip on prod connection, execute the whole file, inspect,
+--              then run COMMIT (or ROLLBACK) by hand. The file does not commit itself.
 -- =====================================================================
 
 BEGIN;
@@ -122,4 +123,8 @@ DO $$ BEGIN IF (SELECT count(*) FROM blog_posts WHERE title IN ('픽셀을 넘�
 -- SELECT m.name, m.part FROM project_members m JOIN projects p ON p.id = m."projectId" WHERE p.name LIKE 'FESTIBEE%';
 -- SELECT id, title, "externalUrl" FROM blog_posts ORDER BY id DESC LIMIT 5;
 
-COMMIT;
+-- 트랜잭션은 열린 채로 끝난다. 위 검사 결과를 확인한 뒤 아래 한 줄을
+-- 직접 실행해 확정하거나 되돌린다. 파일 안에 COMMIT 을 두면 전체 실행이
+-- 곧 운영 DB 확정이 되어 검사 단계가 무의미해진다.
+--   COMMIT;    -- 검사 결과가 기대와 같을 때
+--   ROLLBACK;  -- 그 외 전부
