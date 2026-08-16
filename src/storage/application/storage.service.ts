@@ -165,6 +165,14 @@ export class StorageService {
     }
   }
 
+  /** 경로가 실제 객체를 가리키는지 확인한다. 존재하지 않으면 false. */
+  async fileExists({ path }: StoragePathInput): Promise<boolean> {
+    this.assertAllowedPath({ path });
+    this.assertStorageEnabled();
+
+    return await this.gcsClient.exists({ path });
+  }
+
   private resolveGcsPath({ basePath, subPath }: { basePath: string; subPath?: string }): string {
     if (subPath === undefined) {
       return basePath;

@@ -47,6 +47,7 @@ const mockInterviewService = {
 const mockStorageService = {
   upload: jest.fn(),
   generateSignedUrl: jest.fn(),
+  fileExists: jest.fn(),
 };
 
 const daysFromNow = (days: number) => new Date(Date.now() + days * 24 * 60 * 60 * 1000);
@@ -161,6 +162,31 @@ describe('ApplicationService', () => {
           { ...baseCommand, answers: { portfolio: 'applications/attachments/99/victim.pdf' } },
         ),
       ).rejects.toThrow(new AppException('ATTACHMENT_NOT_OWNED', HttpStatus.FORBIDDEN));
+
+      expect(mockApplicationRepository.saveForm).not.toHaveBeenCalled();
+    });
+
+    it('업로드하지 않은 첨부 경로를 지어내면 필수 첨부를 우회하지 못한다', async () => {
+      // Given: 본인 prefix 형태라 소유권 검사는 통과하지만 실제 객체는 없다.
+      mockCohortRepository.findPartById.mockResolvedValue({
+        id: 1,
+        isOpen: true,
+        cohort: createCohortWindow(),
+        applicationSchema: { questions: [{ key: 'portfolio', required: true }] },
+      });
+      mockApplicationRepository.findFormByUserAndPart.mockResolvedValue(null);
+      mockStorageService.fileExists.mockResolvedValue(false);
+
+      // When & Then
+      await expect(
+        applicationService.submitForm(
+          { userId: 1, email: 'user@example.com' },
+          {
+            ...baseCommand,
+            answers: { portfolio: { path: 'applications/attachments/1/never-uploaded.pdf' } },
+          },
+        ),
+      ).rejects.toThrow(new AppException('FILE_NOT_FOUND', HttpStatus.BAD_REQUEST));
 
       expect(mockApplicationRepository.saveForm).not.toHaveBeenCalled();
     });

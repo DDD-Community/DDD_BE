@@ -8,6 +8,7 @@ import { ApplicationAttachmentService } from './application-attachment.service';
 const mockStorageService = {
   upload: jest.fn(),
   generateSignedUrl: jest.fn(),
+  fileExists: jest.fn(),
 };
 
 describe('ApplicationAttachmentService', () => {
@@ -140,6 +141,49 @@ describe('ApplicationAttachmentService', () => {
           answers: { q1: { path: 'applications/attachments/99/a.pdf' } },
         }),
       ).toThrow(AppException);
+    });
+  });
+
+  describe('assertAttachmentsExist', () => {
+    it('본인 경로 형태여도 실제 객체가 없으면 거부한다', async () => {
+      // Given: 업로드 없이 지어낸 경로. 소유권 검사만으로는 걸러지지 않는다.
+      mockStorageService.fileExists.mockResolvedValue(false);
+
+      // When & Then
+      await expect(
+        service.assertAttachmentsExist({
+          answers: { q1: { path: 'applications/attachments/12/never-uploaded.pdf' } },
+        }),
+      ).rejects.toThrow(AppException);
+    });
+
+    it('실제로 존재하는 첨부는 통과시킨다', async () => {
+      mockStorageService.fileExists.mockResolvedValue(true);
+
+      await expect(
+        service.assertAttachmentsExist({
+          answers: { q1: { path: 'applications/attachments/12/real.pdf' } },
+        }),
+      ).resolves.toBeUndefined();
+    });
+
+    it('첨부가 하나라도 없으면 거부한다', async () => {
+      mockStorageService.fileExists.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+
+      await expect(
+        service.assertAttachmentsExist({
+          answers: {
+            q1: { path: 'applications/attachments/12/real.pdf' },
+            q2: { path: 'applications/attachments/12/fake.pdf' },
+          },
+        }),
+      ).rejects.toThrow(AppException);
+    });
+
+    it('첨부가 없으면 스토리지를 조회하지 않는다', async () => {
+      await service.assertAttachmentsExist({ answers: { q1: '텍스트 답변' } });
+
+      expect(mockStorageService.fileExists).not.toHaveBeenCalled();
     });
   });
 });

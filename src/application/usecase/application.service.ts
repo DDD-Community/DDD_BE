@@ -94,6 +94,7 @@ export class ApplicationService {
       userId,
       answers: command.answers,
     });
+    await this.applicationAttachmentService.assertAttachmentsExist({ answers: command.answers });
     this.applicationAnswerValidator.validate({
       answers: command.answers,
       schema: cohortPart.applicationSchema,

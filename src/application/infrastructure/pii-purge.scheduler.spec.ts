@@ -191,6 +191,35 @@ describe('PiiPurgeService', () => {
     expect(result.attachment).toMatchObject({ deleted: 1, failed: 1 });
   });
 
+  it('페이지가 많아도 커서가 끝날 때까지 훑는다', async () => {
+    // Given: 앞쪽 600페이지가 전부 미만료. 중간에 끊고 다음 회차에 첫 페이지부터
+    // 다시 시작하면 601페이지의 만료 첨부는 영원히 파기되지 않는다.
+    const TOTAL_PAGES = 601;
+    for (let page = 0; page < TOTAL_PAGES; page += 1) {
+      const isLast = page === TOTAL_PAGES - 1;
+      mockStorageService.listFiles.mockResolvedValueOnce({
+        items: [
+          buildObject(
+            `applications/attachments/12/p${page}.pdf`,
+            isLast ? '2020-01-01T00:00:00.000Z' : '2099-01-01T00:00:00.000Z',
+          ),
+        ],
+        nextCursor: isLast ? null : `page-${page + 1}`,
+        hasNext: !isLast,
+      });
+    }
+
+    // When
+    const result = await service.purgeExpiredPii({ cutoffDate: new Date('2026-01-01') });
+
+    // Then: 마지막 페이지까지 도달해 만료분을 지웠고, 중단되지 않았다.
+    expect(mockStorageService.listFiles).toHaveBeenCalledTimes(TOTAL_PAGES);
+    expect(mockStorageService.deleteFile).toHaveBeenCalledWith({
+      path: `applications/attachments/12/p${TOTAL_PAGES - 1}.pdf`,
+    });
+    expect(result.attachment).toMatchObject({ deleted: 1, truncated: false });
+  });
+
   it('업로드 시각을 알 수 없는 객체는 삭제하지 않는다', async () => {
     // Given
     mockStorageService.listFiles.mockResolvedValue({
