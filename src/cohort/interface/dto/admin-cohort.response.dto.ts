@@ -3,13 +3,18 @@ import { ApiProperty } from '@nestjs/swagger';
 import type { Cohort } from '../../domain/cohort.entity';
 import { CohortStatus } from '../../domain/cohort.status';
 import type { CohortPart } from '../../domain/cohort-part.entity';
-import type { CohortPartName } from '../../domain/cohort-part-name';
+import { CohortPartName } from '../../domain/cohort-part-name';
 
 export class CohortPartAdminResponseDto {
   @ApiProperty({ description: 'ID', example: 1 })
   id: number;
 
-  @ApiProperty({ description: '파트명', example: 'FE' })
+  @ApiProperty({
+    description: '파트명',
+    enum: CohortPartName,
+    enumName: 'CohortPartName',
+    example: CohortPartName.FE,
+  })
   partName: CohortPartName;
 
   @ApiProperty({ description: '모집 오픈 여부', example: false })

@@ -19,6 +19,7 @@ export class PublicCohortPartSummaryDto {
   @ApiProperty({
     description: '파트명',
     enum: CohortPartName,
+    enumName: 'CohortPartName',
     example: CohortPartName.FE,
   })
   partName: CohortPartName;
@@ -128,7 +129,12 @@ export class PublicCohortPartResponseDto {
   @ApiProperty({ description: '파트 ID', example: 1 })
   id: number;
 
-  @ApiProperty({ description: '파트명', example: 'FE' })
+  @ApiProperty({
+    description: '파트명',
+    enum: CohortPartName,
+    enumName: 'CohortPartName',
+    example: CohortPartName.FE,
+  })
   partName: CohortPartName;
 
   @ApiProperty({
