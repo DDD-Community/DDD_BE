@@ -3,7 +3,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import type { Cohort } from '../../domain/cohort.entity';
 import { CohortStatus } from '../../domain/cohort.status';
 import type { CohortPart } from '../../domain/cohort-part.entity';
-import type { CohortPartName } from '../../domain/cohort-part-name';
+import { CohortPartName } from '../../domain/cohort-part-name';
 
 export enum CohortCtaStatus {
   PRE_NOTIFICATION = 'PRE_NOTIFICATION',
@@ -11,21 +11,39 @@ export enum CohortCtaStatus {
   CLOSED = 'CLOSED',
 }
 
-export class PublicCohortResponseDto {
-  @ApiProperty({ description: 'ID', example: 1 })
+export class PublicCohortPartSummaryDto {
+  @ApiProperty({ description: '파트 ID', example: 1 })
   id: number;
 
-  @ApiProperty({ description: '기수 명칭', example: '15기' })
-  name: string;
+  @ApiProperty({
+    description: '파트명',
+    enum: CohortPartName,
+    example: CohortPartName.FE,
+  })
+  partName: CohortPartName;
 
-  @ApiProperty({ description: '모집 시작일' })
-  recruitStartAt: Date;
+  @ApiProperty({ description: '모집 오픈 여부', example: true })
+  isOpen: boolean;
+}
 
-  @ApiProperty({ description: '모집 종료일' })
-  recruitEndAt: Date;
+export class PublicCohortResponseDto {
+  @ApiProperty({ description: '활성 기수 존재 여부', example: true })
+  hasActiveCohort: boolean;
 
-  @ApiProperty({ description: '기수 상태', enum: CohortStatus })
-  status: CohortStatus;
+  @ApiProperty({ description: 'ID', type: Number, example: 1, nullable: true })
+  id: number | null;
+
+  @ApiProperty({ description: '기수 명칭', type: String, example: '15기', nullable: true })
+  name: string | null;
+
+  @ApiProperty({ description: '모집 시작일', type: Date, nullable: true })
+  recruitStartAt: Date | null;
+
+  @ApiProperty({ description: '모집 종료일', type: Date, nullable: true })
+  recruitEndAt: Date | null;
+
+  @ApiProperty({ description: '기수 상태', enum: CohortStatus, nullable: true })
+  status: CohortStatus | null;
 
   @ApiProperty({
     description: '모집 프로세스 일정 JSON',
@@ -56,12 +74,28 @@ export class PublicCohortResponseDto {
 
   @ApiProperty({
     description: '모집 중인 파트 목록',
-    example: [{ id: 1, partName: 'FE' }],
+    type: [PublicCohortPartSummaryDto],
   })
-  openParts: { id: number; partName: CohortPartName }[];
+  parts: PublicCohortPartSummaryDto[];
 
-  static from(cohort: Cohort): PublicCohortResponseDto {
+  static from(cohort: Cohort | null): PublicCohortResponseDto {
     const dto = new PublicCohortResponseDto();
+    if (!cohort) {
+      dto.hasActiveCohort = false;
+      dto.id = null;
+      dto.name = null;
+      dto.recruitStartAt = null;
+      dto.recruitEndAt = null;
+      dto.status = null;
+      dto.process = null;
+      dto.curriculum = null;
+      dto.parts = [];
+      dto.isRecruitmentOpen = false;
+      dto.ctaStatus = CohortCtaStatus.PRE_NOTIFICATION;
+      return dto;
+    }
+
+    dto.hasActiveCohort = true;
     dto.id = cohort.id;
     dto.name = cohort.name;
     dto.recruitStartAt = cohort.recruitStartAt;
@@ -69,13 +103,13 @@ export class PublicCohortResponseDto {
     dto.status = cohort.status;
     dto.process = cohort.process ?? null;
     dto.curriculum = cohort.curriculum ?? null;
-    dto.openParts = (cohort.parts ?? [])
-      .filter((p) => p.isOpen)
-      .map((p) => ({ id: p.id, partName: p.partName }));
-    dto.isRecruitmentOpen = cohort.status === CohortStatus.RECRUITING && dto.openParts.length > 0;
+    dto.parts = (cohort.parts ?? [])
+      .filter((part) => part.isOpen)
+      .map((part) => ({ id: part.id, partName: part.partName, isOpen: true }));
+    dto.isRecruitmentOpen = cohort.status === CohortStatus.RECRUITING && dto.parts.length > 0;
     if (cohort.status === CohortStatus.UPCOMING) {
       dto.ctaStatus = CohortCtaStatus.PRE_NOTIFICATION;
-    } else if (cohort.status === CohortStatus.RECRUITING && dto.openParts.length > 0) {
+    } else if (cohort.status === CohortStatus.RECRUITING && dto.parts.length > 0) {
       dto.ctaStatus = CohortCtaStatus.APPLY;
     } else {
       dto.ctaStatus = CohortCtaStatus.CLOSED;

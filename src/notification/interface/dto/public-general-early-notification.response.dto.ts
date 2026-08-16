@@ -18,13 +18,20 @@ export class GeneralEarlyNotificationResponseDto {
   @ApiPropertyOptional({ description: '승격된 기수 ID', nullable: true })
   promotedToCohortId: number | null;
 
-  static from(record: GeneralEarlyNotification): GeneralEarlyNotificationResponseDto {
+  @ApiProperty({ description: '기존 신청 여부', example: false })
+  alreadySubscribed: boolean;
+
+  static from(
+    record: GeneralEarlyNotification,
+    alreadySubscribed: boolean,
+  ): GeneralEarlyNotificationResponseDto {
     const dto = new GeneralEarlyNotificationResponseDto();
     dto.id = record.id;
     dto.email = record.email;
     dto.createdAt = record.createdAt;
     dto.promotedAt = record.promotedAt;
     dto.promotedToCohortId = record.promotedToCohortId;
+    dto.alreadySubscribed = alreadySubscribed;
     return dto;
   }
 }

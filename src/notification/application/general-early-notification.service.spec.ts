@@ -69,7 +69,7 @@ describe('GeneralEarlyNotificationService', () => {
   describe('subscribe', () => {
     const payload = { email: 'test@example.com' };
 
-    it('이미 미승격 상태로 등록된 이메일이면 기존 레코드를 반환한다', async () => {
+    it('이미 미승격 상태로 등록된 이메일이면 기존 레코드와 alreadySubscribed=true를 반환한다', async () => {
       // Given
       const found = { id: 1, email: 'test@example.com', promotedAt: null };
       mockGeneralEarlyNotificationRepository.findUnpromotedByEmail.mockResolvedValue(found);
@@ -78,11 +78,11 @@ describe('GeneralEarlyNotificationService', () => {
       const result = await service.subscribe(payload);
 
       // Then
-      expect(result).toBe(found);
+      expect(result).toEqual({ record: found, alreadySubscribed: true });
       expect(mockGeneralEarlyNotificationRepository.register).not.toHaveBeenCalled();
     });
 
-    it('신규 이메일이면 등록하고 반환한다', async () => {
+    it('신규 이메일이면 등록 레코드와 alreadySubscribed=false를 반환한다', async () => {
       // Given
       const created = { id: 2, email: 'test@example.com', promotedAt: null };
       mockGeneralEarlyNotificationRepository.findUnpromotedByEmail.mockResolvedValue(null);
@@ -92,13 +92,13 @@ describe('GeneralEarlyNotificationService', () => {
       const result = await service.subscribe(payload);
 
       // Then
-      expect(result).toBe(created);
+      expect(result).toEqual({ record: created, alreadySubscribed: false });
       expect(mockGeneralEarlyNotificationRepository.register).toHaveBeenCalledWith({
         email: 'test@example.com',
       });
     });
 
-    it('동시 요청으로 unique 제약 위반 시 기존 레코드를 반환한다', async () => {
+    it('동시 요청으로 unique 제약 위반 시 기존 레코드와 alreadySubscribed=true를 반환한다', async () => {
       // Given
       const record = { id: 3, email: 'test@example.com', promotedAt: null };
       mockGeneralEarlyNotificationRepository.findUnpromotedByEmail
@@ -110,7 +110,7 @@ describe('GeneralEarlyNotificationService', () => {
       const result = await service.subscribe(payload);
 
       // Then
-      expect(result).toBe(record);
+      expect(result).toEqual({ record, alreadySubscribed: true });
       expect(mockGeneralEarlyNotificationRepository.findUnpromotedByEmail).toHaveBeenCalledTimes(2);
     });
 

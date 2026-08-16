@@ -4,12 +4,18 @@ import { CohortRepository } from '../../cohort/domain/cohort.repository';
 import { CohortStatus } from '../../cohort/domain/cohort.status';
 import { AppException } from '../../common/exception/app.exception';
 import { isPostgresUniqueViolation } from '../../common/util/postgres-error';
+import type { EarlyNotification } from '../domain/early-notification.entity';
 import { EarlyNotificationRepository } from '../domain/early-notification.repository';
 import { NotificationService } from './notification.service';
 
 type SubscribePayload = {
   cohortId: number;
   email: string;
+};
+
+type SubscribeResult = {
+  record: EarlyNotification;
+  alreadySubscribed: boolean;
 };
 
 type FindByCohortPayload = {
@@ -49,7 +55,7 @@ export class EarlyNotificationService {
     private readonly notificationService: NotificationService,
   ) {}
 
-  async subscribe({ cohortId, email }: SubscribePayload) {
+  async subscribe({ cohortId, email }: SubscribePayload): Promise<SubscribeResult> {
     const cohort = await this.cohortRepository.findById({ id: cohortId });
     if (!cohort) {
       throw new AppException('COHORT_NOT_FOUND', HttpStatus.NOT_FOUND);
@@ -60,18 +66,19 @@ export class EarlyNotificationService {
 
     const found = await this.earlyNotificationRepository.findOne({ cohortId, email });
     if (found) {
-      return found;
+      return { record: found, alreadySubscribed: true };
     }
 
     try {
-      return await this.earlyNotificationRepository.register({ cohortId, email });
+      const record = await this.earlyNotificationRepository.register({ cohortId, email });
+      return { record, alreadySubscribed: false };
     } catch (error: unknown) {
       if (isPostgresUniqueViolation(error)) {
         const record = await this.earlyNotificationRepository.findOne({ cohortId, email });
         if (!record) {
           throw new AppException('EARLY_NOTIFICATION_CONFLICT', HttpStatus.CONFLICT);
         }
-        return record;
+        return { record, alreadySubscribed: true };
       }
       throw error;
     }

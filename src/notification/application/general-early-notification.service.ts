@@ -6,10 +6,16 @@ import { CohortStatus } from '../../cohort/domain/cohort.status';
 import { AppException } from '../../common/exception/app.exception';
 import { isPostgresUniqueViolation } from '../../common/util/postgres-error';
 import { EarlyNotificationRepository } from '../domain/early-notification.repository';
+import type { GeneralEarlyNotification } from '../domain/general-early-notification.entity';
 import { GeneralEarlyNotificationRepository } from '../domain/general-early-notification.repository';
 
 type SubscribePayload = {
   email: string;
+};
+
+type SubscribeResult = {
+  record: GeneralEarlyNotification;
+  alreadySubscribed: boolean;
 };
 
 type PromoteToCohortPayload = {
@@ -33,14 +39,15 @@ export class GeneralEarlyNotificationService {
     private readonly cohortRepository: CohortRepository,
   ) {}
 
-  async subscribe({ email }: SubscribePayload) {
+  async subscribe({ email }: SubscribePayload): Promise<SubscribeResult> {
     const found = await this.generalEarlyNotificationRepository.findUnpromotedByEmail({ email });
     if (found) {
-      return found;
+      return { record: found, alreadySubscribed: true };
     }
 
     try {
-      return await this.generalEarlyNotificationRepository.register({ email });
+      const record = await this.generalEarlyNotificationRepository.register({ email });
+      return { record, alreadySubscribed: false };
     } catch (error: unknown) {
       if (isPostgresUniqueViolation(error)) {
         const record = await this.generalEarlyNotificationRepository.findUnpromotedByEmail({
@@ -49,7 +56,7 @@ export class GeneralEarlyNotificationService {
         if (!record) {
           throw new AppException('GENERAL_EARLY_NOTIFICATION_CONFLICT', HttpStatus.CONFLICT);
         }
-        return record;
+        return { record, alreadySubscribed: true };
       }
       throw error;
     }
