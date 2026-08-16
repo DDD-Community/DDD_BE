@@ -21,6 +21,11 @@ type UploadPayload = {
   gcsPath: string;
 };
 
+type UploadedObject = {
+  url: string;
+  path: string;
+};
+
 type ListPayload = {
   prefix: string;
   pageToken?: string;
@@ -65,7 +70,12 @@ export class GcsClient {
     return this.storage !== null && this.bucketName !== null;
   }
 
-  async upload({ buffer, originalName, mimeType, gcsPath }: UploadPayload): Promise<string> {
+  async upload({
+    buffer,
+    originalName,
+    mimeType,
+    gcsPath,
+  }: UploadPayload): Promise<UploadedObject> {
     const extension = extname(originalName);
     const destination = `${gcsPath}/${randomUUID()}${extension}`;
 
@@ -74,7 +84,7 @@ export class GcsClient {
       this.logger.log(
         `[업로드 미리보기] file=${originalName}, destination=${destination}, url=${previewUrl}`,
       );
-      return previewUrl;
+      return { url: previewUrl, path: destination };
     }
 
     const bucket = this.storage.bucket(this.bucketName);
@@ -85,7 +95,10 @@ export class GcsClient {
       resumable: false,
     });
 
-    return `https://storage.googleapis.com/${this.bucketName}/${destination}`;
+    return {
+      url: `https://storage.googleapis.com/${this.bucketName}/${destination}`,
+      path: destination,
+    };
   }
 
   async exists({ path }: { path: string }): Promise<boolean> {

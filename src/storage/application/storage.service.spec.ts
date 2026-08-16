@@ -102,7 +102,10 @@ describe('StorageService', () => {
 
     it('정상 업로드 시 카테고리별 GCS 경로와 함께 URL을 반환한다', async () => {
       const file = buildFile();
-      mockGcsClient.upload.mockResolvedValue('https://cdn.example.com/projects/thumbnails/abc.png');
+      mockGcsClient.upload.mockResolvedValue({
+        url: 'https://cdn.example.com/projects/thumbnails/abc.png',
+        path: 'projects/thumbnails/abc.png',
+      });
 
       const result = await service.upload({
         file,
@@ -117,10 +120,43 @@ describe('StorageService', () => {
       });
       expect(result).toEqual({
         url: 'https://cdn.example.com/projects/thumbnails/abc.png',
+        path: 'projects/thumbnails/abc.png',
         originalName: file.originalName,
         mimeType: file.mimeType,
         size: file.size,
       });
+    });
+
+    it('subPath 를 주면 카테고리 경로 아래에 덧붙인다', async () => {
+      const file = buildFile({ mimeType: 'application/pdf', originalName: 'portfolio.pdf' });
+      mockGcsClient.upload.mockResolvedValue({
+        url: 'https://cdn.example.com/applications/attachments/12/abc.pdf',
+        path: 'applications/attachments/12/abc.pdf',
+      });
+
+      await service.upload({
+        file,
+        category: UploadCategory.APPLICATION_ATTACHMENT,
+        subPath: '12',
+      });
+
+      expect(mockGcsClient.upload).toHaveBeenCalledWith(
+        expect.objectContaining({ gcsPath: 'applications/attachments/12' }),
+      );
+    });
+
+    it('subPath 에 경로 탈출 문자가 있으면 업로드하지 않는다', async () => {
+      const file = buildFile({ mimeType: 'application/pdf', originalName: 'portfolio.pdf' });
+
+      await expect(
+        service.upload({
+          file,
+          category: UploadCategory.APPLICATION_ATTACHMENT,
+          subPath: '../projects',
+        }),
+      ).rejects.toThrow(AppException);
+
+      expect(mockGcsClient.upload).not.toHaveBeenCalled();
     });
   });
 

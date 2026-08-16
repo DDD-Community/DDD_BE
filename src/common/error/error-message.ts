@@ -26,6 +26,7 @@ export const ErrorMessage = {
   APPLICATION_NOT_FOUND: '해당 지원서를 찾을 수 없습니다.',
   APPLICATION_DRAFT_NOT_FOUND: '해당 임시저장 지원서를 찾을 수 없습니다.',
   INVALID_STATUS_TRANSITION: '올바르지 않은 상태 변경입니다.',
+  ATTACHMENT_NOT_OWNED: '본인이 업로드한 첨부파일이 아닙니다.',
 
   EVALUATION_NOT_FOUND: '평가 정보를 찾을 수 없습니다.',
 

@@ -18,6 +18,7 @@ import type {
 import { ApplicationDraft } from '../domain/application-draft.entity';
 import { ApplicationForm } from '../domain/application-form.entity';
 import { ApplicationAnswerValidator } from './application-answer.validator';
+import { ApplicationAttachmentService } from './application-attachment.service';
 
 @Injectable()
 export class ApplicationService {
@@ -28,6 +29,7 @@ export class ApplicationService {
     private readonly cohortRepository: CohortRepository,
     private readonly eventEmitter: EventEmitter2,
     private readonly applicationAnswerValidator: ApplicationAnswerValidator,
+    private readonly applicationAttachmentService: ApplicationAttachmentService,
     @Inject(forwardRef(() => InterviewService))
     private readonly interviewService: InterviewService,
   ) {}
@@ -50,6 +52,11 @@ export class ApplicationService {
     if (!this.isApplicationOpen(cohortPart)) {
       throw new AppException('COHORT_PART_CLOSED', HttpStatus.BAD_REQUEST);
     }
+
+    this.applicationAttachmentService.assertAttachmentsOwnedByUser({
+      userId,
+      answers: command.answers,
+    });
 
     const found = await this.applicationRepository.findDraftByUserAndPart({
       userId,
@@ -83,6 +90,10 @@ export class ApplicationService {
     if (!this.isApplicationOpen(cohortPart)) {
       throw new AppException('COHORT_PART_CLOSED', HttpStatus.BAD_REQUEST);
     }
+    this.applicationAttachmentService.assertAttachmentsOwnedByUser({
+      userId,
+      answers: command.answers,
+    });
     this.applicationAnswerValidator.validate({
       answers: command.answers,
       schema: cohortPart.applicationSchema,

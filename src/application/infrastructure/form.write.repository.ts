@@ -5,6 +5,44 @@ import type { ApplicationStatus } from '../domain/application.status';
 import { ApplicationForm } from '../domain/application-form.entity';
 import type { ApplicationFormFilter, ApplicationFormQuery } from './write.repository.type';
 
+// 기산점 우선순위:
+//   1) activityEndedAt (활동완료/활동중단 확정일)
+//   2) announcedAt (서류/최종 합격 발표일)
+//   3) updatedAt (터미널 상태 진입 시점 fallback)
+//   4) createdAt (비터미널 상태 기본 fallback)
+// 활동 종료 시점이 존재하면 수료생에 대해 가장 늦은 기산점으로 동작하며,
+// 그 외에는 기존 announcedAt -> updatedAt -> createdAt 순으로 판단한다.
+//
+// 컬럼에 `form.` alias 를 붙이면 안 된다.
+// TypeORM 의 UpdateQueryBuilder 는 UPDATE 대상 테이블에 alias 를 붙이지 않으면서
+// WHERE 절의 alias 한정자는 그대로 남긴다(UpdateQueryBuilder.createUpdateExpression).
+// 그 결과 PostgreSQL 이 `missing FROM-clause entry for table "form"` 으로 거부해
+// 파기가 매번 실패한다. 단일 테이블이라 alias 없이도 모호하지 않다.
+//
+// deletedAt 조건도 명시한다. SELECT 는 TypeORM 이 soft-delete 필터를 자동으로 붙이지만
+// UPDATE 에는 붙이지 않아, 조건을 공유해도 실제 대상 집합이 갈라진다.
+const PII_PURGE_TARGET_CONDITION = `
+  "deletedAt" IS NULL
+  AND "applicantName" IS NOT NULL
+  AND (
+    ("activityEndedAt" IS NOT NULL AND "activityEndedAt" <= :cutoffDate)
+    OR
+    ("activityEndedAt" IS NULL
+      AND "announcedAt" IS NOT NULL
+      AND "announcedAt" <= :cutoffDate)
+    OR
+    ("activityEndedAt" IS NULL
+      AND "announcedAt" IS NULL
+      AND status IN (:...terminalStatuses)
+      AND "updatedAt" <= :cutoffDate)
+    OR
+    ("activityEndedAt" IS NULL
+      AND "announcedAt" IS NULL
+      AND status NOT IN (:...terminalStatuses)
+      AND "createdAt" <= :cutoffDate)
+  )
+`;
+
 @Injectable()
 export class FormWriteRepository {
   private readonly repository: Repository<ApplicationForm>;
@@ -55,13 +93,6 @@ export class FormWriteRepository {
     terminalStatuses: ApplicationStatus[];
     cutoffDate: Date;
   }): Promise<number> {
-    // 기산점 우선순위:
-    //   1) activityEndedAt (활동완료/활동중단 확정일)
-    //   2) announcedAt (서류/최종 합격 발표일)
-    //   3) updatedAt (터미널 상태 진입 시점 fallback)
-    //   4) createdAt (비터미널 상태 기본 fallback)
-    // 활동 종료 시점이 존재하면 수료생에 대해 가장 늦은 기산점으로 동작하며,
-    // 그 외에는 기존 announcedAt -> updatedAt -> createdAt 순으로 판단한다.
     const result = await this.repository
       .createQueryBuilder('form')
       .update(ApplicationForm)
@@ -72,27 +103,7 @@ export class FormWriteRepository {
         applicantRegion: () => 'NULL',
         answers: () => "'{}'::jsonb",
       })
-      .where('form."applicantName" IS NOT NULL')
-      .andWhere(
-        `(
-          (form."activityEndedAt" IS NOT NULL AND form."activityEndedAt" <= :cutoffDate)
-          OR
-          (form."activityEndedAt" IS NULL
-            AND form."announcedAt" IS NOT NULL
-            AND form."announcedAt" <= :cutoffDate)
-          OR
-          (form."activityEndedAt" IS NULL
-            AND form."announcedAt" IS NULL
-            AND form.status IN (:...terminalStatuses)
-            AND form."updatedAt" <= :cutoffDate)
-          OR
-          (form."activityEndedAt" IS NULL
-            AND form."announcedAt" IS NULL
-            AND form.status NOT IN (:...terminalStatuses)
-            AND form."createdAt" <= :cutoffDate)
-        )`,
-        { terminalStatuses, cutoffDate },
-      )
+      .where(PII_PURGE_TARGET_CONDITION, { terminalStatuses, cutoffDate })
       .execute();
 
     return result.affected ?? 0;

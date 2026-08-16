@@ -2,6 +2,7 @@ export enum UploadCategory {
   PROJECT_THUMBNAIL = 'project-thumbnail',
   PROJECT_PDF = 'project-pdf',
   BLOG_THUMBNAIL = 'blog-thumbnail',
+  APPLICATION_ATTACHMENT = 'application-attachment',
 }
 
 type CategoryConfig = {
@@ -26,6 +27,11 @@ export const UPLOAD_CATEGORY_CONFIG: Record<UploadCategory, CategoryConfig> = {
     maxSizeBytes: 5 * 1024 * 1024,
     gcsPath: 'blogs/thumbnails',
   },
+  [UploadCategory.APPLICATION_ATTACHMENT]: {
+    allowedMimeTypes: ['application/pdf'],
+    maxSizeBytes: 20 * 1024 * 1024,
+    gcsPath: 'applications/attachments',
+  },
 };
 
 export const ALLOWED_PATH_PREFIXES: readonly string[] = Object.values(UPLOAD_CATEGORY_CONFIG).map(
@@ -33,6 +39,11 @@ export const ALLOWED_PATH_PREFIXES: readonly string[] = Object.values(UPLOAD_CAT
 );
 
 const SAFE_PATH_PATTERN = /^[a-zA-Z0-9._\-/]+$/;
+
+const SAFE_SUB_PATH_PATTERN = /^[a-zA-Z0-9._-]+$/;
+
+export const isSafeSubPath = ({ subPath }: { subPath: string }): boolean =>
+  SAFE_SUB_PATH_PATTERN.test(subPath) && subPath !== '.' && subPath !== '..';
 
 export const isAllowedStoragePath = ({ path }: { path: string }): boolean => {
   if (!path || path.length > 1024 || !SAFE_PATH_PATTERN.test(path)) {
@@ -68,6 +79,7 @@ export type FilePayload = {
 
 export type UploadResult = {
   url: string;
+  path: string;
   originalName: string;
   mimeType: string;
   size: number;

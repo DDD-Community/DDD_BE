@@ -78,6 +78,13 @@ export class ApplicationAnswerValidator {
       return value.length > 0;
     }
 
+    // 파일 첨부 답변은 { path, originalName, size } 형태로 들어온다.
+    // path 가 비어 있으면 첨부하지 않은 것으로 본다.
+    if (typeof value === 'object' && 'path' in value) {
+      const path = (value as { path: unknown }).path;
+      return typeof path === 'string' && path.trim().length > 0;
+    }
+
     return true;
   }
 }
