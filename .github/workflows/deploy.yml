@@ -319,6 +319,10 @@ jobs:
             printf 'DB_USERNAME=%s\n' "$DB_USERNAME" >> "$ENV_TMP"
             printf 'DB_PASSWORD=%s\n' "$DB_PASSWORD" >> "$ENV_TMP"
             printf 'DB_NAME=%s\n'     "$DB_NAME"     >> "$ENV_TMP"
+            # 운영에서 자동 DDL 을 끈다. 엔티티만 고치면 부팅할 때 스키마가 따라 바뀌던 동작이
+            # 사라지고, 스키마 변경 경로는 src/config/migrations 의 마이그레이션 하나만 남는다.
+            # 앱은 이 값이 false 일 때 부팅 중 미적용 마이그레이션을 실행한다(migrationsRun).
+            printf 'DB_SYNCHRONIZE=%s\n' "false"     >> "$ENV_TMP"
             printf 'APP_IMAGE=%s\n'   "$APP_IMAGE"   >> "$ENV_TMP"
             # APP_VERSION 은 여기에 쓰지 않는다.
             # env_file 은 이미지 ENV 를 덮어쓰므로, 여기에 쓰면 우리가 써넣은 값을 우리가 되읽어
@@ -382,6 +386,14 @@ jobs:
               rm -f "$ENV_TMP"
               exit 1
             fi
+            # 이 줄이 빠지면 앱이 기본값(true)으로 부팅해 운영 DB 에 자동 DDL 이 되살아난다.
+            # 조용히 되살아나는 종류라 배포 로그로는 알아챌 수 없으므로 여기서 막는다.
+            if ! grep -q '^DB_SYNCHRONIZE=false$' "$ENV_TMP"; then
+              echo "ERROR: .env.production 에 DB_SYNCHRONIZE=false 가 없습니다."
+              echo "       이대로 두면 운영에서 엔티티 기준 자동 DDL 이 다시 실행됩니다."
+              rm -f "$ENV_TMP"
+              exit 1
+            fi
             # 미래에 누가 APP_VERSION 을 다시 넣으면 버전 검증이 통째로 무력화된다. 기계적으로 막는다.
             if grep -q '^APP_VERSION=' "$ENV_TMP"; then
               echo "ERROR: .env.production 에 APP_VERSION 이 있으면 버전 검증이 무력화됩니다."
@@ -396,7 +408,9 @@ jobs:
             sudo APP_ENV_FILE=.env.production docker compose --env-file .env.production up -d
 
             echo "==> [7/8] 헬스체크 + 버전 검증"
-            # postgres 재생성 + 자동 DDL 이 겹치는 첫 배포는 평소보다 느리다. 3분까지 기다린다.
+            # 미적용 마이그레이션이 있으면 부팅 중에 실행되므로 첫 배포는 평소보다 느리다. 3분까지 기다린다.
+            # 마이그레이션이 실패하면 앱이 부팅하지 못해 이 루프가 타임아웃되고 배포가 실패한다.
+            # 스키마 문제를 조용히 넘기지 않는 것이 이 구조의 목적이다.
             for i in $(seq 1 36); do
               if curl -sf "${BASE}/api/v1/health" > /dev/null 2>&1; then
                 echo "헬스체크 통과 (${i}회차)"

@@ -58,3 +58,66 @@ jobs:
           push: false
           tags: ${{ steps.image.outputs.tag }}
           cache-from: type=registry,ref=${{ steps.image.outputs.latest }}
+
+  # 운영은 DB_SYNCHRONIZE=false 라 엔티티를 고쳐도 마이그레이션이 없으면 스키마가 바뀌지 않는다.
+  # 그 누락은 배포가 성공한 뒤 런타임 쿼리에서야 드러나므로, 머지 전에 여기서 잡는다.
+  migration-drift:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_USERNAME: ci
+      DB_PASSWORD: ci
+      DB_NAME: ci
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      # 빈 DB 에 전부 적용해 본다. 마이그레이션이 맨바닥에서 실행되는지도 함께 검증된다
+      # (운영 DB 를 복원하는 재해 복구 경로가 실제로 동작하는지에 대한 답이기도 하다).
+      - name: 마이그레이션 적용
+        run: yarn migration:run
+
+      # 적용된 스키마와 엔티티를 비교한다. 차이가 있으면 generate 가 파일을 만들고,
+      # 없으면 종료코드 1 과 함께 "No changes..." 를 출력한다. 즉 성공 종료가 곧 실패다.
+      - name: 엔티티-마이그레이션 정합성 검사
+        run: |
+          set -uo pipefail
+          if yarn migration:generate src/config/migrations/__DriftCheck > drift.log 2>&1; then
+            echo "::error::엔티티가 마이그레이션 없이 변경됐습니다. yarn migration:generate 로 마이그레이션을 만들어 커밋하세요."
+            echo "--- 누락된 변경 ---"
+            grep 'queryRunner.query' src/config/migrations/*__DriftCheck*.ts || cat drift.log
+            exit 1
+          fi
+          if ! grep -q 'No changes in database schema were found' drift.log; then
+            echo "::error::정합성 검사를 수행하지 못했습니다(연결 실패 등). 통과로 처리하지 않습니다."
+            cat drift.log
+            exit 1
+          fi
+          echo "정합성 확인: 엔티티와 마이그레이션이 일치합니다."
