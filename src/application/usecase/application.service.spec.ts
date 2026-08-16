@@ -3,6 +3,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test } from '@nestjs/testing';
 
 import { CohortRepository } from '../../cohort/domain/cohort.repository';
+import { CohortStatus } from '../../cohort/domain/cohort.status';
 import { AppException } from '../../common/exception/app.exception';
 import { InterviewService } from '../../interview/application/interview.service';
 import type { User } from '../../user/domain/user.entity';
@@ -40,6 +41,18 @@ const mockEventEmitter = {
 const mockInterviewService = {
   hasSlotsForCohortPart: jest.fn(),
 };
+
+const daysFromNow = (days: number) => new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+
+const createCohortWindow = ({
+  status = CohortStatus.RECRUITING,
+  startDayOffset = -1,
+  endDayOffset = 1,
+}: { status?: CohortStatus; startDayOffset?: number; endDayOffset?: number } = {}) => ({
+  status,
+  recruitStartAt: daysFromNow(startDayOffset),
+  recruitEndAt: daysFromNow(endDayOffset),
+});
 
 describe('ApplicationService', () => {
   let applicationService: ApplicationService;
@@ -92,6 +105,7 @@ describe('ApplicationService', () => {
       mockCohortRepository.findPartById.mockResolvedValue({
         id: 1,
         isOpen: true,
+        cohort: createCohortWindow(),
         applicationSchema: { required: ['motivation', 'portfolioUrl'] },
       });
 
@@ -107,6 +121,7 @@ describe('ApplicationService', () => {
       mockCohortRepository.findPartById.mockResolvedValue({
         id: 1,
         isOpen: true,
+        cohort: createCohortWindow(),
         applicationSchema: { required: ['motivation'] },
       });
       mockApplicationRepository.findFormByUserAndPart.mockResolvedValue({ id: 10 });
@@ -120,6 +135,7 @@ describe('ApplicationService', () => {
       mockCohortRepository.findPartById.mockResolvedValue({
         id: 1,
         isOpen: true,
+        cohort: createCohortWindow(),
         applicationSchema: {
           questions: [{ key: 'motivation', required: true }],
         },
@@ -139,6 +155,94 @@ describe('ApplicationService', () => {
         email: 'user@example.com',
         name: '홍길동',
       });
+    });
+
+    it('모집 시작 전이면 파트가 열려 있어도 제출을 거부한다', async () => {
+      mockCohortRepository.findPartById.mockResolvedValue({
+        id: 1,
+        isOpen: true,
+        cohort: createCohortWindow({ startDayOffset: 13, endDayOffset: 20 }),
+        applicationSchema: { questions: [] },
+      });
+
+      await expect(
+        applicationService.submitForm({ userId: 1, email: 'user@example.com' }, baseCommand),
+      ).rejects.toThrow(new AppException('COHORT_PART_CLOSED', HttpStatus.BAD_REQUEST));
+      expect(mockApplicationRepository.saveForm).not.toHaveBeenCalled();
+    });
+
+    it('모집 종료 후면 파트가 열려 있어도 제출을 거부한다', async () => {
+      mockCohortRepository.findPartById.mockResolvedValue({
+        id: 1,
+        isOpen: true,
+        cohort: createCohortWindow({ startDayOffset: -20, endDayOffset: -1 }),
+        applicationSchema: { questions: [] },
+      });
+
+      await expect(
+        applicationService.submitForm({ userId: 1, email: 'user@example.com' }, baseCommand),
+      ).rejects.toThrow(new AppException('COHORT_PART_CLOSED', HttpStatus.BAD_REQUEST));
+      expect(mockApplicationRepository.saveForm).not.toHaveBeenCalled();
+    });
+
+    it('파트에 기수 정보가 없으면 제출을 거부한다', async () => {
+      mockCohortRepository.findPartById.mockResolvedValue({
+        id: 1,
+        isOpen: true,
+        cohort: undefined,
+        applicationSchema: { questions: [] },
+      });
+
+      await expect(
+        applicationService.submitForm({ userId: 1, email: 'user@example.com' }, baseCommand),
+      ).rejects.toThrow(new AppException('COHORT_PART_CLOSED', HttpStatus.BAD_REQUEST));
+      expect(mockApplicationRepository.saveForm).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('saveDraft', () => {
+    const draftCommand = { cohortPartId: 1, answers: { motivation: '작성 중' } };
+
+    it('모집 기간 안이면 임시저장한다', async () => {
+      mockCohortRepository.findPartById.mockResolvedValue({
+        id: 1,
+        isOpen: true,
+        cohort: createCohortWindow(),
+        applicationSchema: { questions: [] },
+      });
+      mockApplicationRepository.findDraftByUserAndPart.mockResolvedValue(null);
+
+      await applicationService.saveDraft({ userId: 1 }, draftCommand);
+
+      expect(mockApplicationRepository.saveDraft).toHaveBeenCalledTimes(1);
+    });
+
+    it('모집 시작 전이면 임시저장을 거부한다', async () => {
+      mockCohortRepository.findPartById.mockResolvedValue({
+        id: 1,
+        isOpen: true,
+        cohort: createCohortWindow({ startDayOffset: 13, endDayOffset: 20 }),
+        applicationSchema: { questions: [] },
+      });
+
+      await expect(applicationService.saveDraft({ userId: 1 }, draftCommand)).rejects.toThrow(
+        new AppException('COHORT_PART_CLOSED', HttpStatus.BAD_REQUEST),
+      );
+      expect(mockApplicationRepository.saveDraft).not.toHaveBeenCalled();
+    });
+
+    it('모집 종료 후면 임시저장을 거부한다', async () => {
+      mockCohortRepository.findPartById.mockResolvedValue({
+        id: 1,
+        isOpen: true,
+        cohort: createCohortWindow({ startDayOffset: -20, endDayOffset: -2 }),
+        applicationSchema: { questions: [] },
+      });
+
+      await expect(applicationService.saveDraft({ userId: 1 }, draftCommand)).rejects.toThrow(
+        new AppException('COHORT_PART_CLOSED', HttpStatus.BAD_REQUEST),
+      );
+      expect(mockApplicationRepository.saveDraft).not.toHaveBeenCalled();
     });
   });
 

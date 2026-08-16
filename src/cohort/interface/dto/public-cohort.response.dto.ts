@@ -4,6 +4,7 @@ import type { Cohort } from '../../domain/cohort.entity';
 import { CohortStatus } from '../../domain/cohort.status';
 import type { CohortPart } from '../../domain/cohort-part.entity';
 import { CohortPartName } from '../../domain/cohort-part-name';
+import { isBeforeRecruitStart, isRecruitmentOpenAt } from '../../domain/cohort-recruitment';
 
 export enum CohortCtaStatus {
   PRE_NOTIFICATION = 'PRE_NOTIFICATION',
@@ -78,7 +79,7 @@ export class PublicCohortResponseDto {
   })
   parts: PublicCohortPartSummaryDto[];
 
-  static from(cohort: Cohort | null): PublicCohortResponseDto {
+  static from(cohort: Cohort | null, now: Date = new Date()): PublicCohortResponseDto {
     const dto = new PublicCohortResponseDto();
     if (!cohort) {
       dto.hasActiveCohort = false;
@@ -106,10 +107,15 @@ export class PublicCohortResponseDto {
     dto.parts = (cohort.parts ?? [])
       .filter((part) => part.isOpen)
       .map((part) => ({ id: part.id, partName: part.partName, isOpen: true }));
-    dto.isRecruitmentOpen = cohort.status === CohortStatus.RECRUITING && dto.parts.length > 0;
-    if (cohort.status === CohortStatus.UPCOMING) {
+
+    const recruitmentOpen = isRecruitmentOpenAt({ cohort, now });
+    const beforeStart =
+      cohort.status === CohortStatus.RECRUITING && isBeforeRecruitStart({ cohort, now });
+
+    dto.isRecruitmentOpen = recruitmentOpen && dto.parts.length > 0;
+    if (cohort.status === CohortStatus.UPCOMING || beforeStart) {
       dto.ctaStatus = CohortCtaStatus.PRE_NOTIFICATION;
-    } else if (cohort.status === CohortStatus.RECRUITING && dto.parts.length > 0) {
+    } else if (dto.isRecruitmentOpen) {
       dto.ctaStatus = CohortCtaStatus.APPLY;
     } else {
       dto.ctaStatus = CohortCtaStatus.CLOSED;
