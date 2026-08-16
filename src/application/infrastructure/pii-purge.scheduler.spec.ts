@@ -220,6 +220,23 @@ describe('PiiPurgeService', () => {
     expect(result.attachment).toMatchObject({ deleted: 1, truncated: false });
   });
 
+  it('끝까지 훑은 뒤에는 다음 회차가 다시 처음부터 시작한다', async () => {
+    // Given: 한 페이지로 완주하는 목록
+    mockStorageService.listFiles.mockResolvedValue({
+      items: [buildObject('applications/attachments/12/a.pdf', '2099-01-01T00:00:00.000Z')],
+      nextCursor: null,
+      hasNext: false,
+    });
+
+    // When: 두 번 연속 실행
+    await service.purgeExpiredPii({ cutoffDate: new Date('2026-01-01') });
+    await service.purgeExpiredPii({ cutoffDate: new Date('2026-01-01') });
+
+    // Then: 두 번째도 커서 없이(=첫 페이지부터) 시작한다
+    expect(mockStorageService.listFiles).toHaveBeenCalledTimes(2);
+    expect(mockStorageService.listFiles.mock.calls[1][0]).toMatchObject({ cursor: undefined });
+  });
+
   it('업로드 시각을 알 수 없는 객체는 삭제하지 않는다', async () => {
     // Given
     mockStorageService.listFiles.mockResolvedValue({

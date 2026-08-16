@@ -384,6 +384,51 @@ describe('StorageService', () => {
     });
   });
 
+  describe('fileExists', () => {
+    it('카테고리 prefix 밖의 경로는 조회하지 않고 거부한다', async () => {
+      await expect(service.fileExists({ path: 'etc/secret.pdf' })).rejects.toThrow(AppException);
+
+      expect(mockGcsClient.exists).not.toHaveBeenCalled();
+    });
+
+    it('경로 탈출이 섞이면 조회하지 않고 거부한다', async () => {
+      await expect(
+        service.fileExists({ path: 'applications/attachments/12/../99/x.pdf' }),
+      ).rejects.toThrow(AppException);
+
+      expect(mockGcsClient.exists).not.toHaveBeenCalled();
+    });
+
+    it('스토리지가 비활성이면 거부한다', async () => {
+      mockGcsClient.isEnabled.mockReturnValue(false);
+
+      await expect(
+        service.fileExists({ path: 'applications/attachments/12/a.pdf' }),
+      ).rejects.toThrow(AppException);
+
+      expect(mockGcsClient.exists).not.toHaveBeenCalled();
+    });
+
+    it('GCS 조회 결과를 그대로 돌려준다', async () => {
+      mockGcsClient.exists.mockResolvedValue(true);
+
+      const result = await service.fileExists({ path: 'applications/attachments/12/a.pdf' });
+
+      expect(mockGcsClient.exists).toHaveBeenCalledWith({
+        path: 'applications/attachments/12/a.pdf',
+      });
+      expect(result).toBe(true);
+    });
+
+    it('객체가 없으면 false 를 돌려준다', async () => {
+      mockGcsClient.exists.mockResolvedValue(false);
+
+      await expect(
+        service.fileExists({ path: 'applications/attachments/12/none.pdf' }),
+      ).resolves.toBe(false);
+    });
+  });
+
   describe('download', () => {
     it('허용되지 않은 prefix면 INVALID_FILE_PATH(400)를 던진다', async () => {
       await expect(service.download({ path: 'evil/secret.txt' })).rejects.toThrow(

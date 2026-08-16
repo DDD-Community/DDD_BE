@@ -33,6 +33,15 @@ export type AttachmentPurgeResult = {
 export class PiiPurgeService {
   private readonly logger = new Logger(PiiPurgeService.name);
 
+  /**
+   * 상한에 걸려 중단된 지점. 다음 회차가 여기서 이어간다.
+   *
+   * 상한(1,000만 객체) 도달은 현실적으로 오지 않지만, 도달했을 때 매 회차가
+   * 첫 페이지부터 다시 시작하면 뒤 구간이 영구히 파기되지 않는다. 개인정보
+   * 파기는 실패가 조용히 누적되는 영역이라 진행 보장을 남겨둔다.
+   */
+  private pendingScanCursor: string | undefined;
+
   constructor(
     private readonly applicationRepository: ApplicationRepository,
     private readonly storageService: StorageService,
@@ -63,7 +72,8 @@ export class PiiPurgeService {
   }: {
     cutoffDate: Date;
   }): Promise<AttachmentPurgeResult> {
-    let cursor: string | undefined;
+    // 지난 회차가 상한에 걸렸다면 그 지점부터 이어간다.
+    let cursor = this.pendingScanCursor;
     let scanned = 0;
     let deleted = 0;
     let failed = 0;
@@ -97,12 +107,13 @@ export class PiiPurgeService {
     } while (cursor && pages < ATTACHMENT_SCAN_MAX_PAGES);
 
     const truncated = Boolean(cursor);
+    // 중단됐으면 다음 회차가 이어받고, 끝까지 갔으면 다시 처음부터 훑는다.
+    this.pendingScanCursor = cursor;
+
     if (truncated) {
-      // 여기 도달하면 목록이 상한을 넘겼다는 뜻이고, 다음 회차도 첫 페이지부터
-      // 다시 시작하므로 뒤쪽 만료 첨부가 파기되지 못한다. 알람이 필요한 상황이다.
       this.logger.error(
         `첨부 파기 스캔이 ${ATTACHMENT_SCAN_MAX_PAGES}페이지 상한에 도달했습니다. ` +
-          `상한 이후 구간은 파기되지 않으므로 보관 정책 점검이 필요합니다.`,
+          `남은 구간은 다음 회차에 이어서 처리하지만, 보관 정책 점검이 필요합니다.`,
       );
     }
 
