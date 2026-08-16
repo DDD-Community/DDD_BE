@@ -253,7 +253,15 @@ jobs:
             # 소유자를 바꾸면 위 cat 이 다음 배포에서 같은 inode 에 쓰지 못하므로,
             # 그룹만 컨테이너 gid 로 맞추고 그룹 읽기만 연다.
             # 노출 범위: others 는 계속 차단되지만 호스트 gid 10001 의 구성원은 읽을 수 있게 된다.
-            # VM 에 그 gid 를 쓰는 기존 그룹이 없어야 한다(getent group 10001 이 비어 있을 것).
+            # 그 gid 를 쓰는 그룹이 호스트에 이미 있으면 서비스 계정 개인키가 그 구성원에게
+            # 그대로 열린다. 문서로 남기면 아무도 확인하지 않으므로 여기서 기계적으로 막는다.
+            if EXISTING_GROUP="$(getent group 10001)"; then
+              echo "ERROR: gid 10001 을 이미 사용하는 그룹이 호스트에 있습니다: $EXISTING_GROUP"
+              echo "       이 상태로 진행하면 그 그룹 구성원에게 서비스 계정 개인키가 노출됩니다."
+              echo "       Dockerfile 의 appgroup gid 와 이 스크립트의 chgrp 대상을 충돌하지 않는"
+              echo "       값으로 함께 옮긴 뒤 다시 배포하세요."
+              exit 1
+            fi
             if ! sudo chgrp 10001 gcp-key.json; then
               echo "ERROR: gcp-key.json 의 그룹을 변경하지 못했습니다."
               echo "       배포 유저의 sudo 권한이 docker 로만 제한돼 있는지 확인하세요."
@@ -267,20 +275,30 @@ jobs:
             # 버킷 존재, 네트워크 도달성은 커버하지 않는다 — 배포와 무관하게 바뀌는 값들이라
             # 배포 게이트에 묶으면 관계없는 외부 사정으로 배포가 막힌다.
             # 컨테이너 내부 경로는 아래 GOOGLE_CALENDAR_KEY_FILE_PATH / GCS_KEY_FILE_PATH 와 같아야 한다.
+            # uid 는 세 갈래로만 나눈다. "10001 이 아니면 통과" 로 뭉치면 uid 확인 실패나
+            # 예상 밖의 uid 까지 검사 없이 배포되어, 이 게이트가 막으려는 상태가 그대로 나간다.
             IMAGE_UID="$(sudo docker run --rm "$APP_IMAGE" id -u 2>/dev/null)" || IMAGE_UID=""
-            if [ "$IMAGE_UID" != "10001" ]; then
-              # uid 고정 이전 이미지(uid 100)로 롤백하는 중이다. 그 이미지는 gid 10001 로 열어둔
-              # 키를 읽지 못하는 것이 정상이므로 여기서 막지 않는다. 롤백은 장애 대응 경로이고,
+            if [ "$IMAGE_UID" = "10001" ]; then
+              if sudo docker run --rm -v /opt/ddd-be/gcp-key.json:/app/gcp-key.json:ro "$APP_IMAGE" \
+                node -e 'const k=require("/app/gcp-key.json"); if(!k.private_key||!k.client_email) process.exit(1); require("crypto").createPrivateKey(k.private_key)'; then
+                echo "GCP 키 사용 가능 확인 (배포할 이미지에서 파싱 성공)"
+              else
+                echo "ERROR: 배포할 이미지가 gcp-key.json 을 사용하지 못합니다(읽기 실패 또는 내용 손상)."
+                echo "       컨테이너는 교체하지 않았습니다. 현재 운영 중인 컨테이너는 그대로입니다."
+                echo "--- 호스트 파일 권한 (그룹이 10001 이어야 함) ---"
+                ls -ln gcp-key.json || true
+                exit 1
+              fi
+            elif [ "$IMAGE_UID" = "100" ]; then
+              # uid 고정 이전 이미지로 롤백하는 중이다. 그 이미지는 gid 10001 로 열어둔 키를
+              # 읽지 못하는 것이 정상이므로 여기서 막지 않는다. 롤백은 장애 대응 경로이고,
               # 되돌릴 수단을 없애는 쪽이 더 위험하다. skip_version_check 와는 무관하게 판정한다.
-              echo "::warning::배포 이미지의 실행 uid=${IMAGE_UID:-확인불가} 로 10001 이 아닙니다. 이 배포에서 GCS 업로드와 캘린더 연동은 동작하지 않습니다."
-            elif sudo docker run --rm -v /opt/ddd-be/gcp-key.json:/app/gcp-key.json:ro "$APP_IMAGE" \
-              node -e 'const k=require("/app/gcp-key.json"); if(!k.private_key||!k.client_email) process.exit(1); require("crypto").createPrivateKey(k.private_key)'; then
-              echo "GCP 키 사용 가능 확인 (배포할 이미지에서 파싱 성공)"
+              echo "::warning::배포 이미지가 uid 고정 이전(uid=100) 입니다. 이 배포에서 GCS 업로드와 캘린더 연동은 동작하지 않습니다."
             else
-              echo "ERROR: 배포할 이미지가 gcp-key.json 을 사용하지 못합니다(읽기 실패 또는 내용 손상)."
-              echo "       컨테이너는 교체하지 않았습니다. 현재 운영 중인 컨테이너는 그대로입니다."
-              echo "--- 호스트 파일 권한 (그룹이 10001 이어야 함) ---"
-              ls -ln gcp-key.json || true
+              echo "ERROR: 배포 이미지의 실행 uid 를 확인하지 못했거나 예상 밖의 값입니다: ${IMAGE_UID:-확인불가}"
+              echo "       10001(현행) 또는 100(uid 고정 이전) 이어야 합니다."
+              echo "       Dockerfile 의 appuser uid 를 바꿨다면 이 스크립트의 chgrp 대상과 위 분기도"
+              echo "       함께 갱신해야 합니다. 컨테이너는 교체하지 않았습니다."
               exit 1
             fi
 
