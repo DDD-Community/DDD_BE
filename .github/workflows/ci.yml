@@ -33,6 +33,11 @@ jobs:
       - name: Unit test
         run: yarn test --runInBand --passWithNoTests
 
+      # deploy.yml 의 GCP 키 게이트는 배포에서만 실행되므로 유닛 테스트가 닿지 않는다.
+      # 분기를 잘못 뭉쳐 실제로 뚫린 적이 있어 여기서 기계적으로 확인한다.
+      - name: Deploy key gate test
+        run: sh scripts/test-deploy-key-gate.sh
+
       - name: Build
         run: yarn build
 
