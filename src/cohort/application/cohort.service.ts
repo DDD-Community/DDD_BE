@@ -13,6 +13,7 @@ import type {
   CohortPartCreateType,
   CohortUpdateType,
 } from '../domain/cohort.type';
+import { isRecruitmentOpenAt } from '../domain/cohort-recruitment';
 
 const AUDIT_ENTITY_TYPE = 'cohort';
 const SYSTEM_ADMIN_ID = 0;
@@ -28,8 +29,26 @@ export class CohortService {
     private readonly notificationCampaignService: NotificationCampaignService,
   ) {}
 
+  /**
+   * 모집 개폐가 일정에 좌우되므로 시작일이 종료일보다 늦으면 기수가 영구히 닫힌다.
+   * 어드민에는 RECRUITING 으로 보이면서 실제로는 아무도 지원하지 못하는 상태가 되므로 입력 시점에 막는다.
+   */
+  private assertRecruitPeriod({
+    recruitStartAt,
+    recruitEndAt,
+  }: {
+    recruitStartAt: Date;
+    recruitEndAt: Date;
+  }) {
+    if (recruitStartAt.getTime() > recruitEndAt.getTime()) {
+      throw new AppException('INVALID_RECRUIT_PERIOD', HttpStatus.BAD_REQUEST);
+    }
+  }
+
   @Transactional()
   async createCohort({ cohort }: { cohort: CohortCreateType }) {
+    this.assertRecruitPeriod(cohort);
+
     const isExists = await this.cohortRepository.checkActiveCohortExists();
     if (isExists) {
       throw new AppException('COHORT_ALREADY_EXISTS', HttpStatus.CONFLICT);
@@ -93,6 +112,11 @@ export class CohortService {
       throw new AppException('COHORT_NOT_FOUND', HttpStatus.NOT_FOUND);
     }
 
+    this.assertRecruitPeriod({
+      recruitStartAt: data.recruitStartAt ?? found.recruitStartAt,
+      recruitEndAt: data.recruitEndAt ?? found.recruitEndAt,
+    });
+
     const isTargetStatus =
       data.status !== undefined &&
       [CohortStatus.UPCOMING, CohortStatus.RECRUITING].includes(data.status);
@@ -146,13 +170,13 @@ export class CohortService {
     await this.cohortRepository.deleteById({ id });
   }
 
-  async findPartById({ id }: { id: number }) {
-    return this.cohortRepository.findPartById({ id });
-  }
-
   async findPartByIdOrThrow({ id }: { id: number }) {
     const part = await this.cohortRepository.findPartById({ id });
-    if (!part || !part.isOpen || part.cohort?.status !== CohortStatus.RECRUITING) {
+    if (!part?.isOpen || !part.cohort) {
+      throw new AppException('COHORT_PART_NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+
+    if (!isRecruitmentOpenAt({ cohort: part.cohort, now: new Date() })) {
       throw new AppException('COHORT_PART_NOT_FOUND', HttpStatus.NOT_FOUND);
     }
     return part;
