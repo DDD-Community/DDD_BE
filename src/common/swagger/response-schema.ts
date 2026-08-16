@@ -26,6 +26,27 @@ export const successListResponseSchema = (model: Type<unknown>) => ({
   },
 });
 
+export const successCursorListResponseSchema = (model: Type<unknown>) => ({
+  schema: {
+    type: 'object',
+    properties: {
+      code: { type: 'string', example: 'SUCCESS' },
+      message: { type: 'string', example: 'success' },
+      data: {
+        type: 'array',
+        items: { $ref: getSchemaPath(model) },
+      },
+      meta: {
+        type: 'object',
+        properties: {
+          nextCursor: { type: 'string', nullable: true, example: null },
+          hasNext: { type: 'boolean', example: false },
+        },
+      },
+    },
+  },
+});
+
 export const successNullResponseSchema = (message = 'success') => ({
   schema: {
     type: 'object',
@@ -77,10 +98,7 @@ export const CommonSwaggerResponses = {
     description,
     ...errorResponseSchema(code, description),
   }),
-  notFoundOneOf: (
-    description: string,
-    cases: Array<{ code: string; message: string }>,
-  ) => ({
+  notFoundOneOf: (description: string, cases: Array<{ code: string; message: string }>) => ({
     status: 404 as const,
     description,
     ...errorOneOfSchema(cases),
