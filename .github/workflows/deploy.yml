@@ -76,7 +76,46 @@ jobs:
           script: |
             # 어떤 명령이 실패해도 즉시 중단한다.
             # 이 한 줄이 없어서 2026-08-09 배포가 실패하고도 초록불로 보고됐고, 3개월간 아무도 몰랐다.
+            # 원격 셸은 bash 5.2 이므로 pipefail 과 간접 참조를 모두 쓸 수 있다.
             set -euo pipefail
+
+            # drone-ssh(appleboy/ssh-action) 는 envs 에 나열된 변수라도 값이 비어 있으면
+            # 원격에 export 하지 않는다. set -u 하에서는 참조하는 순간 배포가 죽으므로,
+            # 앱이 선택적으로 취급하는 값은 여기서 기본값을 채워 둔다.
+            : "${JWT_EXPIRES_IN:=1d}"
+            : "${ADMIN_BOOTSTRAP_TOKEN:=}"
+            : "${ADMIN_BOOTSTRAP_TOKEN_EXPIRES_AT:=}"
+            : "${GOOGLE_CALENDAR_ID:=}"
+            : "${DISCORD_CLIENT_ID:=}"
+            : "${DISCORD_CLIENT_SECRET:=}"
+            : "${DISCORD_CALLBACK_URL:=}"
+            : "${DISCORD_BOT_TOKEN:=}"
+            : "${DISCORD_GUILD_ID:=}"
+            : "${DISCORD_INVITE_URL:=}"
+            : "${DISCORD_ROLE_ID_PM:=}"
+            : "${DISCORD_ROLE_ID_PD:=}"
+            : "${DISCORD_ROLE_ID_BE:=}"
+            : "${DISCORD_ROLE_ID_FE:=}"
+            : "${DISCORD_ROLE_ID_IOS:=}"
+            : "${DISCORD_ROLE_ID_AOS:=}"
+
+            # 반대로 이게 비면 앱이 부팅조차 못 한다(env.validation 의 필수 항목 + 배포 필수값).
+            # 2분 뒤 헬스체크 실패로 알게 되는 대신, 여기서 이름을 찍고 즉시 멈춘다.
+            MISSING=""
+            for required in GHCR_TOKEN APP_IMAGE GIT_SHA \
+                            DB_PORT DB_USERNAME DB_PASSWORD DB_NAME \
+                            JWT_SECRET ENCRYPTION_KEY \
+                            GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET GOOGLE_CALLBACK_URL \
+                            CLIENT_REDIRECT_URL GCP_SERVICE_ACCOUNT_JSON GCS_BUCKET_NAME; do
+              if [ -z "${!required:-}" ]; then
+                MISSING="$MISSING $required"
+              fi
+            done
+            if [ -n "$MISSING" ]; then
+              echo "ERROR: 필수 시크릿이 비어 있습니다:$MISSING"
+              echo "       GitHub 저장소 Settings > Secrets 를 확인하세요."
+              exit 1
+            fi
 
             APP_PORT="${APP_PORT:-3000}"
             BASE="http://localhost:${APP_PORT}"
@@ -125,7 +164,9 @@ jobs:
             printf 'DB_PASSWORD=%s\n' "$DB_PASSWORD" >> .env.production
             printf 'DB_NAME=%s\n'     "$DB_NAME"     >> .env.production
             printf 'APP_IMAGE=%s\n'   "$APP_IMAGE"   >> .env.production
-            printf 'APP_VERSION=%s\n' "$GIT_SHA"     >> .env.production
+            # APP_VERSION 은 여기에 쓰지 않는다.
+            # 이미지에 각인된 값(Dockerfile 의 ENV)만 읽어야 "이미지가 실제로 갱신됐는가" 를
+            # 검증할 수 있다. env 파일에 써넣으면 우리가 쓴 값을 우리가 되읽어 항상 통과한다.
             printf 'JWT_SECRET=%s\n'         "$JWT_SECRET"           >> .env.production
             printf 'JWT_EXPIRES_IN=%s\n'     "$JWT_EXPIRES_IN"       >> .env.production
             printf 'ADMIN_BOOTSTRAP_TOKEN=%s\n'           "$ADMIN_BOOTSTRAP_TOKEN"           >> .env.production
