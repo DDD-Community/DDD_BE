@@ -47,6 +47,7 @@ const mockInterviewService = {
 const mockStorageService = {
   upload: jest.fn(),
   generateSignedUrl: jest.fn(),
+  fileExists: jest.fn(),
 };
 
 const daysFromNow = (days: number) => new Date(Date.now() + days * 24 * 60 * 60 * 1000);
@@ -163,6 +164,57 @@ describe('ApplicationService', () => {
       ).rejects.toThrow(new AppException('ATTACHMENT_NOT_OWNED', HttpStatus.FORBIDDEN));
 
       expect(mockApplicationRepository.saveForm).not.toHaveBeenCalled();
+    });
+
+    it('업로드하지 않은 첨부 경로를 지어내면 필수 첨부를 우회하지 못한다', async () => {
+      // Given: 본인 prefix 형태라 소유권 검사는 통과하지만 실제 객체는 없다.
+      mockCohortRepository.findPartById.mockResolvedValue({
+        id: 1,
+        isOpen: true,
+        cohort: createCohortWindow(),
+        applicationSchema: { questions: [{ key: 'portfolio', required: true }] },
+      });
+      mockApplicationRepository.findFormByUserAndPart.mockResolvedValue(null);
+      mockStorageService.fileExists.mockResolvedValue(false);
+
+      // When & Then
+      await expect(
+        applicationService.submitForm(
+          { userId: 1, email: 'user@example.com' },
+          {
+            ...baseCommand,
+            answers: { portfolio: { path: 'applications/attachments/1/never-uploaded.pdf' } },
+          },
+        ),
+      ).rejects.toThrow(new AppException('FILE_NOT_FOUND', HttpStatus.BAD_REQUEST));
+
+      expect(mockApplicationRepository.saveForm).not.toHaveBeenCalled();
+    });
+
+    it('첨부 존재 확인이 실패하면 제출을 중단한다', async () => {
+      // Given: 스토리지 장애 등으로 존재 확인 자체가 실패. 확인 없이 통과시키면
+      // 검증이 무력화되므로 제출이 중단되어야 한다.
+      mockCohortRepository.findPartById.mockResolvedValue({
+        id: 1,
+        isOpen: true,
+        cohort: createCohortWindow(),
+        applicationSchema: {},
+      });
+      mockApplicationRepository.findFormByUserAndPart.mockResolvedValue(null);
+      mockStorageService.fileExists.mockRejectedValue(
+        new AppException('STORAGE_NOT_CONFIGURED', HttpStatus.SERVICE_UNAVAILABLE),
+      );
+
+      // When & Then
+      await expect(
+        applicationService.submitForm(
+          { userId: 1, email: 'user@example.com' },
+          { ...baseCommand, answers: { portfolio: { path: 'applications/attachments/1/a.pdf' } } },
+        ),
+      ).rejects.toThrow(AppException);
+
+      expect(mockApplicationRepository.saveForm).not.toHaveBeenCalled();
+      expect(mockEventEmitter.emit).not.toHaveBeenCalled();
     });
 
     it('이미 제출된 지원서가 있으면 예외를 던진다', async () => {
