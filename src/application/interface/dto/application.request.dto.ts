@@ -10,6 +10,7 @@ import {
   IsOptional,
   IsString,
   Matches,
+  MaxLength,
 } from 'class-validator';
 
 import { ApplicationStatus } from '../../domain/application.status';
@@ -59,6 +60,17 @@ export class SubmitApplicationRequestDto {
   @ApiProperty({ description: '개인정보 수집 동의 여부', example: true })
   @IsBoolean()
   privacyAgreed: boolean;
+}
+
+export class AttachmentPathQueryDto {
+  @ApiProperty({
+    description: '첨부파일 경로 (업로드 응답의 path)',
+    example: 'applications/attachments/12/9f1c0d3e-1f2a-4b8c-9d0e-1a2b3c4d5e6f.pdf',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(1024)
+  path: string;
 }
 
 export class UpdateApplicationStatusRequestDto {

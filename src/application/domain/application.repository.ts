@@ -73,6 +73,6 @@ export class ApplicationRepository {
       ApplicationStatus.활동중단,
     ];
 
-    return this.formWriteRepository.nullifyPii({ terminalStatuses, cutoffDate });
+    return await this.formWriteRepository.nullifyPii({ terminalStatuses, cutoffDate });
   }
 }

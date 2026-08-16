@@ -12,6 +12,8 @@ export type DownloadResult = {
 export type UploadInput = {
   file: FilePayload | null;
   category: UploadCategory;
+  /** 카테고리 prefix 아래에 덧붙일 하위 경로. 소유자별 분리에 사용한다. */
+  subPath?: string;
 };
 
 export type GenerateSignedUrlInput = {

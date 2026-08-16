@@ -2,10 +2,33 @@ import { ApiProperty } from '@nestjs/swagger';
 
 import { UserRole } from '../../../user/domain/user.role';
 import { ApplicationStatus } from '../../domain/application.status';
+import type { ApplicationAttachment } from '../../domain/application-attachment';
 import { ApplicationDraft } from '../../domain/application-draft.entity';
 import { ApplicationForm } from '../../domain/application-form.entity';
 
 const PII_ACCESSIBLE_ROLES: UserRole[] = [UserRole.계정관리, UserRole.운영자, UserRole.면접관];
+
+export class ApplicationAttachmentResponseDto {
+  @ApiProperty({
+    description: '첨부파일 경로. 지원서 answers 에 그대로 넣어 제출한다.',
+    example: 'applications/attachments/12/9f1c0d3e-1f2a-4b8c-9d0e-1a2b3c4d5e6f.pdf',
+  })
+  path: string;
+
+  @ApiProperty({ description: '원본 파일명', example: '홍길동_포트폴리오.pdf' })
+  originalName: string;
+
+  @ApiProperty({ description: '파일 크기(bytes)', example: 3145728 })
+  size: number;
+
+  static from(attachment: ApplicationAttachment): ApplicationAttachmentResponseDto {
+    const dto = new ApplicationAttachmentResponseDto();
+    dto.path = attachment.path;
+    dto.originalName = attachment.originalName;
+    dto.size = attachment.size;
+    return dto;
+  }
+}
 
 export class AdminApplicationFormResponseDto {
   @ApiProperty({ description: 'ID', example: 1 })

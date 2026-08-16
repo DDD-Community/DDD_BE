@@ -5,12 +5,14 @@ import { Test } from '@nestjs/testing';
 import { CohortRepository } from '../../cohort/domain/cohort.repository';
 import { AppException } from '../../common/exception/app.exception';
 import { InterviewService } from '../../interview/application/interview.service';
+import { StorageService } from '../../storage/application/storage.service';
 import type { User } from '../../user/domain/user.entity';
 import { ApplicationRepository } from '../domain/application.repository';
 import { ApplicationStatus } from '../domain/application.status';
 import { ApplicationForm } from '../domain/application-form.entity';
 import { ApplicationService } from './application.service';
 import { ApplicationAnswerValidator } from './application-answer.validator';
+import { ApplicationAttachmentService } from './application-attachment.service';
 
 jest.mock('typeorm-transactional', () => ({
   Transactional: () => (_target: unknown, _key: string, descriptor: PropertyDescriptor) =>
@@ -41,6 +43,11 @@ const mockInterviewService = {
   hasSlotsForCohortPart: jest.fn(),
 };
 
+const mockStorageService = {
+  upload: jest.fn(),
+  generateSignedUrl: jest.fn(),
+};
+
 describe('ApplicationService', () => {
   let applicationService: ApplicationService;
 
@@ -49,10 +56,12 @@ describe('ApplicationService', () => {
       providers: [
         ApplicationService,
         ApplicationAnswerValidator,
+        ApplicationAttachmentService,
         { provide: ApplicationRepository, useValue: mockApplicationRepository },
         { provide: CohortRepository, useValue: mockCohortRepository },
         { provide: EventEmitter2, useValue: mockEventEmitter },
         { provide: InterviewService, useValue: mockInterviewService },
+        { provide: StorageService, useValue: mockStorageService },
       ],
     }).compile();
 
@@ -101,6 +110,43 @@ describe('ApplicationService', () => {
           { ...baseCommand, answers: { motivation: '열심히 하겠습니다.' } },
         ),
       ).rejects.toThrow(new AppException('INVALID_APPLICATION_ANSWERS', HttpStatus.BAD_REQUEST));
+    });
+
+    it('answers 에 타인 소유 첨부가 섞이면 제출을 거부한다', async () => {
+      mockCohortRepository.findPartById.mockResolvedValue({
+        id: 1,
+        isOpen: true,
+        applicationSchema: {},
+      });
+
+      await expect(
+        applicationService.submitForm(
+          { userId: 1, email: 'user@example.com' },
+          {
+            ...baseCommand,
+            answers: { portfolio: { path: 'applications/attachments/99/victim.pdf' } },
+          },
+        ),
+      ).rejects.toThrow(new AppException('ATTACHMENT_NOT_OWNED', HttpStatus.FORBIDDEN));
+
+      expect(mockApplicationRepository.saveForm).not.toHaveBeenCalled();
+    });
+
+    it('첨부 경로가 문자열로 들어와도 타인 소유면 거부한다', async () => {
+      mockCohortRepository.findPartById.mockResolvedValue({
+        id: 1,
+        isOpen: true,
+        applicationSchema: {},
+      });
+
+      await expect(
+        applicationService.submitForm(
+          { userId: 1, email: 'user@example.com' },
+          { ...baseCommand, answers: { portfolio: 'applications/attachments/99/victim.pdf' } },
+        ),
+      ).rejects.toThrow(new AppException('ATTACHMENT_NOT_OWNED', HttpStatus.FORBIDDEN));
+
+      expect(mockApplicationRepository.saveForm).not.toHaveBeenCalled();
     });
 
     it('이미 제출된 지원서가 있으면 예외를 던진다', async () => {
@@ -212,6 +258,45 @@ describe('ApplicationService', () => {
       ).rejects.toThrow(new AppException('INTERVIEW_SLOTS_NOT_READY', HttpStatus.BAD_REQUEST));
 
       expect(mockApplicationRepository.saveForm).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('saveDraft', () => {
+    beforeEach(() => {
+      mockCohortRepository.findPartById.mockResolvedValue({
+        id: 1,
+        isOpen: true,
+        applicationSchema: {},
+      });
+    });
+
+    it('answers 에 타인 소유 첨부가 섞이면 임시저장을 거부한다', async () => {
+      await expect(
+        applicationService.saveDraft(
+          { userId: 1 },
+          {
+            cohortPartId: 1,
+            answers: { portfolio: { path: 'applications/attachments/99/victim.pdf' } },
+          },
+        ),
+      ).rejects.toThrow(new AppException('ATTACHMENT_NOT_OWNED', HttpStatus.FORBIDDEN));
+
+      expect(mockApplicationRepository.saveDraft).not.toHaveBeenCalled();
+    });
+
+    it('본인 첨부는 임시저장을 통과한다', async () => {
+      mockApplicationRepository.findDraftByUserAndPart.mockResolvedValue(null);
+      mockApplicationRepository.saveDraft.mockResolvedValue(undefined);
+
+      await applicationService.saveDraft(
+        { userId: 1 },
+        {
+          cohortPartId: 1,
+          answers: { portfolio: { path: 'applications/attachments/1/mine.pdf' } },
+        },
+      );
+
+      expect(mockApplicationRepository.saveDraft).toHaveBeenCalledTimes(1);
     });
   });
 

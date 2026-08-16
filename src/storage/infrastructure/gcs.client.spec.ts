@@ -55,8 +55,8 @@ describe('GcsClient', () => {
       expect(client.isEnabled()).toBe(false);
     });
 
-    it('upload 는 storage.example.com 미리보기 URL을 반환하고 SDK를 호출하지 않는다', async () => {
-      const url = await client.upload({
+    it('upload 는 storage.example.com 미리보기 URL과 경로를 반환하고 SDK를 호출하지 않는다', async () => {
+      const { url, path } = await client.upload({
         buffer: Buffer.from('x'),
         originalName: 'foo.png',
         mimeType: 'image/png',
@@ -64,6 +64,7 @@ describe('GcsClient', () => {
       });
 
       expect(url).toMatch(/^https:\/\/storage\.example\.com\/projects\/thumbnails\/.+\.png$/);
+      expect(path).toMatch(/^projects\/thumbnails\/.+\.png$/);
       expect(mockSave).not.toHaveBeenCalled();
     });
 
@@ -122,10 +123,10 @@ describe('GcsClient', () => {
       expect(client.isEnabled()).toBe(true);
     });
 
-    it('upload 는 storage.googleapis.com URL을 반환하고 SDK file.save 를 호출한다', async () => {
+    it('upload 는 storage.googleapis.com URL과 경로를 반환하고 SDK file.save 를 호출한다', async () => {
       mockSave.mockResolvedValue(undefined);
 
-      const url = await client.upload({
+      const { url, path } = await client.upload({
         buffer: Buffer.from('x'),
         originalName: 'foo.png',
         mimeType: 'image/png',
@@ -140,6 +141,8 @@ describe('GcsClient', () => {
       expect(url).toMatch(
         /^https:\/\/storage\.googleapis\.com\/bucket\/projects\/thumbnails\/.+\.png$/,
       );
+      expect(path).toMatch(/^projects\/thumbnails\/.+\.png$/);
+      expect(url.endsWith(path)).toBe(true);
     });
 
     it('exists 는 GCS 응답을 그대로 반환한다', async () => {

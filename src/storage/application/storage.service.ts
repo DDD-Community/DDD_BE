@@ -11,6 +11,7 @@ import type {
 import {
   findCategoryByPath,
   isAllowedStoragePath,
+  isSafeSubPath,
   SignedUrlAction,
   UPLOAD_CATEGORY_CONFIG,
   UploadCategory,
@@ -32,6 +33,7 @@ const ALLOWED_EXTENSIONS_BY_CATEGORY: Record<UploadCategory, string[]> = {
   [UploadCategory.PROJECT_THUMBNAIL]: ['.jpg', '.jpeg', '.png', '.webp'],
   [UploadCategory.PROJECT_PDF]: ['.pdf'],
   [UploadCategory.BLOG_THUMBNAIL]: ['.jpg', '.jpeg', '.png', '.webp'],
+  [UploadCategory.APPLICATION_ATTACHMENT]: ['.pdf'],
 };
 
 @Injectable()
@@ -40,7 +42,7 @@ export class StorageService {
 
   constructor(private readonly gcsClient: GcsClient) {}
 
-  async upload({ file, category }: UploadInput): Promise<UploadResult> {
+  async upload({ file, category, subPath }: UploadInput): Promise<UploadResult> {
     if (!file) {
       throw new AppException('FILE_NOT_PROVIDED', HttpStatus.BAD_REQUEST);
     }
@@ -51,16 +53,20 @@ export class StorageService {
     this.validateFileSize({ size: file.size, maxSize: config.maxSizeBytes });
     this.assertStorageEnabled();
 
+    const gcsPath = this.resolveGcsPath({ basePath: config.gcsPath, subPath });
+    this.validateExtension({ path: file.originalName, category });
+
     try {
-      const url = await this.gcsClient.upload({
+      const uploaded = await this.gcsClient.upload({
         buffer: file.buffer,
         originalName: file.originalName,
         mimeType: file.mimeType,
-        gcsPath: config.gcsPath,
+        gcsPath,
       });
 
       return {
-        url,
+        url: uploaded.url,
+        path: uploaded.path,
         originalName: file.originalName,
         mimeType: file.mimeType,
         size: file.size,
@@ -157,6 +163,16 @@ export class StorageService {
       this.logger.error('파일 다운로드 실패', error);
       throw new AppException('FILE_DOWNLOAD_FAILED', HttpStatus.INTERNAL_SERVER_ERROR);
     }
+  }
+
+  private resolveGcsPath({ basePath, subPath }: { basePath: string; subPath?: string }): string {
+    if (subPath === undefined) {
+      return basePath;
+    }
+    if (!isSafeSubPath({ subPath })) {
+      throw new AppException('INVALID_FILE_PATH', HttpStatus.BAD_REQUEST);
+    }
+    return `${basePath}/${subPath}`;
   }
 
   private assertAllowedPath({ path }: { path: string }): void {
