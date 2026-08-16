@@ -3,12 +3,36 @@ import { ApiProperty } from '@nestjs/swagger';
 import type { Cohort } from '../../domain/cohort.entity';
 import { CohortStatus } from '../../domain/cohort.status';
 import type { CohortPart } from '../../domain/cohort-part.entity';
-import type { CohortPartName } from '../../domain/cohort-part-name';
+import { CohortPartName } from '../../domain/cohort-part-name';
 
 export enum CohortCtaStatus {
   PRE_NOTIFICATION = 'PRE_NOTIFICATION',
   APPLY = 'APPLY',
   CLOSED = 'CLOSED',
+}
+
+export class PublicCohortPartSummaryResponseDto {
+  @ApiProperty({ description: '파트 ID', example: 1 })
+  id: number;
+
+  @ApiProperty({
+    description: '파트명',
+    enum: CohortPartName,
+    enumName: 'CohortPartName',
+    example: CohortPartName.FE,
+  })
+  partName: CohortPartName;
+
+  @ApiProperty({ description: '모집 오픈 여부', example: true })
+  isOpen: boolean;
+
+  static from(part: CohortPart): PublicCohortPartSummaryResponseDto {
+    const dto = new PublicCohortPartSummaryResponseDto();
+    dto.id = part.id;
+    dto.partName = part.partName;
+    dto.isOpen = part.isOpen;
+    return dto;
+  }
 }
 
 export class PublicCohortResponseDto {
@@ -55,10 +79,18 @@ export class PublicCohortResponseDto {
   ctaStatus: CohortCtaStatus;
 
   @ApiProperty({
-    description: '모집 중인 파트 목록',
-    example: [{ id: 1, partName: 'FE' }],
+    description:
+      '모집 중인 파트 목록. isOpen 이 true 인 파트만 담기므로 항목의 isOpen 은 항상 true.',
+    type: [PublicCohortPartSummaryResponseDto],
   })
-  openParts: { id: number; partName: CohortPartName }[];
+  parts: PublicCohortPartSummaryResponseDto[];
+
+  @ApiProperty({
+    description: '[Deprecated] parts 와 동일합니다. 소비자 이전 후 다음 릴리스에서 제거됩니다.',
+    type: [PublicCohortPartSummaryResponseDto],
+    deprecated: true,
+  })
+  openParts: PublicCohortPartSummaryResponseDto[];
 
   static from(cohort: Cohort): PublicCohortResponseDto {
     const dto = new PublicCohortResponseDto();
@@ -69,13 +101,14 @@ export class PublicCohortResponseDto {
     dto.status = cohort.status;
     dto.process = cohort.process ?? null;
     dto.curriculum = cohort.curriculum ?? null;
-    dto.openParts = (cohort.parts ?? [])
-      .filter((p) => p.isOpen)
-      .map((p) => ({ id: p.id, partName: p.partName }));
-    dto.isRecruitmentOpen = cohort.status === CohortStatus.RECRUITING && dto.openParts.length > 0;
+    dto.parts = (cohort.parts ?? [])
+      .filter((part) => part.isOpen)
+      .map((part) => PublicCohortPartSummaryResponseDto.from(part));
+    dto.openParts = dto.parts;
+    dto.isRecruitmentOpen = cohort.status === CohortStatus.RECRUITING && dto.parts.length > 0;
     if (cohort.status === CohortStatus.UPCOMING) {
       dto.ctaStatus = CohortCtaStatus.PRE_NOTIFICATION;
-    } else if (cohort.status === CohortStatus.RECRUITING && dto.openParts.length > 0) {
+    } else if (cohort.status === CohortStatus.RECRUITING && dto.parts.length > 0) {
       dto.ctaStatus = CohortCtaStatus.APPLY;
     } else {
       dto.ctaStatus = CohortCtaStatus.CLOSED;
@@ -88,7 +121,12 @@ export class PublicCohortPartResponseDto {
   @ApiProperty({ description: '파트 ID', example: 1 })
   id: number;
 
-  @ApiProperty({ description: '파트명', example: 'FE' })
+  @ApiProperty({
+    description: '파트명',
+    enum: CohortPartName,
+    enumName: 'CohortPartName',
+    example: CohortPartName.FE,
+  })
   partName: CohortPartName;
 
   @ApiProperty({
