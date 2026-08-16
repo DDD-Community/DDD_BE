@@ -255,11 +255,20 @@ jobs:
             # 노출 범위: others 는 계속 차단되지만 호스트 gid 10001 의 구성원은 읽을 수 있게 된다.
             # 그 gid 를 쓰는 그룹이 호스트에 이미 있으면 서비스 계정 개인키가 그 구성원에게
             # 그대로 열린다. 문서로 남기면 아무도 확인하지 않으므로 여기서 기계적으로 막는다.
-            if EXISTING_GROUP="$(getent group 10001)"; then
+            # getent 는 찾으면 0, 못 찾으면 2 를 반환한다. 그 밖의 값(사용법 오류, 미설치 127 등)은
+            # "충돌이 없다" 는 뜻이 아니라 "확인하지 못했다" 는 뜻이므로 통과시키면 안 된다.
+            # non-zero 를 전부 미존재로 처리하면 이 보안 검사 자체가 조용히 우회된다.
+            GETENT_RC=0
+            EXISTING_GROUP="$(getent group 10001)" || GETENT_RC=$?
+            if [ "$GETENT_RC" = "0" ]; then
               echo "ERROR: gid 10001 을 이미 사용하는 그룹이 호스트에 있습니다: $EXISTING_GROUP"
               echo "       이 상태로 진행하면 그 그룹 구성원에게 서비스 계정 개인키가 노출됩니다."
               echo "       Dockerfile 의 appgroup gid 와 이 스크립트의 chgrp 대상을 충돌하지 않는"
               echo "       값으로 함께 옮긴 뒤 다시 배포하세요."
+              exit 1
+            elif [ "$GETENT_RC" != "2" ]; then
+              echo "ERROR: gid 10001 충돌 여부를 확인하지 못했습니다 (getent 종료코드 $GETENT_RC)."
+              echo "       확인에 실패한 상태로 키를 열면 개인키 노출 여부를 알 수 없으므로 중단합니다."
               exit 1
             fi
             if ! sudo chgrp 10001 gcp-key.json; then
