@@ -246,6 +246,43 @@ jobs:
             fi
             cat gcp-key.json.tmp > gcp-key.json
             rm -f gcp-key.json.tmp
+            # umask 077 때문에 0600 으로 생성되는데, 컨테이너는 non-root(uid/gid 10001, Dockerfile)
+            # 로 돌기 때문에 그대로 두면 앱이 키 파일 자체를 열지 못한다(EACCES).
+            # 자격증명은 지연 로딩이라 앱은 정상 기동하고 헬스체크도 통과하며, 첫 GCS 호출에서야
+            # 터진다. 그 첫 호출이 배포 몇 주 뒤의 사용자 업로드였던 것이 이번 PDF 업로드 장애다.
+            # 소유자를 바꾸면 위 cat 이 다음 배포에서 같은 inode 에 쓰지 못하므로,
+            # 그룹만 컨테이너 gid 로 맞추고 그룹 읽기만 연다.
+            # 노출 범위: others 는 계속 차단되지만 호스트 gid 10001 의 구성원은 읽을 수 있게 된다.
+            # VM 에 그 gid 를 쓰는 기존 그룹이 없어야 한다(getent group 10001 이 비어 있을 것).
+            if ! sudo chgrp 10001 gcp-key.json; then
+              echo "ERROR: gcp-key.json 의 그룹을 변경하지 못했습니다."
+              echo "       배포 유저의 sudo 권한이 docker 로만 제한돼 있는지 확인하세요."
+              exit 1
+            fi
+            sudo chmod 640 gcp-key.json
+
+            # 컨테이너를 교체하기 전에, 배포할 이미지가 이 키를 실제로 쓸 수 있는지 확인한다.
+            # 교체 후에 검사하면 이미 트래픽을 받는 컨테이너를 되돌릴 수 없어 게이트 구실을 못 한다.
+            # 검사 범위는 파일 가독성 + JSON 형태 + PEM 파싱까지다. 자격증명 유효성, IAM 권한,
+            # 버킷 존재, 네트워크 도달성은 커버하지 않는다 — 배포와 무관하게 바뀌는 값들이라
+            # 배포 게이트에 묶으면 관계없는 외부 사정으로 배포가 막힌다.
+            # 컨테이너 내부 경로는 아래 GOOGLE_CALENDAR_KEY_FILE_PATH / GCS_KEY_FILE_PATH 와 같아야 한다.
+            IMAGE_UID="$(sudo docker run --rm "$APP_IMAGE" id -u 2>/dev/null)" || IMAGE_UID=""
+            if [ "$IMAGE_UID" != "10001" ]; then
+              # uid 고정 이전 이미지(uid 100)로 롤백하는 중이다. 그 이미지는 gid 10001 로 열어둔
+              # 키를 읽지 못하는 것이 정상이므로 여기서 막지 않는다. 롤백은 장애 대응 경로이고,
+              # 되돌릴 수단을 없애는 쪽이 더 위험하다. skip_version_check 와는 무관하게 판정한다.
+              echo "::warning::배포 이미지의 실행 uid=${IMAGE_UID:-확인불가} 로 10001 이 아닙니다. 이 배포에서 GCS 업로드와 캘린더 연동은 동작하지 않습니다."
+            elif sudo docker run --rm -v /opt/ddd-be/gcp-key.json:/app/gcp-key.json:ro "$APP_IMAGE" \
+              node -e 'const k=require("/app/gcp-key.json"); if(!k.private_key||!k.client_email) process.exit(1); require("crypto").createPrivateKey(k.private_key)'; then
+              echo "GCP 키 사용 가능 확인 (배포할 이미지에서 파싱 성공)"
+            else
+              echo "ERROR: 배포할 이미지가 gcp-key.json 을 사용하지 못합니다(읽기 실패 또는 내용 손상)."
+              echo "       컨테이너는 교체하지 않았습니다. 현재 운영 중인 컨테이너는 그대로입니다."
+              echo "--- 호스트 파일 권한 (그룹이 10001 이어야 함) ---"
+              ls -ln gcp-key.json || true
+              exit 1
+            fi
 
             ENV_TMP=.env.production.tmp
             printf 'PORT=%s\n'        "$APP_PORT"    > "$ENV_TMP"
