@@ -255,121 +255,28 @@ export class Baseline1786880782440 implements MigrationInterface {
     );
   }
 
-  public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(
-      `ALTER TABLE "application_drafts" DROP CONSTRAINT "FK_cd88dcc52e907a4b9383f32b421"`,
+  // 되돌릴 수 없다. 의도적으로 막아 둔 것이다.
+  //
+  // 이 마이그레이션은 "빈 DB 에 스키마를 세우는 방법" 의 기록이지, 운영 스키마를
+  // 실제로 만든 주체가 아니다. 운영 테이블은 synchronize 가 수개월에 걸쳐 만들었고
+  // 이 마이그레이션은 적용됨으로 표시만 되어 있다.
+  //
+  // 따라서 생성된 down() 을 그대로 두면 revert 가 up() 이 만들지 않은 테이블 17개와
+  // 그 안의 운영 데이터를 지운다. 게다가 지금은 적용된 마이그레이션이 이것 하나뿐이라
+  // `migration:revert` 한 번이 곧 전체 삭제다 - 배포를 되돌리려는 사람이 가장 먼저
+  // 떠올릴 명령이 하필 가장 파괴적인 동작이 된다.
+  //
+  // 스키마를 정말로 비워야 한다면 의도를 드러내는 별도 수단을 쓴다(예: DROP SCHEMA).
+  // await 할 것이 없으므로 async 를 붙이지 않는다(@typescript-eslint/require-await).
+  // TypeORM 은 down() 의 반환값을 await 하므로 거부된 Promise 가 그대로 예외가 되고,
+  // 마이그레이션 트랜잭션은 롤백된다.
+  public down(): Promise<never> {
+    return Promise.reject(
+      new Error(
+        '베이스라인 마이그레이션은 되돌릴 수 없습니다. ' +
+          '이 마이그레이션은 기존 스키마에 적용됨으로 표시된 것이라 revert 는 ' +
+          'up() 이 만들지 않은 운영 테이블과 데이터를 삭제합니다.',
+      ),
     );
-    await queryRunner.query(
-      `ALTER TABLE "application_drafts" DROP CONSTRAINT "FK_2557b41bd8945f424a9be23d6e0"`,
-    );
-    await queryRunner.query(
-      `ALTER TABLE "application_forms" DROP CONSTRAINT "FK_2525898247af7f81d7ceb55de99"`,
-    );
-    await queryRunner.query(
-      `ALTER TABLE "application_forms" DROP CONSTRAINT "FK_888d2c204feb5a13c21dedc898b"`,
-    );
-    await queryRunner.query(
-      `ALTER TABLE "interview_slots" DROP CONSTRAINT "FK_46a37bfe410dddfdca67636da6e"`,
-    );
-    await queryRunner.query(
-      `ALTER TABLE "interview_slots" DROP CONSTRAINT "FK_59bdc5d9ff707f14250c7c72a19"`,
-    );
-    await queryRunner.query(
-      `ALTER TABLE "interview_reservations" DROP CONSTRAINT "FK_5e46b39b00ca14d5639eeaea86c"`,
-    );
-    await queryRunner.query(
-      `ALTER TABLE "early_notifications" DROP CONSTRAINT "FK_a7d043863de628f075674d4d682"`,
-    );
-    await queryRunner.query(
-      `ALTER TABLE "general_early_notifications" DROP CONSTRAINT "FK_ce6f79915ad690db28b2cd1735b"`,
-    );
-    await queryRunner.query(
-      `ALTER TABLE "notification_campaigns" DROP CONSTRAINT "FK_a7eb67ae06e8c08768e2c2846ee"`,
-    );
-    await queryRunner.query(
-      `ALTER TABLE "projects" DROP CONSTRAINT "FK_4a92b8f3d250ef1f988e5756310"`,
-    );
-    await queryRunner.query(
-      `ALTER TABLE "project_members" DROP CONSTRAINT "FK_d19892d8f03928e5bfc7313780c"`,
-    );
-    await queryRunner.query(
-      `ALTER TABLE "cohort_parts" DROP CONSTRAINT "FK_d3708657c0857fe8399c89ef44b"`,
-    );
-    await queryRunner.query(
-      `ALTER TABLE "user_roles" DROP CONSTRAINT "FK_472b25323af01488f1f66a06b67"`,
-    );
-    await queryRunner.query(`DROP INDEX "public"."uq_application_drafts_user_part_active"`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_30ca22407dd8b51328ccfb79fd"`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_79980a886876d571f2f73b8f6e"`);
-    await queryRunner.query(`DROP TABLE "application_drafts"`);
-    await queryRunner.query(`DROP INDEX "public"."uq_application_forms_user_part_active"`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_7bc60aea9496fff440339166eb"`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_20be170dfba3c0e1658d06dee5"`);
-    await queryRunner.query(`DROP TABLE "application_forms"`);
-    await queryRunner.query(`DROP TYPE "public"."application_forms_status_enum"`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_13c69424c440a0e765053feb4b"`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_b264140e1eb1308c5a58bd972d"`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_837e716a5ff0fef88e3947c3df"`);
-    await queryRunner.query(`DROP TABLE "audit_logs"`);
-    await queryRunner.query(`DROP TYPE "public"."audit_logs_action_enum"`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_ac4ab6c58c14de5a96e2a7f79d"`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_c65a47b4e08a2fefcabdb6f655"`);
-    await queryRunner.query(`DROP TABLE "blog_posts"`);
-    await queryRunner.query(`DROP INDEX "public"."uq_discord_links_application_active"`);
-    await queryRunner.query(`DROP INDEX "public"."uq_discord_links_discord_user_active"`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_266e1b3009f5655dabaac6062e"`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_b4803bd31ebd99e94239cf05fe"`);
-    await queryRunner.query(`DROP TABLE "discord_links"`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_e2b4a6eb20149e32f8b72703e9"`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_74a6e6b17f74ca7f31104636f2"`);
-    await queryRunner.query(`DROP TABLE "interview_slots"`);
-    await queryRunner.query(`DROP INDEX "public"."uq_interview_reservations_application_active"`);
-    await queryRunner.query(
-      `DROP INDEX "public"."uq_interview_reservations_slot_application_active"`,
-    );
-    await queryRunner.query(`DROP INDEX "public"."IDX_ceb7375353f06e2986e7f61b46"`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_fb5688ee35fcb7e412e53e04d9"`);
-    await queryRunner.query(`DROP TABLE "interview_reservations"`);
-    await queryRunner.query(`DROP INDEX "public"."uq_early_notifications_active_cohort_email"`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_aff9b1a748744e636777cfa1c6"`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_17f024503b13f2c8b65d2949e8"`);
-    await queryRunner.query(`DROP TABLE "early_notifications"`);
-    await queryRunner.query(
-      `DROP INDEX "public"."uq_general_early_notifications_active_pending_email"`,
-    );
-    await queryRunner.query(`DROP INDEX "public"."IDX_b546a2af85b291f1263e66ceaa"`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_d83feb21dd749a093a53ee0501"`);
-    await queryRunner.query(`DROP TABLE "general_early_notifications"`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_c73a819e23f1316b2a0463ec23"`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_9cf65fb4764d15ddcb72da5307"`);
-    await queryRunner.query(`DROP TABLE "email_logs"`);
-    await queryRunner.query(`DROP TYPE "public"."email_logs_status_enum"`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_aec76505497c488d1e6cc6e78a"`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_3e5ab891d879faf0a4cc3fe285"`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_163b34f7a92a1a1b25c2890d24"`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_29054742392c5ca9cd034b0a3e"`);
-    await queryRunner.query(`DROP TABLE "notification_campaigns"`);
-    await queryRunner.query(`DROP TYPE "public"."notification_campaigns_status_enum"`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_f698c0dc133d86e4fd5c8d4883"`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_c1b301d927158ef7015f7f7123"`);
-    await queryRunner.query(`DROP TABLE "projects"`);
-    await queryRunner.query(`DROP TYPE "public"."projects_platforms_enum"`);
-    await queryRunner.query(`DROP TABLE "project_members"`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_ac828c6222cbdb1368634f1e78"`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_d927f1723f57884ab698875577"`);
-    await queryRunner.query(`DROP TABLE "cohorts"`);
-    await queryRunner.query(`DROP TYPE "public"."cohorts_status_enum"`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_0669fe31f04d3589ef62fe908c"`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_73ab5d5fa4ed7bffa22b1c263a"`);
-    await queryRunner.query(`DROP TABLE "cohort_parts"`);
-    await queryRunner.query(`DROP TYPE "public"."cohort_parts_partname_enum"`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_603379383366b71239acc25e26"`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_2a32f641edba1d0f973c19cc94"`);
-    await queryRunner.query(`DROP TABLE "users"`);
-    await queryRunner.query(`DROP INDEX "public"."uq_user_roles_user_active"`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_e4cc3c68edf1bd70f2afb84664"`);
-    await queryRunner.query(`DROP INDEX "public"."IDX_cf223fcbddb2d25c4a1dee61fd"`);
-    await queryRunner.query(`DROP TABLE "user_roles"`);
-    await queryRunner.query(`DROP TYPE "public"."user_roles_role_enum"`);
   }
 }
