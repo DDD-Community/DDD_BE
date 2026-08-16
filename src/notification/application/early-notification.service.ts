@@ -1,6 +1,7 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 
 import { CohortRepository } from '../../cohort/domain/cohort.repository';
+import { CohortStatus } from '../../cohort/domain/cohort.status';
 import { AppException } from '../../common/exception/app.exception';
 import { isPostgresUniqueViolation } from '../../common/util/postgres-error';
 import type { EarlyNotification } from '../domain/early-notification.entity';
@@ -58,6 +59,9 @@ export class EarlyNotificationService {
     const cohort = await this.cohortRepository.findById({ id: cohortId });
     if (!cohort) {
       throw new AppException('COHORT_NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+    if (cohort.status === CohortStatus.CLOSED) {
+      throw new AppException('EARLY_NOTIFICATION_COHORT_CLOSED', HttpStatus.BAD_REQUEST);
     }
 
     const found = await this.earlyNotificationRepository.findOne({ cohortId, email });
