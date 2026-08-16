@@ -30,6 +30,8 @@ export class HealthController {
   @ApiOkResponse({ type: VersionResponseDto })
   @Get('version')
   getVersion(): VersionResponseDto {
-    return { version: this.config.get<string>('APP_VERSION') ?? 'unknown' };
+    const version = this.config.get<string>('APP_VERSION') ?? 'unknown';
+
+    return { version };
   }
 }

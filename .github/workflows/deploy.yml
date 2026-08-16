@@ -10,9 +10,14 @@ on:
   workflow_dispatch:
     inputs:
       sha:
-        description: '배포할 커밋 SHA (비우면 main HEAD)'
+        description: '배포할 커밋 SHA 40자 (비우면 main HEAD)'
         required: false
         type: string
+      skip_version_check:
+        description: '버전 엔드포인트가 없는 구버전으로 롤백할 때만 체크'
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: deploy-${{ github.ref }}
@@ -26,12 +31,26 @@ jobs:
     steps:
       # 배포 대상 커밋을 한 곳에서 확정한다.
       # workflow_run 재실행은 원래 이벤트의 head_sha 에 묶이므로, 무엇이 배포되는지 로그에 남겨야 한다.
+      # 사용자 입력은 셸에 직접 보간하지 않고 env 로 받는다.
       - name: Resolve target commit
         id: target
+        env:
+          INPUT_SHA: ${{ inputs.sha }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          FALLBACK_SHA: ${{ github.sha }}
         run: |
-          SHA="${{ github.event.inputs.sha }}"
-          [ -n "$SHA" ] || SHA="${{ github.event.workflow_run.head_sha }}"
-          [ -n "$SHA" ] || SHA="${{ github.sha }}"
+          set -euo pipefail
+          SHA="$INPUT_SHA"
+          [ -n "$SHA" ] || SHA="$RUN_SHA"
+          [ -n "$SHA" ] || SHA="$FALLBACK_SHA"
+          # 40자 hex 가 아니면 이미지 태그가 존재할 수 없다. 오타를 여기서 잡는다.
+          case "$SHA" in
+            *[!0-9a-f]*) echo "::error::커밋 SHA 는 소문자 hex 여야 합니다: '$SHA'"; exit 1 ;;
+          esac
+          if [ "${#SHA}" -ne 40 ]; then
+            echo "::error::커밋 SHA 는 40자여야 합니다 (입력 ${#SHA}자: '$SHA'). short SHA 는 이미지 태그와 맞지 않습니다."
+            exit 1
+          fi
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
           echo "배포 대상 커밋: $SHA"
 
@@ -45,8 +64,29 @@ jobs:
       - name: Set image name
         id: image
         run: |
+          set -euo pipefail
           OWNER="${{ github.repository_owner }}"
+          echo "owner_lc=${OWNER,,}" >> "$GITHUB_OUTPUT"
+          echo "repo=ghcr.io/${OWNER,,}/ddd-be" >> "$GITHUB_OUTPUT"
           echo "name=ghcr.io/${OWNER,,}/ddd-be:${{ steps.target.outputs.sha }}" >> "$GITHUB_OUTPUT"
+
+      # VM 을 건드리기 전에 태그 존재를 먼저 확인한다.
+      # CI -> CD -> Deploy 로 workflow_run 이 두 번 연쇄되는 구조라 SHA 가 어긋날 수 있는데,
+      # scp 로 VM 파일을 덮어쓴 뒤 pull 에서 죽으면 상태만 어중간해진다.
+      - name: Verify image exists in GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          IMAGE: ${{ steps.image.outputs.name }}
+          TARGET_SHA: ${{ steps.target.outputs.sha }}
+        run: |
+          set -euo pipefail
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          if ! docker manifest inspect "$IMAGE" > /dev/null 2>&1; then
+            echo "::error::$IMAGE 태그가 GHCR 에 없습니다."
+            echo "CD 워크플로가 커밋 $TARGET_SHA 를 빌드했는지 확인하세요."
+            exit 1
+          fi
+          echo "이미지 확인 완료: $IMAGE"
 
       - name: Upload docker-compose
         uses: appleboy/scp-action@v0.1.7
@@ -65,10 +105,11 @@ jobs:
           username: ${{ secrets.GCP_VM_USER }}
           key: ${{ secrets.GCP_VM_SSH_KEY }}
           envs: >
-            GHCR_TOKEN,GITHUB_ACTOR,APP_IMAGE,GIT_SHA,APP_PORT,DB_PORT,DB_USERNAME,DB_PASSWORD,DB_NAME,
+            GHCR_TOKEN,GITHUB_ACTOR,APP_IMAGE,IMAGE_REPO,GIT_SHA,SKIP_VERSION_CHECK,APP_PORT,
+            DB_PORT,DB_USERNAME,DB_PASSWORD,DB_NAME,
             JWT_SECRET,JWT_EXPIRES_IN,ADMIN_BOOTSTRAP_TOKEN,ADMIN_BOOTSTRAP_TOKEN_EXPIRES_AT,
             GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET,GOOGLE_CALLBACK_URL,
-            CLIENT_REDIRECT_URL,ENCRYPTION_KEY,EMAIL_FROM,RESEND_API_KEY,GOOGLE_CALENDAR_ID,
+            CLIENT_REDIRECT_URL,ENCRYPTION_KEY,GOOGLE_CALENDAR_ID,
             GCS_BUCKET_NAME,GCP_SERVICE_ACCOUNT_JSON,DISCORD_CLIENT_ID,DISCORD_CLIENT_SECRET,
             DISCORD_CALLBACK_URL,DISCORD_BOT_TOKEN,DISCORD_GUILD_ID,DISCORD_INVITE_URL,
             DISCORD_ROLE_ID_PM,DISCORD_ROLE_ID_PD,DISCORD_ROLE_ID_BE,DISCORD_ROLE_ID_FE,
@@ -76,12 +117,20 @@ jobs:
           script: |
             # 어떤 명령이 실패해도 즉시 중단한다.
             # 이 한 줄이 없어서 2026-08-09 배포가 실패하고도 초록불로 보고됐고, 3개월간 아무도 몰랐다.
-            # 원격 셸은 bash 5.2 이므로 pipefail 과 간접 참조를 모두 쓸 수 있다.
             set -euo pipefail
 
+            # pipefail 은 bash 전용이다. 로그인 셸이 dash 로 바뀌면 set 자체가 실패해
+            # -e/-u 까지 통째로 적용되지 않은 채(=사고 이전 상태로) 스크립트가 진행된다.
+            if [ -z "${BASH_VERSION:-}" ]; then
+              echo "ERROR: bash 가 아닙니다. set -euo pipefail 이 적용되지 않아 배포를 중단합니다."
+              exit 1
+            fi
+            echo "shell: bash ${BASH_VERSION}"
+
             # drone-ssh(appleboy/ssh-action) 는 envs 에 나열된 변수라도 값이 비어 있으면
-            # 원격에 export 하지 않는다. set -u 하에서는 참조하는 순간 배포가 죽으므로,
+            # 원격에 export 하지 않을 수 있다. set -u 하에서는 참조 즉시 배포가 죽으므로,
             # 앱이 선택적으로 취급하는 값은 여기서 기본값을 채워 둔다.
+            : "${SKIP_VERSION_CHECK:=false}"
             : "${JWT_EXPIRES_IN:=1d}"
             : "${ADMIN_BOOTSTRAP_TOKEN:=}"
             : "${ADMIN_BOOTSTRAP_TOKEN_EXPIRES_AT:=}"
@@ -100,9 +149,9 @@ jobs:
             : "${DISCORD_ROLE_ID_AOS:=}"
 
             # 반대로 이게 비면 앱이 부팅조차 못 한다(env.validation 의 필수 항목 + 배포 필수값).
-            # 2분 뒤 헬스체크 실패로 알게 되는 대신, 여기서 이름을 찍고 즉시 멈춘다.
+            # set -e 는 "명령 실패" 만 잡고 "값의 부재" 는 잡지 못하므로 여기서 양성 검증한다.
             MISSING=""
-            for required in GHCR_TOKEN APP_IMAGE GIT_SHA \
+            for required in GHCR_TOKEN APP_IMAGE IMAGE_REPO GIT_SHA \
                             DB_PORT DB_USERNAME DB_PASSWORD DB_NAME \
                             JWT_SECRET ENCRYPTION_KEY \
                             GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET GOOGLE_CALLBACK_URL \
@@ -121,30 +170,60 @@ jobs:
             BASE="http://localhost:${APP_PORT}"
             echo "==> 배포 대상: $APP_IMAGE"
 
-            echo "==> [1/7] 디스크 정리 및 가드"
-            # 이미지는 여기서 건드리지 않는다. 배포가 실패했을 때 되돌아갈 대상이기 때문이다.
-            # 상한 없이 자라기만 하는 것들만 먼저 정리한다.
+            echo "==> [1/8] 디스크 정리 및 가드"
+            # 상한 없이 자라기만 하는 것들만 먼저 정리한다. 이미지는 여기서 건드리지 않는다.
             sudo sh -c 'truncate -s 0 /var/lib/docker/containers/*/*-json.log' || true
             sudo journalctl --vacuum-size=200M >/dev/null 2>&1 || true
 
-            AVAIL_MB=$(df -BM --output=avail / | tail -1 | tr -dc '0-9')
+            measure_avail() {
+              df -BM --output=avail / | tail -1 | tr -dc '0-9'
+            }
+            AVAIL_MB="$(measure_avail)" || AVAIL_MB=""
+            if [ -z "$AVAIL_MB" ]; then
+              echo "ERROR: 디스크 여유 공간을 측정하지 못했습니다."
+              df -h /
+              exit 1
+            fi
             echo "여유 공간: ${AVAIL_MB}MB"
+
+            # 가드에 걸렸다고 곧바로 포기하면, 정리 단계([8/8])에 영원히 도달하지 못해
+            # 디스크가 한 번 차는 순간 Actions 만으로는 빠져나올 수 없는 상태가 된다.
+            # 롤백 창(168h) 밖의 우리 앱 이미지만 비파괴적으로 회수한 뒤 재측정한다.
             if [ "$AVAIL_MB" -lt 2048 ]; then
-              echo "ERROR: 여유 공간이 ${AVAIL_MB}MB 로 2048MB 미만입니다. 배포를 중단합니다."
+              echo "여유 부족 - 비파괴 회수 시도"
+              sudo docker image prune -f >/dev/null 2>&1 || true
+              sudo docker builder prune -af --filter "until=24h" >/dev/null 2>&1 || true
+              sudo docker image prune -af \
+                --filter "until=168h" \
+                --filter "label=org.opencontainers.image.revision" >/dev/null 2>&1 || true
+              AVAIL_MB="$(measure_avail)"
+              echo "회수 후 여유 공간: ${AVAIL_MB:-측정실패}MB"
+            fi
+            if [ -z "$AVAIL_MB" ] || [ "$AVAIL_MB" -lt 2048 ]; then
+              echo "ERROR: 여유 공간이 ${AVAIL_MB:-?}MB 로 2048MB 미만입니다. 배포를 중단합니다."
               echo "       이미지 pull 이 남은 공간을 소진하면 DB 까지 함께 죽습니다."
               df -h /
               sudo docker system df
               exit 1
             fi
 
-            echo "==> [2/7] 이미지 받기"
+            echo "==> [2/8] 이미지 받기"
             echo "$GHCR_TOKEN" | sudo docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
             sudo docker pull "$APP_IMAGE"
+
+            # 태그와 실제 빌드 커밋이 일치하는지 컨테이너를 띄우기 전에 확인한다.
+            # workflow_run 이 CI -> CD -> Deploy 로 두 번 연쇄되므로 SHA 가 미끄러질 수 있다.
+            BUILT_SHA="$(sudo docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$APP_IMAGE" 2>/dev/null || echo "")"
+            if [ -n "$BUILT_SHA" ] && [ "$BUILT_SHA" != "$GIT_SHA" ]; then
+              echo "ERROR: 이미지 라벨($BUILT_SHA) 이 배포 대상($GIT_SHA) 과 다릅니다."
+              exit 1
+            fi
+            echo "이미지 라벨 확인: ${BUILT_SHA:-(라벨 없음 - 이 PR 이전 빌드)}"
 
             cd /opt/ddd-be
             umask 077
 
-            echo "==> [3/7] 프론트엔드 부트스트랩 확인"
+            echo "==> [3/8] 프론트엔드 부트스트랩 확인"
             if [ ! -e /opt/admin/frontend/current ]; then
               echo "ERROR: /opt/admin/frontend/current 가 없습니다. VM 1회 부트스트랩이 필요합니다."
               echo "  sudo mkdir -p /opt/admin/frontend/releases"
@@ -153,129 +232,189 @@ jobs:
               exit 1
             fi
 
-            echo "==> [4/7] 설정 파일 생성"
-            echo "$GCP_SERVICE_ACCOUNT_JSON" > gcp-key.json
-
-            printf 'PORT=%s\n'        "$APP_PORT"    > .env.production
-            printf 'NODE_ENV=%s\n'    "production"   >> .env.production
-            printf 'DB_HOST=%s\n'     "postgres"     >> .env.production
-            printf 'DB_PORT=%s\n'     "$DB_PORT"     >> .env.production
-            printf 'DB_USERNAME=%s\n' "$DB_USERNAME" >> .env.production
-            printf 'DB_PASSWORD=%s\n' "$DB_PASSWORD" >> .env.production
-            printf 'DB_NAME=%s\n'     "$DB_NAME"     >> .env.production
-            printf 'APP_IMAGE=%s\n'   "$APP_IMAGE"   >> .env.production
-            # APP_VERSION 은 여기에 쓰지 않는다.
-            # 이미지에 각인된 값(Dockerfile 의 ENV)만 읽어야 "이미지가 실제로 갱신됐는가" 를
-            # 검증할 수 있다. env 파일에 써넣으면 우리가 쓴 값을 우리가 되읽어 항상 통과한다.
-            printf 'JWT_SECRET=%s\n'         "$JWT_SECRET"           >> .env.production
-            printf 'JWT_EXPIRES_IN=%s\n'     "$JWT_EXPIRES_IN"       >> .env.production
-            printf 'ADMIN_BOOTSTRAP_TOKEN=%s\n'           "$ADMIN_BOOTSTRAP_TOKEN"           >> .env.production
-            printf 'ADMIN_BOOTSTRAP_TOKEN_EXPIRES_AT=%s\n' "$ADMIN_BOOTSTRAP_TOKEN_EXPIRES_AT" >> .env.production
-            printf 'GOOGLE_CLIENT_ID=%s\n'   "$GOOGLE_CLIENT_ID"     >> .env.production
-            printf 'GOOGLE_CLIENT_SECRET=%s\n' "$GOOGLE_CLIENT_SECRET" >> .env.production
-            printf 'GOOGLE_CALLBACK_URL=%s\n' "$GOOGLE_CALLBACK_URL" >> .env.production
-            printf 'CLIENT_REDIRECT_URL=%s\n' "$CLIENT_REDIRECT_URL" >> .env.production
-            printf 'ENCRYPTION_KEY=%s\n'     "$ENCRYPTION_KEY"       >> .env.production
-
-            # Email (console 모드 - Resend 미사용)
-            printf 'EMAIL_PROVIDER=%s\n'     "console"               >> .env.production
-
-            # Interview & Calendar
-            printf 'INTERVIEW_BOOKING_URL=%s\n' "https://admin.dddstudy.kr/interview" >> .env.production
-            printf 'CALENDAR_PROVIDER=%s\n'  "google"                >> .env.production
-            printf 'GOOGLE_CALENDAR_ID=%s\n' "$GOOGLE_CALENDAR_ID"   >> .env.production
-            printf 'GOOGLE_CALENDAR_KEY_FILE_PATH=%s\n' "/app/gcp-key.json" >> .env.production
-
-            # Storage
-            printf 'STORAGE_PROVIDER=%s\n'   "gcs"                   >> .env.production
-            printf 'GCS_PROJECT_ID=%s\n'     "ddd-project-450002"    >> .env.production
-            printf 'GCS_BUCKET_NAME=%s\n'    "$GCS_BUCKET_NAME"      >> .env.production
-            printf 'GCS_KEY_FILE_PATH=%s\n'  "/app/gcp-key.json"     >> .env.production
-
-            # Discord
-            printf 'DISCORD_PROVIDER=%s\n'   "discord"               >> .env.production
-            printf 'DISCORD_CLIENT_ID=%s\n'  "$DISCORD_CLIENT_ID"    >> .env.production
-            printf 'DISCORD_CLIENT_SECRET=%s\n' "$DISCORD_CLIENT_SECRET" >> .env.production
-            printf 'DISCORD_CALLBACK_URL=%s\n' "$DISCORD_CALLBACK_URL" >> .env.production
-            printf 'DISCORD_BOT_TOKEN=%s\n'  "$DISCORD_BOT_TOKEN"    >> .env.production
-            printf 'DISCORD_GUILD_ID=%s\n'   "$DISCORD_GUILD_ID"     >> .env.production
-            printf 'DISCORD_INVITE_URL=%s\n' "$DISCORD_INVITE_URL"   >> .env.production
-
-            # Discord Role IDs
-            printf 'DISCORD_ROLE_ID_PM=%s\n'  "$DISCORD_ROLE_ID_PM"  >> .env.production
-            printf 'DISCORD_ROLE_ID_PD=%s\n'  "$DISCORD_ROLE_ID_PD"  >> .env.production
-            printf 'DISCORD_ROLE_ID_BE=%s\n'  "$DISCORD_ROLE_ID_BE"  >> .env.production
-            printf 'DISCORD_ROLE_ID_FE=%s\n'  "$DISCORD_ROLE_ID_FE"  >> .env.production
-            printf 'DISCORD_ROLE_ID_IOS=%s\n' "$DISCORD_ROLE_ID_IOS" >> .env.production
-            printf 'DISCORD_ROLE_ID_AOS=%s\n' "$DISCORD_ROLE_ID_AOS" >> .env.production
-
-            echo "==> [5/7] 설정 파일 검증"
-            # 디스크가 가득 차면 printf 가 0바이트 파일을 남긴다. 2026-08-09 에 실제로 그렇게 됐다.
-            # 빈 env 로 컨테이너를 띄우면 getOrThrow 가 던져서 앱이 무한 크래시 루프에 빠진다.
-            if [ ! -s .env.production ]; then
-              echo "ERROR: .env.production 이 비어 있습니다. 디스크 여유를 확인하세요."
+            echo "==> [4/8] 설정 파일 생성"
+            # gcp-key.json 은 docker-compose 가 실행 중인 컨테이너에 단일 파일로 바인드 마운트한다.
+            # '>' 는 쓰기 전에 truncate 하므로, 쓰기가 실패하면 아직 교체되지도 않은 구 컨테이너가
+            # 0바이트 키를 보게 된다(2026-08-09 에 실제로 그렇게 됐다).
+            # 임시 파일에 먼저 쓰고 검증한 뒤, inode 를 보존한 채 내용만 치환한다(mv 를 쓰면 안 된다).
+            printf '%s' "$GCP_SERVICE_ACCOUNT_JSON" > gcp-key.json.tmp
+            if [ "$(wc -c < gcp-key.json.tmp)" -lt 500 ] || ! grep -q '"private_key"' gcp-key.json.tmp; then
+              echo "ERROR: gcp-key.json 이 유효한 서비스 계정 JSON 이 아닙니다 ($(wc -c < gcp-key.json.tmp)바이트)."
+              rm -f gcp-key.json.tmp
               df -h /
               exit 1
             fi
-            ENV_LINES=$(wc -l < .env.production)
-            if [ "$ENV_LINES" -lt 30 ]; then
-              echo "ERROR: .env.production 이 ${ENV_LINES}줄뿐입니다. 생성이 중단된 것으로 보입니다."
-              exit 1
-            fi
-            if [ ! -s gcp-key.json ]; then
-              echo "ERROR: gcp-key.json 이 비어 있습니다. GCS/캘린더 연동이 조용히 깨집니다."
-              exit 1
-            fi
-            grep -q '^APP_IMAGE=..*' .env.production
-            echo "설정 파일 정상 (.env.production ${ENV_LINES}줄)"
+            cat gcp-key.json.tmp > gcp-key.json
+            rm -f gcp-key.json.tmp
 
-            echo "==> [6/7] 컨테이너 기동"
+            ENV_TMP=.env.production.tmp
+            printf 'PORT=%s\n'        "$APP_PORT"    > "$ENV_TMP"
+            printf 'NODE_ENV=%s\n'    "production"   >> "$ENV_TMP"
+            printf 'DB_HOST=%s\n'     "postgres"     >> "$ENV_TMP"
+            printf 'DB_PORT=%s\n'     "$DB_PORT"     >> "$ENV_TMP"
+            printf 'DB_USERNAME=%s\n' "$DB_USERNAME" >> "$ENV_TMP"
+            printf 'DB_PASSWORD=%s\n' "$DB_PASSWORD" >> "$ENV_TMP"
+            printf 'DB_NAME=%s\n'     "$DB_NAME"     >> "$ENV_TMP"
+            printf 'APP_IMAGE=%s\n'   "$APP_IMAGE"   >> "$ENV_TMP"
+            # APP_VERSION 은 여기에 쓰지 않는다.
+            # env_file 은 이미지 ENV 를 덮어쓰므로, 여기에 쓰면 우리가 써넣은 값을 우리가 되읽어
+            # 버전 검증이 항상 통과한다. 값은 반드시 이미지에 각인된 ENV 에서만 와야 한다.
+            printf 'JWT_SECRET=%s\n'         "$JWT_SECRET"           >> "$ENV_TMP"
+            printf 'JWT_EXPIRES_IN=%s\n'     "$JWT_EXPIRES_IN"       >> "$ENV_TMP"
+            printf 'ADMIN_BOOTSTRAP_TOKEN=%s\n'           "$ADMIN_BOOTSTRAP_TOKEN"           >> "$ENV_TMP"
+            printf 'ADMIN_BOOTSTRAP_TOKEN_EXPIRES_AT=%s\n' "$ADMIN_BOOTSTRAP_TOKEN_EXPIRES_AT" >> "$ENV_TMP"
+            printf 'GOOGLE_CLIENT_ID=%s\n'   "$GOOGLE_CLIENT_ID"     >> "$ENV_TMP"
+            printf 'GOOGLE_CLIENT_SECRET=%s\n' "$GOOGLE_CLIENT_SECRET" >> "$ENV_TMP"
+            printf 'GOOGLE_CALLBACK_URL=%s\n' "$GOOGLE_CALLBACK_URL" >> "$ENV_TMP"
+            printf 'CLIENT_REDIRECT_URL=%s\n' "$CLIENT_REDIRECT_URL" >> "$ENV_TMP"
+            printf 'ENCRYPTION_KEY=%s\n'     "$ENCRYPTION_KEY"       >> "$ENV_TMP"
+
+            # Email (console 모드 - Resend 미사용)
+            printf 'EMAIL_PROVIDER=%s\n'     "console"               >> "$ENV_TMP"
+
+            # Interview & Calendar
+            printf 'INTERVIEW_BOOKING_URL=%s\n' "https://admin.dddstudy.kr/interview" >> "$ENV_TMP"
+            printf 'CALENDAR_PROVIDER=%s\n'  "google"                >> "$ENV_TMP"
+            printf 'GOOGLE_CALENDAR_ID=%s\n' "$GOOGLE_CALENDAR_ID"   >> "$ENV_TMP"
+            printf 'GOOGLE_CALENDAR_KEY_FILE_PATH=%s\n' "/app/gcp-key.json" >> "$ENV_TMP"
+
+            # Storage
+            printf 'STORAGE_PROVIDER=%s\n'   "gcs"                   >> "$ENV_TMP"
+            printf 'GCS_PROJECT_ID=%s\n'     "ddd-project-450002"    >> "$ENV_TMP"
+            printf 'GCS_BUCKET_NAME=%s\n'    "$GCS_BUCKET_NAME"      >> "$ENV_TMP"
+            printf 'GCS_KEY_FILE_PATH=%s\n'  "/app/gcp-key.json"     >> "$ENV_TMP"
+
+            # Discord
+            printf 'DISCORD_PROVIDER=%s\n'   "discord"               >> "$ENV_TMP"
+            printf 'DISCORD_CLIENT_ID=%s\n'  "$DISCORD_CLIENT_ID"    >> "$ENV_TMP"
+            printf 'DISCORD_CLIENT_SECRET=%s\n' "$DISCORD_CLIENT_SECRET" >> "$ENV_TMP"
+            printf 'DISCORD_CALLBACK_URL=%s\n' "$DISCORD_CALLBACK_URL" >> "$ENV_TMP"
+            printf 'DISCORD_BOT_TOKEN=%s\n'  "$DISCORD_BOT_TOKEN"    >> "$ENV_TMP"
+            printf 'DISCORD_GUILD_ID=%s\n'   "$DISCORD_GUILD_ID"     >> "$ENV_TMP"
+            printf 'DISCORD_INVITE_URL=%s\n' "$DISCORD_INVITE_URL"   >> "$ENV_TMP"
+
+            # Discord Role IDs
+            printf 'DISCORD_ROLE_ID_PM=%s\n'  "$DISCORD_ROLE_ID_PM"  >> "$ENV_TMP"
+            printf 'DISCORD_ROLE_ID_PD=%s\n'  "$DISCORD_ROLE_ID_PD"  >> "$ENV_TMP"
+            printf 'DISCORD_ROLE_ID_BE=%s\n'  "$DISCORD_ROLE_ID_BE"  >> "$ENV_TMP"
+            printf 'DISCORD_ROLE_ID_FE=%s\n'  "$DISCORD_ROLE_ID_FE"  >> "$ENV_TMP"
+            printf 'DISCORD_ROLE_ID_IOS=%s\n' "$DISCORD_ROLE_ID_IOS" >> "$ENV_TMP"
+            printf 'DISCORD_ROLE_ID_AOS=%s\n' "$DISCORD_ROLE_ID_AOS" >> "$ENV_TMP"
+
+            # 완결성 센티널. 줄 수 임계값 같은 매직 넘버는 항목이 늘면 곧바로 거짓말을 하므로,
+            # "마지막 줄까지 실제로 기록됐다" 를 구조적으로 증명하는 방식을 쓴다.
+            printf 'ENV_WRITE_COMPLETE=1\n' >> "$ENV_TMP"
+
+            echo "==> [5/8] 설정 파일 검증"
+            if ! grep -q '^ENV_WRITE_COMPLETE=1$' "$ENV_TMP"; then
+              echo "ERROR: .env.production 생성이 중간에 끊겼습니다(센티널 없음)."
+              echo "       기록된 줄 수: $(wc -l < "$ENV_TMP")"
+              df -h /
+              rm -f "$ENV_TMP"
+              exit 1
+            fi
+            if ! grep -q '^APP_IMAGE=..*' "$ENV_TMP"; then
+              echo "ERROR: .env.production 에 APP_IMAGE 라인이 없거나 값이 비었습니다."
+              rm -f "$ENV_TMP"
+              exit 1
+            fi
+            # 미래에 누가 APP_VERSION 을 다시 넣으면 버전 검증이 통째로 무력화된다. 기계적으로 막는다.
+            if grep -q '^APP_VERSION=' "$ENV_TMP"; then
+              echo "ERROR: .env.production 에 APP_VERSION 이 있으면 버전 검증이 무력화됩니다."
+              echo "       이 값은 이미지의 ENV 에서만 와야 합니다."
+              rm -f "$ENV_TMP"
+              exit 1
+            fi
+            mv "$ENV_TMP" .env.production
+            echo "설정 파일 정상 ($(wc -l < .env.production)줄, 센티널 확인)"
+
+            echo "==> [6/8] 컨테이너 기동"
             sudo APP_ENV_FILE=.env.production docker compose --env-file .env.production up -d
 
-            # Caddyfile 만 바뀐 배포에서는 compose 가 caddy 를 재생성하지 않으므로 명시적으로 reload 한다.
-            sudo docker exec ddd-be-caddy caddy reload \
-              --config /etc/caddy/Caddyfile --adapter caddyfile
-
-            echo "==> [7/7] 헬스체크 + 버전 검증"
-            for i in $(seq 1 24); do
+            echo "==> [7/8] 헬스체크 + 버전 검증"
+            # postgres 재생성 + 자동 DDL 이 겹치는 첫 배포는 평소보다 느리다. 3분까지 기다린다.
+            for i in $(seq 1 36); do
               if curl -sf "${BASE}/api/v1/health" > /dev/null 2>&1; then
                 echo "헬스체크 통과 (${i}회차)"
                 break
               fi
-              if [ "$i" -eq 24 ]; then
+              if [ "$i" -eq 36 ]; then
                 echo "ERROR: 헬스체크 실패. 앱 로그:"
-                sudo docker logs --tail 100 ddd-be-app
+                sudo docker logs --tail 100 ddd-be-app || true
+                echo "--- postgres 로그 (DB 인증 실패를 놓치지 않기 위해 함께 덤프) ---"
+                sudo docker logs --tail 50 ddd-be-postgres || true
                 exit 1
               fi
               sleep 5
             done
 
             # 헬스체크 200 만으로는 배포 성공을 판정할 수 없다.
-            # 갱신되지 않은 옛 컨테이너도 200 을 돌려주기 때문이다 (2026-08-09 가짜 성공의 원인).
+            # 갱신되지 않은 옛 컨테이너도 200 을 돌려주기 때문이다(2026-08-09 가짜 성공의 원인).
             # 실행 중인 컨테이너가 실제로 이번 커밋인지 직접 확인한다.
-            DEPLOYED=$(curl -sf "${BASE}/api/v1/health/version" 2>/dev/null \
-              | sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p') || DEPLOYED=""
-            echo "배포 요청 커밋: $GIT_SHA"
-            echo "실행 중인 커밋: ${DEPLOYED:-(응답 없음)}"
-            if [ "$DEPLOYED" != "$GIT_SHA" ]; then
-              echo "ERROR: 버전 불일치 - 컨테이너가 갱신되지 않았습니다."
-              echo "       배포는 실패로 처리합니다. 컨테이너 상태:"
-              sudo docker ps -a
-              exit 1
+            if [ "$SKIP_VERSION_CHECK" = "true" ]; then
+              echo "WARN: 버전 검증을 건너뜁니다(구버전 롤백 모드)."
+            else
+              DEPLOYED="$(curl -sf "${BASE}/api/v1/health/version" 2>/dev/null \
+                | sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')" || DEPLOYED=""
+              echo "배포 요청 커밋: $GIT_SHA"
+              echo "실행 중인 커밋: ${DEPLOYED:-(응답 없음)}"
+              # 양쪽이 모두 빈 문자열이면 != 비교가 거짓이 되어 그대로 통과한다. 개별로 막는다.
+              if [ -z "$GIT_SHA" ]; then
+                echo "ERROR: GIT_SHA 가 확정되지 않았습니다."
+                exit 1
+              fi
+              if [ -z "$DEPLOYED" ]; then
+                echo "ERROR: /api/v1/health/version 이 응답하지 않습니다."
+                echo "       구버전 이미지로 롤백하는 중이라면 skip_version_check 를 사용하세요."
+                sudo docker ps -a
+                exit 1
+              fi
+              if [ "$DEPLOYED" != "$GIT_SHA" ]; then
+                echo "ERROR: 버전 불일치 - 컨테이너가 갱신되지 않았습니다."
+                sudo docker ps -a
+                echo "롤백: gh workflow run 'Deploy to GCP VM' -f sha=<직전 성공 SHA>"
+                sudo docker images "$IMAGE_REPO" --format '  {{.Repository}}:{{.Tag}}' | head -5
+                exit 1
+              fi
+              echo "배포 검증 완료: $GIT_SHA"
             fi
-            echo "배포 검증 완료: $GIT_SHA"
 
-            # 검증이 끝난 뒤에만 오래된 이미지를 정리한다.
-            # 실패 시 되돌아갈 이미지를 미리 지우지 않기 위해 순서가 중요하다.
-            # 이미지마다 커밋 SHA 태그가 붙으므로 최근 7일치는 롤백용으로 남는다.
-            echo "==> 오래된 이미지 정리"
-            sudo docker image prune -af --filter "until=168h" 2>&1 | tail -2 || true
+            echo "==> [8/8] 마무리"
+            # Caddyfile 만 바뀐 배포에서는 compose 가 caddy 를 재생성하지 않으므로 명시적으로 reload 한다.
+            # 검증 이후에 두는 이유: reload 실패로 정상 배포를 되돌릴 수는 없고,
+            # 컨테이너 재생성 직후에는 admin API 바인딩 전이라 레이스가 날 수 있다.
+            for i in 1 2 3; do
+              if sudo docker exec ddd-be-caddy caddy reload \
+                   --config /etc/caddy/Caddyfile --adapter caddyfile; then
+                echo "caddy reload 완료"
+                break
+              fi
+              if [ "$i" -eq 3 ]; then
+                echo "ERROR: caddy reload 3회 실패. 라우팅이 옛 설정으로 남아 있습니다."
+                sudo docker logs --tail 50 ddd-be-caddy || true
+                exit 1
+              fi
+              sleep 5
+            done
+
+            # 정리 대상을 우리 앱 이미지로만 한정한다.
+            # label 필터가 없으면 postgres:16-alpine / caddy:2-alpine 도 until 조건에 걸린다
+            # (until 은 pull 시각이 아니라 이미지 빌드 시각 기준이고, 업스트림 이미지는 수개월 전 빌드다).
+            # 이 호스트는 containerd 스냅샷터라 실행 중 컨테이너의 이미지가 prune 된 전례가 있으므로
+            # -a 가 그 둘을 후보로 보게 두어서는 안 된다.
+            echo "오래된 앱 이미지 정리 (최근 168h 는 롤백용으로 보존)"
+            sudo docker image prune -af \
+              --filter "until=168h" \
+              --filter "label=org.opencontainers.image.revision" 2>&1 | tail -2 || true
             df -h /
+            echo "배포 완료: $GIT_SHA"
         env:
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
           APP_IMAGE: ${{ steps.image.outputs.name }}
+          IMAGE_REPO: ${{ steps.image.outputs.repo }}
           GIT_SHA: ${{ steps.target.outputs.sha }}
+          SKIP_VERSION_CHECK: ${{ inputs.skip_version_check }}
           APP_PORT: ${{ secrets.APP_PORT }}
           DB_PORT: ${{ secrets.DB_PORT }}
           DB_USERNAME: ${{ secrets.DB_USERNAME }}
@@ -290,8 +429,6 @@ jobs:
           GOOGLE_CALLBACK_URL: ${{ secrets.GOOGLE_CALLBACK_URL }}
           CLIENT_REDIRECT_URL: ${{ secrets.CLIENT_REDIRECT_URL }}
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
-          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           GOOGLE_CALENDAR_ID: ${{ secrets.GOOGLE_CALENDAR_ID }}
           GCS_BUCKET_NAME: ${{ secrets.GCS_BUCKET_NAME }}
           GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
@@ -311,6 +448,10 @@ jobs:
   export-openapi:
     runs-on: ubuntu-latest
     needs: deploy
+    # 롤백(workflow_dispatch)에서는 건너뛴다.
+    # 이 잡은 ref 없이 기본 브랜치를 체크아웃해 push 하므로,
+    # 과거 커밋을 배포하면 구버전 스펙이 main 의 openapi.json 을 덮어쓴다.
+    if: ${{ github.event_name != 'workflow_dispatch' }}
     permissions:
       contents: write
 

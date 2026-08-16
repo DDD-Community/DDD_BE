@@ -38,6 +38,47 @@ describe('env validation', () => {
     }).toThrow('ENCRYPTION_KEY must be a 64-character hex string.');
   });
 
+  describe('DB_SYNCHRONIZE 스위치', () => {
+    // 이 값은 프로덕션 DB 에 자동 DDL 을 돌릴지를 결정한다.
+    // 기본값이 바뀌면 기존 배포의 스키마 반영 방식이 조용히 달라지므로 회귀 테스트로 고정한다.
+    it('미설정이면 기존 동작인 true 가 유지된다', () => {
+      const result = validate(createValidConfig());
+
+      expect(result.DB_SYNCHRONIZE).toBe('true');
+    });
+
+    it('false 를 명시하면 그대로 유지된다', () => {
+      const result = validate({ ...createValidConfig(), DB_SYNCHRONIZE: 'false' });
+
+      expect(result.DB_SYNCHRONIZE).toBe('false');
+    });
+
+    it('빈 문자열이어도 앱 부팅을 막지 않는다', () => {
+      expect(() => validate({ ...createValidConfig(), DB_SYNCHRONIZE: '' })).not.toThrow();
+    });
+
+    it('true/false 가 아닌 값이면 앱 시작 전에 실패한다', () => {
+      expect(() => validate({ ...createValidConfig(), DB_SYNCHRONIZE: 'yes' })).toThrow();
+    });
+  });
+
+  describe('APP_VERSION', () => {
+    // 배포 워크플로가 "요청한 커밋 == 실행 중인 커밋" 을 이 값으로 판정한다.
+    it('미설정이면 unknown 이 되어 배포 검증이 불일치로 떨어진다', () => {
+      const result = validate(createValidConfig());
+
+      expect(result.APP_VERSION).toBe('unknown');
+    });
+
+    it('이미지가 각인한 커밋 SHA 를 그대로 통과시킨다', () => {
+      const sha = 'ab0974367cfcc5295df479bf59336a14a497a4b0';
+
+      const result = validate({ ...createValidConfig(), APP_VERSION: sha });
+
+      expect(result.APP_VERSION).toBe(sha);
+    });
+  });
+
   describe('CALENDAR_PROVIDER 조건부 검증', () => {
     it('CALENDAR_PROVIDER 미설정(기본 console)이면 GOOGLE_CALENDAR_ID/KEY 없이 통과한다', () => {
       expect(() => validate(createValidConfig())).not.toThrow();
