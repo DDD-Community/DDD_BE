@@ -3,6 +3,11 @@ dist
 .git
 .github
 .omc
+.worktrees
+# 이미지 런타임에 쓰이지 않는 개발/CI 스크립트. 빌드 컨텍스트에서 뺀다.
+# 특히 여기에 .ts 가 들어오면 tsc 가 rootDir 을 넓혀 산출물이 dist/ 대신 dist/src/ 로 나오고,
+# CMD 의 node dist/main 과 마이그레이션 글롭이 동시에 어긋난다(로컬에 그런 파일을 둔 사람이 있었다).
+scripts
 coverage
 *.log
 *.md

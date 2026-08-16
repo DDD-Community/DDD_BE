@@ -48,8 +48,9 @@ class EnvironmentVariables {
   @IsOptional()
   APP_VERSION: string = 'unknown';
 
-  // 운영에서 자동 DDL(synchronize) 을 끄기 위한 스위치.
-  // 마이그레이션 체계가 갖춰지기 전까지 기본값은 기존 동작(true) 을 유지한다.
+  // 운영에서 자동 DDL(synchronize) 을 끄기 위한 스위치. false 면 마이그레이션이 대신 돈다.
+  // 운영은 deploy.yml 이 .env.production 에 false 를 써 넣는다.
+  // 기본값이 true 인 것은 로컬 개발 편의를 위해서다(빈 DB 에 엔티티만으로 바로 붙는다).
   // 환경변수는 항상 문자열로 들어오므로 boolean 대신 명시적 문자열로 검증한다.
   // (boolean 으로 선언하면 enableImplicitConversion 이 'false' 를 true 로 뒤집는다)
   // 빈 문자열이 들어오면 @IsIn 이 실패해 앱이 부팅조차 못 하므로 미설정과 동일하게 취급한다.

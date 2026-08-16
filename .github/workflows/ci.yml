@@ -58,3 +58,108 @@ jobs:
           push: false
           tags: ${{ steps.image.outputs.tag }}
           cache-from: type=registry,ref=${{ steps.image.outputs.latest }}
+
+  # 운영은 DB_SYNCHRONIZE=false 라 엔티티를 고쳐도 마이그레이션이 없으면 스키마가 바뀌지 않는다.
+  # 그 누락은 배포가 성공한 뒤 런타임 쿼리에서야 드러나므로, 머지 전에 여기서 잡는다.
+  migration-drift:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_USERNAME: ci
+      DB_PASSWORD: ci
+      DB_NAME: ci
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      # 빈 DB 에 전부 적용해 본다. 마이그레이션이 맨바닥에서 실행되는지도 함께 검증된다
+      # (운영 DB 를 복원하는 재해 복구 경로가 실제로 동작하는지에 대한 답이기도 하다).
+      - name: 마이그레이션 적용
+        run: yarn migration:run
+
+      # 적용된 스키마와 엔티티를 비교한다. 차이가 있으면 generate 가 파일을 만들고,
+      # 없으면 종료코드 1 과 함께 "No changes..." 를 출력한다. 즉 성공 종료가 곧 실패다.
+      - name: 엔티티-마이그레이션 정합성 검사
+        run: |
+          set -uo pipefail
+          if yarn migration:generate src/config/migrations/__DriftCheck > drift.log 2>&1; then
+            echo "::error::엔티티가 마이그레이션 없이 변경됐습니다. yarn migration:generate 로 마이그레이션을 만들어 커밋하세요."
+            echo "--- 누락된 변경 ---"
+            grep 'queryRunner.query' src/config/migrations/*__DriftCheck*.ts || cat drift.log
+            exit 1
+          fi
+          if ! grep -q 'No changes in database schema were found' drift.log; then
+            echo "::error::정합성 검사를 수행하지 못했습니다(연결 실패 등). 통과로 처리하지 않습니다."
+            cat drift.log
+            exit 1
+          fi
+          echo "정합성 확인: 엔티티와 마이그레이션이 일치합니다."
+
+      # 베이스라인은 운영 스키마에 적용됨으로 표시만 되어 있어, revert 하면 up() 이 만들지
+      # 않은 운영 테이블과 데이터를 지운다. down() 에 가드를 넣어 뒀는데 그 가드가 실제로
+      # 막는지, 그리고 막다가 스키마를 훼손하지 않는지를 확인한다.
+      # 가드가 조용히 사라지면 `migration:revert` 한 번이 전체 삭제가 된다.
+      - name: 베이스라인 롤백 차단 확인
+        run: |
+          set -uo pipefail
+          count_tables() {
+            psql "postgresql://ci:ci@localhost:5432/ci" -tAc \
+              "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'"
+          }
+          BEFORE="$(count_tables)" || BEFORE=""
+          # 값이 없으면 아래 비교가 ''=''  로 통과해 검사가 통째로 무의미해진다.
+          case "$BEFORE" in
+            ''|*[!0-9]*) echo "::error::테이블 수를 세지 못했습니다(psql 부재 등): '$BEFORE'"; exit 1 ;;
+          esac
+          if [ "$BEFORE" -lt 2 ]; then
+            echo "::error::마이그레이션이 적용되지 않은 상태입니다(테이블 ${BEFORE}개). 검사 전제가 깨졌습니다."
+            exit 1
+          fi
+          if yarn migration:revert > revert.log 2>&1; then
+            echo "::error::베이스라인이 되돌려졌습니다. down() 가드가 동작하지 않습니다."
+            tail -20 revert.log
+            exit 1
+          fi
+          AFTER="$(count_tables)" || AFTER=""
+          case "$AFTER" in
+            ''|*[!0-9]*) echo "::error::롤백 후 테이블 수를 세지 못했습니다: '$AFTER'"; exit 1 ;;
+          esac
+          if [ "$BEFORE" != "$AFTER" ]; then
+            echo "::error::롤백은 실패했지만 스키마가 변했습니다 (${BEFORE} -> ${AFTER}개)."
+            exit 1
+          fi
+          # 실패 사유가 가드인지 확인한다. 다른 이유(연결 실패 등)로 실패한 것을
+          # 통과로 세면 검사 자체가 거짓말이 된다.
+          if ! grep -q '베이스라인 마이그레이션은 되돌릴 수 없습니다' revert.log; then
+            echo "::error::가드가 아닌 다른 이유로 실패했습니다."
+            tail -20 revert.log
+            exit 1
+          fi
+          echo "롤백 차단 확인: 테이블 ${AFTER}개 유지, 기록도 그대로."
