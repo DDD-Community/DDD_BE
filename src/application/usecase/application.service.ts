@@ -3,6 +3,8 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { runOnTransactionCommit, Transactional } from 'typeorm-transactional';
 
 import { CohortRepository } from '../../cohort/domain/cohort.repository';
+import type { CohortPart } from '../../cohort/domain/cohort-part.entity';
+import { isRecruitmentOpenAt } from '../../cohort/domain/cohort-recruitment';
 import { AppException } from '../../common/exception/app.exception';
 import { InterviewService } from '../../interview/application/interview.service';
 import { InvalidApplicationStatusTransitionError } from '../domain/application.domain-error';
@@ -32,10 +34,22 @@ export class ApplicationService {
     private readonly interviewService: InterviewService,
   ) {}
 
+  /**
+   * 파트가 열려 있고 소속 기수의 모집 기간 안일 때만 접수를 허용한다.
+   * isOpen 만 보면 모집 시작 전·종료 후에도 지원서가 저장되므로 기수 일정까지 확인한다.
+   */
+  private isApplicationOpen(cohortPart: CohortPart | null): cohortPart is CohortPart {
+    if (!cohortPart?.isOpen || !cohortPart.cohort) {
+      return false;
+    }
+
+    return isRecruitmentOpenAt({ cohort: cohortPart.cohort, now: new Date() });
+  }
+
   @Transactional()
   async saveDraft({ userId }: { userId: number }, command: SaveDraftCommand): Promise<void> {
     const cohortPart = await this.cohortRepository.findPartById({ id: command.cohortPartId });
-    if (!cohortPart || !cohortPart.isOpen) {
+    if (!this.isApplicationOpen(cohortPart)) {
       throw new AppException('COHORT_PART_CLOSED', HttpStatus.BAD_REQUEST);
     }
 
@@ -73,7 +87,7 @@ export class ApplicationService {
     }
 
     const cohortPart = await this.cohortRepository.findPartById({ id: command.cohortPartId });
-    if (!cohortPart || !cohortPart.isOpen) {
+    if (!this.isApplicationOpen(cohortPart)) {
       throw new AppException('COHORT_PART_CLOSED', HttpStatus.BAD_REQUEST);
     }
     this.applicationAttachmentService.assertAttachmentsOwnedByUser({

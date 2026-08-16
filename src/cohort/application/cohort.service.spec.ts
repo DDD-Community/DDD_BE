@@ -37,6 +37,17 @@ const mockNotificationCampaignService = {
   registerDefaultForCohort: jest.fn(),
 };
 
+const daysFromNow = (days: number) => new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+
+const createRecruitingWindow = ({
+  startDayOffset = -1,
+  endDayOffset = 1,
+}: { startDayOffset?: number; endDayOffset?: number } = {}) => ({
+  status: CohortStatus.RECRUITING,
+  recruitStartAt: daysFromNow(startDayOffset),
+  recruitEndAt: daysFromNow(endDayOffset),
+});
+
 describe('CohortService', () => {
   let cohortService: CohortService;
 
@@ -151,7 +162,12 @@ describe('CohortService', () => {
 
   describe('updateCohort', () => {
     it('상태를 UPCOMING/RECRUITING으로 변경할 때 다른 활성 기수가 있으면 예외를 던진다', async () => {
-      mockCohortRepository.findById.mockResolvedValue({ id: 1, status: CohortStatus.ACTIVE });
+      mockCohortRepository.findById.mockResolvedValue({
+        id: 1,
+        status: CohortStatus.ACTIVE,
+        recruitStartAt: new Date('2026-08-29T00:00:00.000Z'),
+        recruitEndAt: new Date('2026-09-05T00:00:00.000Z'),
+      });
       mockCohortRepository.checkActiveCohortExistsExcept.mockResolvedValue(true);
 
       await expect(
@@ -160,6 +176,58 @@ describe('CohortService', () => {
           data: { status: CohortStatus.RECRUITING },
         }),
       ).rejects.toThrow(new AppException('COHORT_ALREADY_EXISTS', HttpStatus.CONFLICT));
+    });
+  });
+
+  describe('모집 기간 정합성 검증', () => {
+    const invalidPeriod = new AppException('INVALID_RECRUIT_PERIOD', HttpStatus.BAD_REQUEST);
+
+    it('생성 시 모집 시작일이 종료일보다 늦으면 예외를 던진다', async () => {
+      mockCohortRepository.checkActiveCohortExists.mockResolvedValue(false);
+
+      await expect(
+        cohortService.createCohort({
+          cohort: {
+            name: '15기',
+            recruitStartAt: new Date('2026-09-10T00:00:00.000Z'),
+            recruitEndAt: new Date('2026-09-01T00:00:00.000Z'),
+          },
+        }),
+      ).rejects.toThrow(invalidPeriod);
+      expect(mockCohortRepository.register).not.toHaveBeenCalled();
+    });
+
+    it('수정 시 기존 값과 병합한 결과가 역전되면 예외를 던진다', async () => {
+      mockCohortRepository.findById.mockResolvedValue({
+        id: 1,
+        status: CohortStatus.RECRUITING,
+        recruitStartAt: new Date('2026-08-29T00:00:00.000Z'),
+        recruitEndAt: new Date('2026-09-05T00:00:00.000Z'),
+      });
+
+      await expect(
+        cohortService.updateCohort({
+          id: 1,
+          data: { recruitEndAt: new Date('2026-08-01T00:00:00.000Z') },
+        }),
+      ).rejects.toThrow(invalidPeriod);
+      expect(mockCohortRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('수정 결과가 정상 구간이면 저장한다', async () => {
+      mockCohortRepository.findById.mockResolvedValue({
+        id: 1,
+        status: CohortStatus.RECRUITING,
+        recruitStartAt: new Date('2026-08-29T00:00:00.000Z'),
+        recruitEndAt: new Date('2026-09-05T00:00:00.000Z'),
+      });
+
+      await cohortService.updateCohort({
+        id: 1,
+        data: { recruitEndAt: new Date('2026-09-12T00:00:00.000Z') },
+      });
+
+      expect(mockCohortRepository.update).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -202,17 +270,37 @@ describe('CohortService', () => {
       await expect(cohortService.findPartByIdOrThrow({ id: 1 })).rejects.toThrow(expectedException);
     });
 
-    it('오픈된 파트이고 RECRUITING 기수에 속하면 파트를 반환한다', async () => {
+    it('오픈된 파트이고 모집 기간 안이면 파트를 반환한다', async () => {
       const part = {
         id: 1,
         isOpen: true,
-        cohort: { status: CohortStatus.RECRUITING },
+        cohort: createRecruitingWindow(),
       };
       mockCohortRepository.findPartById.mockResolvedValue(part);
 
       const result = await cohortService.findPartByIdOrThrow({ id: 1 });
 
       expect(result).toBe(part);
+    });
+
+    it('RECRUITING 이어도 모집 시작 전이면 404를 던진다', async () => {
+      mockCohortRepository.findPartById.mockResolvedValue({
+        id: 1,
+        isOpen: true,
+        cohort: createRecruitingWindow({ startDayOffset: 13, endDayOffset: 20 }),
+      });
+
+      await expect(cohortService.findPartByIdOrThrow({ id: 1 })).rejects.toThrow(expectedException);
+    });
+
+    it('RECRUITING 이어도 모집 종료 후면 404를 던진다', async () => {
+      mockCohortRepository.findPartById.mockResolvedValue({
+        id: 1,
+        isOpen: true,
+        cohort: createRecruitingWindow({ startDayOffset: -20, endDayOffset: -1 }),
+      });
+
+      await expect(cohortService.findPartByIdOrThrow({ id: 1 })).rejects.toThrow(expectedException);
     });
   });
 });
