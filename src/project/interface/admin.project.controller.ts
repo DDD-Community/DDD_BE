@@ -13,7 +13,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiExtraModels, ApiTags } from '@nestjs/swagger';
 
 import { Roles } from '../../common/decorator/roles.decorator';
 import { RolesGuard } from '../../common/guard/roles.guard';
@@ -21,14 +21,16 @@ import { ApiResponse } from '../../common/response/api-response';
 import { ApiDoc } from '../../common/swagger/api-doc.decorator';
 import { UserRole } from '../../user/domain/user.role';
 import { ProjectService } from '../application/project.service';
+import { AdminProjectSwagger } from './admin.project.swagger';
 import {
   CreateProjectRequestDto,
   UpdateProjectMembersRequestDto,
   UpdateProjectRequestDto,
 } from './dto/project.request.dto';
-import { ProjectDetailResponseDto, ProjectListResponseDto } from './dto/project.response.dto';
+import { AdminProjectListResponseDto, ProjectDetailResponseDto } from './dto/project.response.dto';
 
 @ApiTags('Admin - Project')
+@ApiExtraModels(ProjectDetailResponseDto, AdminProjectListResponseDto)
 @Controller({ path: 'admin/projects', version: '1' })
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 @Roles(UserRole.계정관리, UserRole.운영자)
@@ -40,6 +42,10 @@ export class AdminProjectController {
     description: '새로운 프로젝트를 생성합니다.',
     operationId: 'project_createAdmin',
     auth: true,
+    responses: [
+      AdminProjectSwagger.createProject.success,
+      AdminProjectSwagger.createProject.unauthorized,
+    ],
   })
   @Post()
   async createProject(@Body() body: CreateProjectRequestDto) {
@@ -52,11 +58,15 @@ export class AdminProjectController {
     description: '모든 프로젝트를 조회합니다.',
     operationId: 'project_getAdminList',
     auth: true,
+    responses: [
+      AdminProjectSwagger.findAllProjects.success,
+      AdminProjectSwagger.findAllProjects.unauthorized,
+    ],
   })
   @Get()
   async findAllProjects() {
     const projects = await this.projectService.findAllProjects();
-    return ApiResponse.ok(projects.map((project) => ProjectListResponseDto.from(project)));
+    return ApiResponse.ok(projects.map((project) => AdminProjectListResponseDto.from(project)));
   }
 
   @ApiDoc({
@@ -64,6 +74,11 @@ export class AdminProjectController {
     description: '특정 프로젝트의 상세 정보를 조회합니다.',
     operationId: 'project_getAdminById',
     auth: true,
+    responses: [
+      AdminProjectSwagger.findProjectById.success,
+      AdminProjectSwagger.findProjectById.unauthorized,
+      AdminProjectSwagger.findProjectById.notFound,
+    ],
   })
   @Get(':id')
   async findProjectById(@Param('id', ParseIntPipe) id: number) {
@@ -76,6 +91,11 @@ export class AdminProjectController {
     description: '프로젝트 정보를 수정합니다.',
     operationId: 'project_updateAdminById',
     auth: true,
+    responses: [
+      AdminProjectSwagger.updateProject.success,
+      AdminProjectSwagger.updateProject.unauthorized,
+      AdminProjectSwagger.updateProject.notFound,
+    ],
   })
   @Patch(':id')
   async updateProject(
@@ -91,6 +111,11 @@ export class AdminProjectController {
     description: '프로젝트 참여자 목록을 전체 교체합니다.',
     operationId: 'project_updateMembersAdmin',
     auth: true,
+    responses: [
+      AdminProjectSwagger.updateProjectMembers.success,
+      AdminProjectSwagger.updateProjectMembers.unauthorized,
+      AdminProjectSwagger.updateProjectMembers.notFound,
+    ],
   })
   @Put(':id/members')
   async updateProjectMembers(
@@ -106,6 +131,11 @@ export class AdminProjectController {
     description: '프로젝트를 소프트 삭제합니다.',
     operationId: 'project_deleteAdminById',
     auth: true,
+    responses: [
+      AdminProjectSwagger.deleteProject.noContent,
+      AdminProjectSwagger.deleteProject.unauthorized,
+      AdminProjectSwagger.deleteProject.notFound,
+    ],
   })
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
