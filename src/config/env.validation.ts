@@ -43,6 +43,18 @@ class EnvironmentVariables {
   @IsOptional()
   NODE_ENV: string = 'development';
 
+  // 이미지 빌드 시 Dockerfile 이 주입하는 커밋 SHA. 배포 검증에 사용한다.
+  @IsString()
+  @IsOptional()
+  APP_VERSION: string = 'unknown';
+
+  // 운영에서 자동 DDL(synchronize) 을 끄기 위한 스위치.
+  // 마이그레이션 체계가 갖춰지기 전까지 기본값은 기존 동작(true) 을 유지한다.
+  // 환경변수는 항상 문자열로 들어오므로 boolean 대신 명시적 문자열로 검증한다.
+  @IsIn(['true', 'false'])
+  @IsOptional()
+  DB_SYNCHRONIZE: string = 'true';
+
   @IsString()
   JWT_SECRET: string;
 
