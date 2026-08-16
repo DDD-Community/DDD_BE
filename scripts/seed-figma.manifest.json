@@ -1,0 +1,18 @@
+{
+  "generatedAt": "2026-05-13T14:16:29.306Z",
+  "bucketName": "ddd-project",
+  "projectThumbUrls": {
+    "project-festibee.png": "https://storage.googleapis.com/ddd-project/projects/thumbnails/59ffc43b-3404-4d39-84a1-4e59c66d0fff.png",
+    "project-growit.png": "https://storage.googleapis.com/ddd-project/projects/thumbnails/24544b7f-17d6-40bc-9ecf-26f1bfab67bd.png",
+    "project-moyorak.png": "https://storage.googleapis.com/ddd-project/projects/thumbnails/ab4d96d2-42e0-4252-a52e-edcfae83ffcb.png",
+    "project-mkung.png": "https://storage.googleapis.com/ddd-project/projects/thumbnails/0b8baa1d-5e3a-4514-83ee-5f0eebf4e250.png",
+    "project-polabo.png": "https://storage.googleapis.com/ddd-project/projects/thumbnails/f03a3841-c401-4529-9e60-972af9594975.png",
+    "project-mozip.png": "https://storage.googleapis.com/ddd-project/projects/thumbnails/9bec9226-efa4-4860-b070-76ceda059582.png",
+    "project-pregen.png": "https://storage.googleapis.com/ddd-project/projects/thumbnails/7852a18a-9388-4140-b260-6c8b97597258.png",
+    "project-myeongeon.png": "https://storage.googleapis.com/ddd-project/projects/thumbnails/79b26382-278b-4642-b357-7c0df38f65fc.png",
+    "project-fridgelink.png": "https://storage.googleapis.com/ddd-project/projects/thumbnails/6b9e8402-14b0-4998-97b8-82bddcdfda64.png"
+  },
+  "blogThumbUrls": {
+    "blog-pixel-to-space.png": "https://storage.googleapis.com/ddd-project/blogs/thumbnails/3b605e5b-0655-4460-9975-5d4a547bd935.png"
+  }
+}
