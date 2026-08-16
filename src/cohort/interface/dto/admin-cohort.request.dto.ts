@@ -17,7 +17,12 @@ import { CohortStatus } from '../../domain/cohort.status';
 import { CohortPartName } from '../../domain/cohort-part-name';
 
 export class CohortPartConfigDto {
-  @ApiProperty({ description: '파트명', enum: CohortPartName, example: CohortPartName.IOS })
+  @ApiProperty({
+    description: '파트명',
+    enum: CohortPartName,
+    enumName: 'CohortPartName',
+    example: CohortPartName.IOS,
+  })
   @IsEnum(CohortPartName)
   name: CohortPartName;
 
