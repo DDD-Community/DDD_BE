@@ -88,32 +88,23 @@ export class HttpExceptionFilter implements ExceptionFilter {
     }
 
     const responseBody = exceptionResponse as Record<string, unknown>;
-
-    // NestJS 가 설명 없이 만든 예외의 응답 본문은 message 와 statusCode 딱 두 키다. 이때 message 는
-    // 'Unauthorized' 같은 프레임워크 영문 문구이므로 사용자에게 그대로 노출하지 않는다.
-    // 설명을 직접 넘기면 error 가, 커스텀 객체를 넘기면 그 밖의 키가 함께 오므로 원문을 보존한다.
-    const isFrameworkDefault = Object.keys(responseBody).every(
-      (key) => key === 'message' || key === 'statusCode',
-    );
-
-    if (isFrameworkDefault) {
-      return ErrorMessage[code];
-    }
-
-    // multer 의 파일 크기 초과는 PayloadTooLargeException('File too large') 로 올라온다. 설명이
-    // 붙어 있어 위 판별을 통과하지만 영문이므로 사용자에게 그대로 보이면 안 된다. 413 은 우리
-    // 코드가 직접 던지지 않으니(전부 AppException) 항상 프레임워크발로 보고 한국어로 덮는다.
-    if (code === 'PAYLOAD_TOO_LARGE') {
-      return ErrorMessage[code];
-    }
-
     const raw = responseBody.message;
 
+    // ValidationPipe 는 DTO 데코레이터에 적은 문구를 배열로 싣는다. 아래 판별보다 먼저 걸러야 한다.
     if (Array.isArray(raw)) {
       return raw.join(', ');
     }
 
-    return raw?.toString() ?? exception.message;
+    // 우리 예외는 전부 AppException 이고 위에서 이미 처리됐다. 프로덕션 코드에는 NestJS 내장 예외를
+    // 직접 만드는 곳이 없으므로, 여기까지 온 message 는 'Unauthorized', 'File too large',
+    // 'Validation failed (numeric string is expected)' 같은 프레임워크 영문이다.
+    // 설명을 붙여 던지면 error 키가 함께 붙어 '설명 없는 기본 문구인지' 로는 가려낼 수 없다.
+    // 그래서 우리가 만든 본문임을 나타내는 code 키가 있을 때만 원문을 보존한다.
+    if ('code' in responseBody) {
+      return raw?.toString() ?? exception.message;
+    }
+
+    return ErrorMessage[code];
   }
 
   private resolveCode(statusName: string | undefined, status: number): ErrorMessageKey {

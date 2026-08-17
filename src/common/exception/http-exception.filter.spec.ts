@@ -6,6 +6,7 @@ import {
   HttpException,
   HttpStatus,
   INestApplication,
+  ParseIntPipe,
   PayloadTooLargeException,
   Post,
   UnauthorizedException,
@@ -64,19 +65,22 @@ describe('HttpExceptionFilter', () => {
     });
   });
 
-  it('설명을 직접 지정한 예외는 그 문구를 그대로 유지한다', () => {
+  it('설명을 붙여 던진 내장 예외도 영문이 새지 않게 공통 문구로 덮는다', () => {
+    // multer 가 필드명 불일치에 내는 예외다. 내장 예외는 설명을 붙이면 error 키가 함께 붙으므로
+    // '설명 없는 기본 문구인지' 로는 프레임워크 영문을 가려낼 수 없다. 이 케이스를 원문 보존으로
+    // 취급하면 'File too large', 'Unexpected field - x' 가 그대로 지원자에게 나간다.
     const { host, payload } = captureResponse();
 
-    filter.catch(new BadRequestException('cohortPartId 는 숫자여야 합니다.'), host);
+    filter.catch(new BadRequestException('Unexpected field - portfolio'), host);
 
     expect(payload.body).toMatchObject({
       code: 'BAD_REQUEST',
-      message: 'cohortPartId 는 숫자여야 합니다.',
+      message: ErrorMessage.BAD_REQUEST,
     });
   });
 
-  it('error 없이 객체로 만든 커스텀 예외는 그 message 를 보존한다', () => {
-    // 판별 기준이 'error 필드 부재' 였다면 이 메시지가 공통 문구로 덮여 회귀가 났다.
+  it('문구를 직접 지정하려면 code 를 함께 실은 본문을 쓴다', () => {
+    // 원문 보존의 유일한 통로다. 이 판별이 깨지면 도메인 문구가 공통 문구로 덮인다.
     const { host, payload } = captureResponse();
 
     filter.catch(
@@ -103,7 +107,7 @@ describe('HttpExceptionFilter', () => {
   });
 
   it('multer 의 파일 크기 초과(413)는 영문 대신 한국어로, code 도 413 에 맞게 내려준다', () => {
-    // multer 가 실제로 던지는 형태. 설명이 붙어 있어 '프레임워크 기본 문구' 판별을 통과하지 못한다.
+    // @nestjs/platform-express 의 transformException 이 실제로 만드는 형태 그대로다.
     const { host, payload } = captureResponse();
 
     filter.catch(new PayloadTooLargeException('File too large'), host);
@@ -113,6 +117,25 @@ describe('HttpExceptionFilter', () => {
       code: 'PAYLOAD_TOO_LARGE',
       message: ErrorMessage.PAYLOAD_TOO_LARGE,
       data: null,
+    });
+  });
+
+  it('ParseIntPipe 의 영문 검증 문구도 한국어로 덮는다', async () => {
+    // 공개 컨트롤러 3곳이 경로 파라미터에 쓰고 있어 지원자에게 그대로 노출되던 경로다.
+    const pipe = new ParseIntPipe();
+    const parseError = await pipe
+      .transform('abc', { type: 'param' })
+      .then(() => null)
+      .catch((error: unknown) => error);
+
+    const { host, payload } = captureResponse();
+
+    filter.catch(parseError, host);
+
+    expect(payload.status).toBe(HttpStatus.BAD_REQUEST);
+    expect(payload.body).toMatchObject({
+      code: 'BAD_REQUEST',
+      message: ErrorMessage.BAD_REQUEST,
     });
   });
 

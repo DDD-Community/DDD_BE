@@ -4,7 +4,7 @@ export const ErrorMessage = {
   FORBIDDEN: '접근 권한이 없습니다.',
   NOT_FOUND: '요청한 리소스를 찾을 수 없습니다.',
   BAD_REQUEST: '잘못된 요청입니다.',
-  PAYLOAD_TOO_LARGE: '요청 용량이 제한을 초과했습니다. 첨부파일 크기를 확인해주세요.',
+  PAYLOAD_TOO_LARGE: '요청 용량이 제한을 초과했습니다.',
 
   USER_NOT_FOUND: '사용자를 찾을 수 없습니다.',
   USER_DELETED: '탈퇴 처리된 사용자입니다.',
