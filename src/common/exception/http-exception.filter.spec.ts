@@ -1,0 +1,97 @@
+import {
+  ArgumentsHost,
+  BadRequestException,
+  HttpStatus,
+  UnauthorizedException,
+  ValidationPipe,
+} from '@nestjs/common';
+import { IsNotEmpty, IsString } from 'class-validator';
+
+import { ErrorMessage } from '../error/error-message';
+import { AppException } from './app.exception';
+import { HttpExceptionFilter } from './http-exception.filter';
+
+class SampleDto {
+  @IsString()
+  @IsNotEmpty({ message: '이름은 필수입니다.' })
+  name!: string;
+}
+
+const captureResponse = () => {
+  const payload: { status?: number; body?: unknown } = {};
+  const response = {
+    status(code: number) {
+      payload.status = code;
+      return this;
+    },
+    json(body: unknown) {
+      payload.body = body;
+      return this;
+    },
+  };
+
+  const host = {
+    switchToHttp: () => ({
+      getResponse: () => response,
+      getRequest: () => ({ method: 'POST', url: '/api/v1/applications/draft' }),
+    }),
+  } as unknown as ArgumentsHost;
+
+  return { host, payload };
+};
+
+describe('HttpExceptionFilter', () => {
+  const filter = new HttpExceptionFilter();
+
+  it('가드가 던진 기본 401은 프레임워크 영문 문구 대신 한국어 메시지로 응답한다', () => {
+    const { host, payload } = captureResponse();
+
+    filter.catch(new UnauthorizedException(), host);
+
+    expect(payload.status).toBe(HttpStatus.UNAUTHORIZED);
+    expect(payload.body).toEqual({
+      code: 'UNAUTHORIZED',
+      message: ErrorMessage.UNAUTHORIZED,
+      data: null,
+    });
+  });
+
+  it('설명을 직접 지정한 예외는 그 문구를 그대로 유지한다', () => {
+    const { host, payload } = captureResponse();
+
+    filter.catch(new BadRequestException('cohortPartId 는 숫자여야 합니다.'), host);
+
+    expect(payload.body).toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'cohortPartId 는 숫자여야 합니다.',
+    });
+  });
+
+  it('ValidationPipe 가 만든 검증 메시지 배열은 삼키지 않고 합쳐서 내려준다', async () => {
+    const pipe = new ValidationPipe({ whitelist: true, transform: true });
+    const validationError = await pipe
+      .transform({}, { type: 'body', metatype: SampleDto })
+      .then(() => null)
+      .catch((error: unknown) => error);
+
+    const { host, payload } = captureResponse();
+
+    filter.catch(validationError, host);
+
+    expect(payload.status).toBe(HttpStatus.BAD_REQUEST);
+    expect((payload.body as { message: string }).message).toContain('이름은 필수입니다.');
+  });
+
+  it('AppException 은 기존대로 도메인 코드와 메시지를 그대로 내려준다', () => {
+    const { host, payload } = captureResponse();
+
+    filter.catch(new AppException('ALREADY_SUBMITTED', HttpStatus.CONFLICT), host);
+
+    expect(payload.status).toBe(HttpStatus.CONFLICT);
+    expect(payload.body).toEqual({
+      code: 'ALREADY_SUBMITTED',
+      message: ErrorMessage.ALREADY_SUBMITTED,
+      data: null,
+    });
+  });
+});

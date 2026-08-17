@@ -32,8 +32,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
       const exceptionResponse = exception.getResponse();
-      const message = this.resolveMessage(exceptionResponse, exception);
       const code = this.resolveCode(HttpStatus[status], status);
+      const message = this.resolveMessage(exceptionResponse, exception, code);
 
       response.status(status).json(ApiResponse.fail(code, message));
       return;
@@ -49,12 +49,24 @@ export class HttpExceptionFilter implements ExceptionFilter {
       .json(ApiResponse.fail('INTERNAL_SERVER_ERROR', ErrorMessage.INTERNAL_SERVER_ERROR));
   }
 
-  private resolveMessage(exceptionResponse: string | object, exception: HttpException): string {
+  private resolveMessage(
+    exceptionResponse: string | object,
+    exception: HttpException,
+    code: ErrorMessageKey,
+  ): string {
     if (typeof exceptionResponse === 'string') {
       return exceptionResponse;
     }
 
-    const raw = (exceptionResponse as Record<string, unknown>).message;
+    const response = exceptionResponse as Record<string, unknown>;
+
+    // NestJS 는 설명을 직접 넘긴 예외에만 error 필드를 채운다. error 가 없다는 것은 message 가
+    // 'Unauthorized' 같은 프레임워크 기본 문구라는 뜻이므로 사용자에게 그대로 노출하지 않는다.
+    if (!('error' in response)) {
+      return ErrorMessage[code];
+    }
+
+    const raw = response.message;
 
     if (Array.isArray(raw)) {
       return raw.join(', ');

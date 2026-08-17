@@ -160,10 +160,14 @@ export class GoogleAuthController {
     accessToken: string;
     refreshToken: string;
   }): void {
+    // 지원자 프론트(ddd-fe-web.vercel.app)와 API(admin.dddstudy.kr)는 등록 도메인이 서로 달라
+    // cross-site 다. Lax 로는 fetch/XHR 에 쿠키가 실리지 않아 임시저장·제출은 물론 401 이후의
+    // /auth/refresh 재발급까지 전부 막힌다. None 은 Secure 가 전제라 운영에서만 쓰고,
+    // 로컬은 localhost 끼리 same-site 라 Lax 를 유지한다(Secure 없이 None 을 쓰면 브라우저가 거부).
     const baseOptions = {
       httpOnly: true,
       secure: this.isProduction,
-      sameSite: 'lax' as const,
+      sameSite: this.isProduction ? ('none' as const) : ('lax' as const),
     };
 
     response.cookie('access_token', accessToken, {
