@@ -21,6 +21,7 @@ const mockCohortRepository = {
   findById: jest.fn(),
   findPartById: jest.fn(),
   checkActiveCohortExistsExcept: jest.fn(),
+  findActive: jest.fn(),
   update: jest.fn(),
 };
 
@@ -301,6 +302,62 @@ describe('CohortService', () => {
       });
 
       await expect(cohortService.findPartByIdOrThrow({ id: 1 })).rejects.toThrow(expectedException);
+    });
+  });
+
+  describe('findActiveCohort', () => {
+    const makeCohort = ({
+      id,
+      status,
+      startDayOffset,
+    }: {
+      id: number;
+      status: CohortStatus;
+      startDayOffset: number;
+    }) => ({
+      id,
+      status,
+      recruitStartAt: daysFromNow(startDayOffset),
+      recruitEndAt: daysFromNow(startDayOffset + 10),
+    });
+
+    it('모집이 끝난 기수만 남아도 가장 최근 기수를 반환한다', async () => {
+      // Given — 전 기수가 활동 종료된 상태
+      mockCohortRepository.findActive.mockResolvedValue([
+        makeCohort({ id: 8, status: CohortStatus.CLOSED, startDayOffset: -400 }),
+        makeCohort({ id: 13, status: CohortStatus.CLOSED, startDayOffset: -30 }),
+      ]);
+
+      // When
+      const result = await cohortService.findActiveCohort();
+
+      // Then — null 을 반환하면 CTA 가 사전 알림으로 잘못 떨어진다
+      expect(result?.id).toBe(13);
+    });
+
+    it('활동 중 기수가 있으면 종료된 기수보다 우선한다', async () => {
+      // Given
+      mockCohortRepository.findActive.mockResolvedValue([
+        makeCohort({ id: 13, status: CohortStatus.CLOSED, startDayOffset: -30 }),
+        makeCohort({ id: 10, status: CohortStatus.ACTIVE, startDayOffset: -5 }),
+      ]);
+
+      // When
+      const result = await cohortService.findActiveCohort();
+
+      // Then
+      expect(result?.id).toBe(10);
+    });
+
+    it('기수가 하나도 없으면 null 을 반환한다', async () => {
+      // Given
+      mockCohortRepository.findActive.mockResolvedValue([]);
+
+      // When
+      const result = await cohortService.findActiveCohort();
+
+      // Then
+      expect(result).toBeNull();
     });
   });
 });

@@ -43,10 +43,20 @@ export class CohortRepository {
     return this.partWriteRepository.findOne({ where: { id } });
   }
 
+  /**
+   * 홈페이지 노출 후보 기수를 모두 가져온다.
+   * CLOSED 를 제외하면 모든 기수가 종료된 시점에 결과가 비어 CTA 가 사전 알림으로 잘못 떨어지므로
+   * 전 상태를 대상으로 두고 우선순위 판정은 애플리케이션에 맡긴다.
+   */
   async findActive() {
     return this.writeRepository.findMany({
       where: {
-        statusIn: [CohortStatus.RECRUITING, CohortStatus.UPCOMING, CohortStatus.ACTIVE],
+        statusIn: [
+          CohortStatus.RECRUITING,
+          CohortStatus.UPCOMING,
+          CohortStatus.ACTIVE,
+          CohortStatus.CLOSED,
+        ],
       },
       includeParts: true,
     });
