@@ -38,6 +38,12 @@ export const ALLOWED_PATH_PREFIXES: readonly string[] = Object.values(UPLOAD_CAT
   (config) => config.gcsPath,
 );
 
+// 업로드 인터셉터는 어느 카테고리로 올지 모르는 시점에 걸리므로 카테고리별 상한 중 최댓값을 쓴다.
+// 카테고리별 정확한 상한은 StorageService 가 다시 검사한다.
+export const MAX_UPLOAD_SIZE_BYTES = Math.max(
+  ...Object.values(UPLOAD_CATEGORY_CONFIG).map((config) => config.maxSizeBytes),
+);
+
 const SAFE_PATH_PATTERN = /^[a-zA-Z0-9._\-/]+$/;
 
 const SAFE_SUB_PATH_PATTERN = /^[a-zA-Z0-9._-]+$/;
