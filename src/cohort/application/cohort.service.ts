@@ -73,7 +73,7 @@ export class CohortService {
   }
 
   async findActiveCohort() {
-    const cohorts = await this.cohortRepository.findActive();
+    const cohorts = await this.cohortRepository.findPublicDisplayCandidates();
     if (cohorts.length === 0) {
       return null;
     }

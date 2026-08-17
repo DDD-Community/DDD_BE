@@ -172,24 +172,26 @@ describe('Public Cohort API contract (e2e)', () => {
     });
   });
 
-  it('GET /api/v1/cohorts/active: ACTIVE 기수는 마감 CTA를 반환한다', async () => {
-    mockCohortService.findActiveCohort.mockResolvedValue(
-      buildCohort({ status: CohortStatus.ACTIVE }),
-    );
+  it.each([CohortStatus.ACTIVE, CohortStatus.CLOSED])(
+    'GET /api/v1/cohorts/active: %s 기수는 마감 CTA를 반환한다',
+    async (status) => {
+      mockCohortService.findActiveCohort.mockResolvedValue(buildCohort({ status }));
 
-    const response = await request(app.getHttpServer() as Server)
-      .get('/api/v1/cohorts/active')
-      .expect(HttpStatus.OK);
+      const response = await request(app.getHttpServer() as Server)
+        .get('/api/v1/cohorts/active')
+        .expect(HttpStatus.OK);
 
-    expect(response.body).toMatchObject({
-      code: 'SUCCESS',
-      data: {
-        hasActiveCohort: true,
-        isRecruitmentOpen: false,
-        ctaStatus: 'CLOSED',
-      },
-    });
-  });
+      expect(response.body).toMatchObject({
+        code: 'SUCCESS',
+        data: {
+          hasActiveCohort: true,
+          status,
+          isRecruitmentOpen: false,
+          ctaStatus: 'CLOSED',
+        },
+      });
+    },
+  );
 
   it('GET /api/v1/cohorts/parts/:id: 서비스의 파트 미존재 예외를 404로 반환한다', async () => {
     mockCohortService.findPartByIdOrThrow.mockRejectedValue(

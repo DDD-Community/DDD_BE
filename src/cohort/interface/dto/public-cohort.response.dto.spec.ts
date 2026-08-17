@@ -119,6 +119,23 @@ describe('PublicCohortResponseDto', () => {
       },
     );
 
+    it.each([CohortStatus.ACTIVE, CohortStatus.CLOSED])(
+      '%s 기수에 열린 파트가 남아 있어도 지원 경로를 열지 않는다',
+      (status) => {
+        // Given — 모집이 끝나도 파트 레코드는 그대로 남는다
+        const cohort = makeCohort({ status, parts: [openFePart] });
+
+        // When
+        const result = PublicCohortResponseDto.from(cohort, AFTER_END);
+
+        // Then — parts 가 비지 않으므로 진입 차단은 isRecruitmentOpen 이 책임진다
+        expect(result.hasActiveCohort).toBe(true);
+        expect(result.ctaStatus).toBe(CohortCtaStatus.CLOSED);
+        expect(result.isRecruitmentOpen).toBe(false);
+        expect(result.parts).toEqual([openFePart]);
+      },
+    );
+
     it('닫힌 파트는 parts에서 제외한다', () => {
       // Given
       const cohort = makeCohort({
