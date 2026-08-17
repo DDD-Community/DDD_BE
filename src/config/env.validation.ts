@@ -15,6 +15,9 @@ import {
 export const STORAGE_PROVIDERS = ['console', 'gcs'] as const;
 export type StorageProvider = (typeof STORAGE_PROVIDERS)[number];
 
+export const EMAIL_PROVIDERS = ['console', 'gmail'] as const;
+export type EmailProvider = (typeof EMAIL_PROVIDERS)[number];
+
 class EnvironmentVariables {
   @IsNumber()
   @IsOptional()
@@ -92,17 +95,33 @@ class EnvironmentVariables {
   })
   ENCRYPTION_KEY: string;
 
-  @IsString()
+  // 실제 발송 경로는 gmail 뿐이다. console 은 로그만 찍는 로컬 개발용이며,
+  // 운영에서 console 로 남으면 메일이 안 나가고도 발송 로그가 SUCCESS 로 쌓인다.
+  // (GmailEmailClient 가 운영 + console 조합을 발송 시점에 거부한다)
+  @IsIn(EMAIL_PROVIDERS, {
+    message: `EMAIL_PROVIDER 는 ${EMAIL_PROVIDERS.join(' | ')} 중 하나여야 합니다.`,
+  })
   @IsOptional()
-  EMAIL_PROVIDER: string = 'console';
+  EMAIL_PROVIDER: EmailProvider = 'console';
 
-  @IsString()
-  @IsOptional()
-  RESEND_API_KEY?: string;
+  @ValidateIf((env: EnvironmentVariables) => env.EMAIL_PROVIDER === 'gmail')
+  @IsString({ message: 'EMAIL_PROVIDER=gmail 일 때 GMAIL_USER는 필수입니다.' })
+  @IsNotEmpty({ message: 'EMAIL_PROVIDER=gmail 일 때 GMAIL_USER는 필수입니다.' })
+  GMAIL_USER?: string;
 
-  @IsString()
-  @IsOptional()
+  @ValidateIf((env: EnvironmentVariables) => env.EMAIL_PROVIDER === 'gmail')
+  @IsString({ message: 'EMAIL_PROVIDER=gmail 일 때 GMAIL_APP_PASSWORD는 필수입니다.' })
+  @IsNotEmpty({ message: 'EMAIL_PROVIDER=gmail 일 때 GMAIL_APP_PASSWORD는 필수입니다.' })
+  GMAIL_APP_PASSWORD?: string;
+
+  @ValidateIf((env: EnvironmentVariables) => env.EMAIL_PROVIDER === 'gmail')
+  @IsString({ message: 'EMAIL_PROVIDER=gmail 일 때 EMAIL_FROM은 필수입니다.' })
+  @IsNotEmpty({ message: 'EMAIL_PROVIDER=gmail 일 때 EMAIL_FROM은 필수입니다.' })
   EMAIL_FROM?: string;
+
+  @IsString()
+  @IsOptional()
+  EMAIL_FROM_NAME?: string;
 
   @IsString()
   @IsOptional()

@@ -110,6 +110,7 @@ jobs:
             JWT_SECRET,JWT_EXPIRES_IN,ADMIN_BOOTSTRAP_TOKEN,ADMIN_BOOTSTRAP_TOKEN_EXPIRES_AT,
             GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET,GOOGLE_CALLBACK_URL,
             CLIENT_REDIRECT_URL,ENCRYPTION_KEY,GOOGLE_CALENDAR_ID,
+            EMAIL_PROVIDER,GMAIL_USER,GMAIL_APP_PASSWORD,EMAIL_FROM,EMAIL_FROM_NAME,
             GCS_BUCKET_NAME,GCP_SERVICE_ACCOUNT_JSON,DISCORD_CLIENT_ID,DISCORD_CLIENT_SECRET,
             DISCORD_CALLBACK_URL,DISCORD_BOT_TOKEN,DISCORD_GUILD_ID,DISCORD_INVITE_URL,
             DISCORD_ROLE_ID_PM,DISCORD_ROLE_ID_PD,DISCORD_ROLE_ID_BE,DISCORD_ROLE_ID_FE,
@@ -337,8 +338,37 @@ jobs:
             printf 'CLIENT_REDIRECT_URL=%s\n' "$CLIENT_REDIRECT_URL" >> "$ENV_TMP"
             printf 'ENCRYPTION_KEY=%s\n'     "$ENCRYPTION_KEY"       >> "$ENV_TMP"
 
-            # Email (console 모드 - Resend 미사용)
-            printf 'EMAIL_PROVIDER=%s\n'     "console"               >> "$ENV_TMP"
+            # Email (Gmail SMTP)
+            # 여기에 console 이 박혀 있는 동안 사전 알림/면접 안내 메일이 운영에서 한 통도
+            # 나가지 않았다. 발송 로그는 SUCCESS 로 쌓여 어드민 화면에 '발송 완료' 로 보였다.
+            # 시크릿을 넣지 않으면 여전히 console 로 떨어지지만, 이제는 발송 시점에 예외로 드러난다.
+            EMAIL_PROVIDER_VALUE="${EMAIL_PROVIDER:-console}"
+            # 앱 env 검증(EMAIL_PROVIDER 화이트리스트)이 거부하는 값이면 컨테이너를 교체한 뒤
+            # 부팅에서 죽는다. 교체 전에 여기서 걸러 운영을 건드리지 않는다.
+            case "$EMAIL_PROVIDER_VALUE" in
+              console|gmail) ;;
+              *)
+                echo "ERROR: EMAIL_PROVIDER 시크릿 값이 console|gmail 이 아닙니다: '$EMAIL_PROVIDER_VALUE'"
+                echo "       이 값으로는 앱이 부팅하지 못합니다. 컨테이너는 교체하지 않았습니다."
+                rm -f "$ENV_TMP"
+                exit 1
+                ;;
+            esac
+            if [ "$EMAIL_PROVIDER_VALUE" = "gmail" ]; then
+              if [ -z "${GMAIL_USER:-}" ] || [ -z "${GMAIL_APP_PASSWORD:-}" ] || [ -z "${EMAIL_FROM:-}" ]; then
+                echo "ERROR: EMAIL_PROVIDER=gmail 인데 GMAIL_USER, GMAIL_APP_PASSWORD, EMAIL_FROM 중 비어 있는 시크릿이 있습니다."
+                echo "       이 상태로 배포하면 앱이 env 검증에서 부팅하지 못합니다. 컨테이너는 교체하지 않았습니다."
+                rm -f "$ENV_TMP"
+                exit 1
+              fi
+            else
+              echo "::warning::EMAIL_PROVIDER=$EMAIL_PROVIDER_VALUE 로 배포합니다. 운영 메일 발송은 예외로 실패합니다(EMAIL_PROVIDER/GMAIL_* 시크릿을 확인하세요)."
+            fi
+            printf 'EMAIL_PROVIDER=%s\n'     "$EMAIL_PROVIDER_VALUE"   >> "$ENV_TMP"
+            printf 'GMAIL_USER=%s\n'         "${GMAIL_USER:-}"         >> "$ENV_TMP"
+            printf 'GMAIL_APP_PASSWORD=%s\n' "${GMAIL_APP_PASSWORD:-}" >> "$ENV_TMP"
+            printf 'EMAIL_FROM=%s\n'         "${EMAIL_FROM:-}"         >> "$ENV_TMP"
+            printf 'EMAIL_FROM_NAME=%s\n'    "${EMAIL_FROM_NAME:-DDD}" >> "$ENV_TMP"
 
             # Interview & Calendar
             printf 'INTERVIEW_BOOKING_URL=%s\n' "https://admin.dddstudy.kr/interview" >> "$ENV_TMP"
@@ -508,6 +538,11 @@ jobs:
           CLIENT_REDIRECT_URL: ${{ secrets.CLIENT_REDIRECT_URL }}
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
           GOOGLE_CALENDAR_ID: ${{ secrets.GOOGLE_CALENDAR_ID }}
+          EMAIL_PROVIDER: ${{ secrets.EMAIL_PROVIDER }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_FROM_NAME: ${{ secrets.EMAIL_FROM_NAME }}
           GCS_BUCKET_NAME: ${{ secrets.GCS_BUCKET_NAME }}
           GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
           DISCORD_CLIENT_ID: ${{ secrets.DISCORD_CLIENT_ID }}

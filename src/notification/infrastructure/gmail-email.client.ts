@@ -25,6 +25,15 @@ export class GmailEmailClient {
   async sendEmail({ to, subject, html, text, attachments }: SendEmailPayload): Promise<void> {
     const provider = (this.configService.get<string>('EMAIL_PROVIDER') ?? 'console').toLowerCase();
     if (provider !== 'gmail') {
+      // 운영에서 조용히 return 하면 안 된다. 호출자(NotificationService)는 예외가 없는 것을
+      // 발송 성공으로 보고 EmailLog 를 SUCCESS 로 남기며, 사전 알림은 notifiedAt 까지 찍어
+      // 어드민 화면에 '발송 완료' 로 표시된다. 메일은 안 갔는데 아무도 모르는 상태가 된다.
+      if (this.isProduction()) {
+        throw new Error(
+          `EMAIL_PROVIDER=${provider} 상태에서는 운영 메일을 발송할 수 없습니다. EMAIL_PROVIDER=gmail 과 GMAIL_USER/GMAIL_APP_PASSWORD/EMAIL_FROM 을 설정하세요.`,
+        );
+      }
+
       const attachmentSuffix = attachments?.length ? `, attachments=${attachments.length}` : '';
       this.logger.log(
         `[메일 미리보기] to=${this.maskEmail({ email: to })}, subject=${subject}${attachmentSuffix}`,
@@ -37,11 +46,11 @@ export class GmailEmailClient {
     const fromAddress = this.configService.get<string>('EMAIL_FROM');
     const fromName = this.configService.get<string>('EMAIL_FROM_NAME') ?? 'DDD';
 
+    // 부팅 시 env 검증이 이미 막지만, 런타임에 값이 비면 여기서도 성공으로 넘기지 않는다.
     if (!user || !pass || !fromAddress) {
-      this.logger.error(
+      throw new Error(
         'EMAIL_PROVIDER=gmail 이지만 GMAIL_USER, GMAIL_APP_PASSWORD 또는 EMAIL_FROM이 누락되었습니다.',
       );
-      return;
     }
 
     const transporter = nodemailer.createTransport({
@@ -75,6 +84,10 @@ export class GmailEmailClient {
       attachments: finalAttachments,
       textEncoding: 'quoted-printable',
     });
+  }
+
+  private isProduction(): boolean {
+    return this.configService.get<string>('NODE_ENV') === 'production';
   }
 
   private maskEmail({ email }: { email: string }): string {
