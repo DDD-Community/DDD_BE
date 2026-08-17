@@ -1,10 +1,11 @@
-import { Logger, ValidationPipe, VersioningType } from '@nestjs/common';
+import { BadRequestException, Logger, ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import cookieParser from 'cookie-parser';
 import { initializeTransactionalContext } from 'typeorm-transactional';
 
 import { AppModule } from './app.module';
+import { toKoreanValidationMessages } from './common/error/validation-message';
 import { ALLOWED_ORIGINS } from './config/cors.config';
 import { setupSwagger } from './config/swagger.config';
 
@@ -19,7 +20,14 @@ const bootstrap = async () => {
     credentials: true,
   });
 
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      // 기본 문구는 'applicantName should not be empty' 같은 영문이라 지원자에게 그대로 나간다.
+      exceptionFactory: (errors) => new BadRequestException(toKoreanValidationMessages(errors)),
+    }),
+  );
   app.setGlobalPrefix('api');
   app.enableVersioning({ type: VersioningType.URI });
 
