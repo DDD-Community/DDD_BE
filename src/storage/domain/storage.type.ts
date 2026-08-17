@@ -38,6 +38,14 @@ export const ALLOWED_PATH_PREFIXES: readonly string[] = Object.values(UPLOAD_CAT
   (config) => config.gcsPath,
 );
 
+// 카테고리를 특정하지 않는 호출부가 쓰는 전체 상한이다. 카테고리별 정확한 상한이 아니므로
+// 이 값으로 크기 검사를 대신하면 5MB 카테고리가 20MB 를 통과한다. 검사는 StorageService 담당.
+// 카테고리별로 정확히 걸려면 요청마다 multer 인스턴스를 만들어야 하는데, 업로드 경로가 모두
+// 인증 가드 뒤에 있고 가드가 multer 보다 먼저 돌아 노출면이 좁아 그만한 값어치가 없다고 봤다.
+export const LARGEST_UPLOAD_SIZE_BYTES = Math.max(
+  ...Object.values(UPLOAD_CATEGORY_CONFIG).map((config) => config.maxSizeBytes),
+);
+
 const SAFE_PATH_PATTERN = /^[a-zA-Z0-9._\-/]+$/;
 
 const SAFE_SUB_PATH_PATTERN = /^[a-zA-Z0-9._-]+$/;

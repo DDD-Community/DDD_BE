@@ -1,18 +1,22 @@
 import { BadRequestException, Logger, ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
 import { initializeTransactionalContext } from 'typeorm-transactional';
 
 import { AppModule } from './app.module';
 import { toKoreanValidationMessages } from './common/error/validation-message';
+import { JSON_BODY_LIMIT } from './config/body-parser.config';
 import { ALLOWED_ORIGINS } from './config/cors.config';
 import { setupSwagger } from './config/swagger.config';
 
 const bootstrap = async () => {
   initializeTransactionalContext();
 
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // listen() 전에 불러야 Nest 가 등록하는 기본 파서를 선점한다. cookieParser 와의 순서는 무관하다.
+  app.useBodyParser('json', { limit: JSON_BODY_LIMIT });
   app.use(cookieParser());
 
   app.enableCors({

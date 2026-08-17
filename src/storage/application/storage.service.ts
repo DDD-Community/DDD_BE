@@ -234,9 +234,12 @@ export class StorageService {
     }
   }
 
+  // 같은 '용량 초과' 인데 인터셉터가 먼저 걸리면 413, 여기까지 오면 400 이라 프론트가 두 갈래로
+  // 분기해야 했다. 상태 코드를 413 으로 맞춰 한 조건으로 처리하게 한다. code 는 어느 쪽에서
+  // 걸렸는지 구분되도록 그대로 둔다.
   private validateFileSize({ size, maxSize }: { size: number; maxSize: number }) {
     if (size > maxSize) {
-      throw new AppException('FILE_SIZE_EXCEEDED', HttpStatus.BAD_REQUEST);
+      throw new AppException('FILE_SIZE_EXCEEDED', HttpStatus.PAYLOAD_TOO_LARGE);
     }
   }
 }

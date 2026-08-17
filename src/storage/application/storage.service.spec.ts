@@ -65,12 +65,13 @@ describe('StorageService', () => {
       ).rejects.toThrow(new AppException('FILE_TYPE_NOT_ALLOWED', HttpStatus.BAD_REQUEST));
     });
 
-    it('최대 크기 초과면 FILE_SIZE_EXCEEDED(400) 예외를 던진다', async () => {
+    it('최대 크기 초과면 FILE_SIZE_EXCEEDED(413) 예외를 던진다', async () => {
+      // 인터셉터의 limits 에 먼저 걸리면 413 이므로, 여기까지 온 경우도 같은 상태 코드로 맞춘다.
       const file = buildFile({ size: 100 * 1024 * 1024 });
 
       await expect(
         service.upload({ file, category: UploadCategory.PROJECT_THUMBNAIL }),
-      ).rejects.toThrow(new AppException('FILE_SIZE_EXCEEDED', HttpStatus.BAD_REQUEST));
+      ).rejects.toThrow(new AppException('FILE_SIZE_EXCEEDED', HttpStatus.PAYLOAD_TOO_LARGE));
     });
 
     it('PROJECT_PDF 카테고리는 application/pdf만 허용한다', async () => {
