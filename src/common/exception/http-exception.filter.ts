@@ -58,15 +58,20 @@ export class HttpExceptionFilter implements ExceptionFilter {
       return exceptionResponse;
     }
 
-    const response = exceptionResponse as Record<string, unknown>;
+    const responseBody = exceptionResponse as Record<string, unknown>;
 
-    // NestJS 는 설명을 직접 넘긴 예외에만 error 필드를 채운다. error 가 없다는 것은 message 가
-    // 'Unauthorized' 같은 프레임워크 기본 문구라는 뜻이므로 사용자에게 그대로 노출하지 않는다.
-    if (!('error' in response)) {
+    // NestJS 가 설명 없이 만든 예외의 응답 본문은 message 와 statusCode 딱 두 키다. 이때 message 는
+    // 'Unauthorized' 같은 프레임워크 영문 문구이므로 사용자에게 그대로 노출하지 않는다.
+    // 설명을 직접 넘기면 error 가, 커스텀 객체를 넘기면 그 밖의 키가 함께 오므로 원문을 보존한다.
+    const isFrameworkDefault = Object.keys(responseBody).every(
+      (key) => key === 'message' || key === 'statusCode',
+    );
+
+    if (isFrameworkDefault) {
       return ErrorMessage[code];
     }
 
-    const raw = response.message;
+    const raw = responseBody.message;
 
     if (Array.isArray(raw)) {
       return raw.join(', ');

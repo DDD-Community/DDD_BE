@@ -11,7 +11,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiExtraModels, ApiTags } from '@nestjs/swagger';
-import type { Response } from 'express';
+import type { CookieOptions, Response } from 'express';
 
 import type { JwtUser } from '../../auth/application/auth.type';
 import { AuthUser } from '../../common/decorator/auth-user.decorator';
@@ -31,6 +31,7 @@ import { GoogleAuthSwagger } from './google-auth.swagger';
 
 const ACCESS_TOKEN_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const REFRESH_TOKEN_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const REFRESH_TOKEN_COOKIE_PATH = '/api/v1/auth/refresh';
 
 @ApiTags('Auth')
 @ApiExtraModels(GoogleAuthCallbackResponseDto, GoogleRefreshResponseDto)
@@ -38,6 +39,7 @@ const REFRESH_TOKEN_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 export class GoogleAuthController {
   private readonly isProduction: boolean;
   private readonly clientRedirectUrl: string;
+  private readonly cookieBaseOptions: CookieOptions;
 
   constructor(
     private readonly googleAuthService: GoogleAuthService,
@@ -45,6 +47,21 @@ export class GoogleAuthController {
   ) {
     this.isProduction = configService.get<string>('NODE_ENV') === 'production';
     this.clientRedirectUrl = configService.getOrThrow<string>('CLIENT_REDIRECT_URL');
+
+    // 지원자 프론트(ddd-fe-web.vercel.app)와 API(admin.dddstudy.kr)는 등록 도메인이 서로 달라
+    // cross-site 다. Lax 로는 fetch/XHR 에 쿠키가 실리지 않아 임시저장·제출은 물론 401 이후의
+    // /auth/refresh 재발급까지 전부 막힌다. None 은 Secure 가 전제라 운영에서만 쓰고,
+    // 로컬은 localhost 끼리 same-site 라 Lax 를 유지한다(Secure 없이 None 을 쓰면 브라우저가 거부).
+    //
+    // 발급과 삭제가 반드시 같은 값을 쓰도록 한곳에 둔다. clearCookie 는 옵션을 넘기지 않으면
+    // sameSite 도 secure 도 붙이지 않는데, 속성 없는 삭제용 Set-Cookie 는 cross-site 응답에서
+    // 브라우저가 거부한다. 그러면 서버는 204 를 주는데 브라우저에는 쿠키가 남아 로그아웃이
+    // 무효가 된다(JWT 는 stateless 라 최대 24시간 유효).
+    this.cookieBaseOptions = {
+      httpOnly: true,
+      secure: this.isProduction,
+      sameSite: this.isProduction ? 'none' : 'lax',
+    };
   }
 
   @ApiDoc({
@@ -126,8 +143,7 @@ export class GoogleAuthController {
   async logout(@AuthUser() jwtUser: JwtUser, @Res({ passthrough: true }) response: Response) {
     await this.googleAuthService.logout({ userId: jwtUser.id });
 
-    response.clearCookie('access_token');
-    response.clearCookie('refresh_token', { path: '/api/v1/auth/refresh' });
+    this.clearAuthCookies({ response });
   }
 
   @ApiDoc({
@@ -147,8 +163,16 @@ export class GoogleAuthController {
   async withdrawal(@AuthUser() jwtUser: JwtUser, @Res({ passthrough: true }) response: Response) {
     await this.googleAuthService.withdrawal({ userId: jwtUser.id });
 
-    response.clearCookie('access_token');
-    response.clearCookie('refresh_token', { path: '/api/v1/auth/refresh' });
+    this.clearAuthCookies({ response });
+  }
+
+  // 삭제용 Set-Cookie 도 발급 때와 같은 속성으로 나가야 브라우저가 받아준다.
+  private clearAuthCookies({ response }: { response: Response }): void {
+    response.clearCookie('access_token', this.cookieBaseOptions);
+    response.clearCookie('refresh_token', {
+      ...this.cookieBaseOptions,
+      path: REFRESH_TOKEN_COOKIE_PATH,
+    });
   }
 
   private setAuthCookies({
@@ -160,23 +184,13 @@ export class GoogleAuthController {
     accessToken: string;
     refreshToken: string;
   }): void {
-    // 지원자 프론트(ddd-fe-web.vercel.app)와 API(admin.dddstudy.kr)는 등록 도메인이 서로 달라
-    // cross-site 다. Lax 로는 fetch/XHR 에 쿠키가 실리지 않아 임시저장·제출은 물론 401 이후의
-    // /auth/refresh 재발급까지 전부 막힌다. None 은 Secure 가 전제라 운영에서만 쓰고,
-    // 로컬은 localhost 끼리 same-site 라 Lax 를 유지한다(Secure 없이 None 을 쓰면 브라우저가 거부).
-    const baseOptions = {
-      httpOnly: true,
-      secure: this.isProduction,
-      sameSite: this.isProduction ? ('none' as const) : ('lax' as const),
-    };
-
     response.cookie('access_token', accessToken, {
-      ...baseOptions,
+      ...this.cookieBaseOptions,
       maxAge: ACCESS_TOKEN_MAX_AGE_MS,
     });
     response.cookie('refresh_token', refreshToken, {
-      ...baseOptions,
-      path: '/api/v1/auth/refresh',
+      ...this.cookieBaseOptions,
+      path: REFRESH_TOKEN_COOKIE_PATH,
       maxAge: REFRESH_TOKEN_MAX_AGE_MS,
     });
   }

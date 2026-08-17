@@ -5,6 +5,7 @@ import cookieParser from 'cookie-parser';
 import { initializeTransactionalContext } from 'typeorm-transactional';
 
 import { AppModule } from './app.module';
+import { ALLOWED_ORIGINS } from './config/cors.config';
 import { setupSwagger } from './config/swagger.config';
 
 const bootstrap = async () => {
@@ -14,12 +15,7 @@ const bootstrap = async () => {
   app.use(cookieParser());
 
   app.enableCors({
-    origin: [
-      'http://localhost:3000',
-      'http://localhost:5173',
-      'https://admin.dddstudy.kr',
-      /^https:\/\/ddd-fe-web(-[\w-]+)?\.vercel\.app$/,
-    ],
+    origin: [...ALLOWED_ORIGINS],
     credentials: true,
   });
 

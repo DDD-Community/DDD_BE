@@ -1,6 +1,7 @@
 import {
   ArgumentsHost,
   BadRequestException,
+  HttpException,
   HttpStatus,
   UnauthorizedException,
   ValidationPipe,
@@ -65,6 +66,18 @@ describe('HttpExceptionFilter', () => {
       code: 'BAD_REQUEST',
       message: 'cohortPartId 는 숫자여야 합니다.',
     });
+  });
+
+  it('error 없이 객체로 만든 커스텀 예외는 그 message 를 보존한다', () => {
+    // 판별 기준이 'error 필드 부재' 였다면 이 메시지가 공통 문구로 덮여 회귀가 났다.
+    const { host, payload } = captureResponse();
+
+    filter.catch(
+      new HttpException({ code: 'CUSTOM_CASE', message: '커스텀 문구' }, HttpStatus.BAD_REQUEST),
+      host,
+    );
+
+    expect((payload.body as { message: string }).message).toBe('커스텀 문구');
   });
 
   it('ValidationPipe 가 만든 검증 메시지 배열은 삼키지 않고 합쳐서 내려준다', async () => {
