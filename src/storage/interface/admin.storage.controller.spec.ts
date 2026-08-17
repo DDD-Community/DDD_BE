@@ -1,10 +1,15 @@
-import { StreamableFile } from '@nestjs/common';
+import { HttpStatus, INestApplication, StreamableFile } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { Test } from '@nestjs/testing';
 import type { Response } from 'express';
 import { Readable } from 'stream';
+import request from 'supertest';
 
+import { ErrorMessage } from '../../common/error/error-message';
+import { HttpExceptionFilter } from '../../common/exception/http-exception.filter';
+import { RolesGuard } from '../../common/guard/roles.guard';
 import { StorageService } from '../application/storage.service';
-import { SignedUrlAction, UploadCategory } from '../domain/storage.type';
+import { LARGEST_UPLOAD_SIZE_BYTES, SignedUrlAction, UploadCategory } from '../domain/storage.type';
 import { AdminStorageController } from './admin.storage.controller';
 
 const mockStorageService = {
@@ -209,5 +214,74 @@ describe('AdminStorageController', () => {
         `attachment; filename*=UTF-8''${encodeURIComponent('한글.png')}`,
       );
     });
+  });
+});
+
+// limits 는 인터셉터 데코레이터라 컨트롤러 메서드를 직접 부르는 위 테스트로는 걸리지 않는다.
+describe('AdminStorageController 업로드 상한 (HTTP)', () => {
+  let app: INestApplication;
+
+  beforeAll(async () => {
+    const moduleRef = await Test.createTestingModule({
+      controllers: [AdminStorageController],
+      providers: [{ provide: StorageService, useValue: mockStorageService }],
+    })
+      .overrideGuard(AuthGuard('jwt'))
+      .useValue({ canActivate: () => true })
+      .overrideGuard(RolesGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
+
+    app = moduleRef.createNestApplication();
+    app.useGlobalFilters(new HttpExceptionFilter());
+    await app.init();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockStorageService.upload.mockResolvedValue({
+      url: 'https://storage.googleapis.com/bucket/projects/pdfs/a.pdf',
+      originalName: 'a.pdf',
+      mimeType: 'application/pdf',
+      size: 1024,
+    });
+  });
+
+  it('상한을 넘는 파일은 StorageService 에 닿기 전에 413 으로 거절한다', async () => {
+    // 상한이 없던 시절에는 이 파일이 전부 메모리에 버퍼링된 뒤에야 서비스에서 거부됐다.
+    // Given
+    const oversized = Buffer.alloc(LARGEST_UPLOAD_SIZE_BYTES + 1024);
+
+    // When
+    const response = await request(app.getHttpServer())
+      .post(`/admin/files/upload?category=${UploadCategory.PROJECT_PDF}`)
+      .attach('file', oversized, 'oversized.pdf');
+
+    // Then
+    expect(response.status).toBe(HttpStatus.PAYLOAD_TOO_LARGE);
+    expect(response.body).toEqual({
+      code: 'PAYLOAD_TOO_LARGE',
+      message: ErrorMessage.PAYLOAD_TOO_LARGE,
+      data: null,
+    });
+    expect(mockStorageService.upload).not.toHaveBeenCalled();
+  });
+
+  it('상한 안쪽 파일은 그대로 업로드된다', async () => {
+    // Given
+    const withinLimit = Buffer.alloc(1024 * 1024);
+
+    // When
+    const response = await request(app.getHttpServer())
+      .post(`/admin/files/upload?category=${UploadCategory.PROJECT_PDF}`)
+      .attach('file', withinLimit, 'small.pdf');
+
+    // Then
+    expect(response.status).toBe(HttpStatus.CREATED);
+    expect(mockStorageService.upload).toHaveBeenCalledTimes(1);
   });
 });

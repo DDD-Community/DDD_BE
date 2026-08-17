@@ -6,17 +6,15 @@ import cookieParser from 'cookie-parser';
 import { initializeTransactionalContext } from 'typeorm-transactional';
 
 import { AppModule } from './app.module';
+import { JSON_BODY_LIMIT } from './config/body-parser.config';
 import { ALLOWED_ORIGINS } from './config/cors.config';
 import { setupSwagger } from './config/swagger.config';
-
-// express.json() 기본값은 100kb 라 우리가 정한 값이 아니었다. 지원서 answers 는 자유 형식이고
-// 길이 상한도 없어서 장문 문항이 여러 개면 도달할 수 있다. 넘으면 413 과 한국어 안내가 나간다.
-const JSON_BODY_LIMIT = '1mb';
 
 const bootstrap = async () => {
   initializeTransactionalContext();
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // listen() 전에 불러야 Nest 가 등록하는 기본 파서를 선점한다. cookieParser 와의 순서는 무관하다.
   app.useBodyParser('json', { limit: JSON_BODY_LIMIT });
   app.use(cookieParser());
 

@@ -24,7 +24,7 @@ import { ApiResponse } from '../../common/response/api-response';
 import { ApiDoc } from '../../common/swagger/api-doc.decorator';
 import { UserRole } from '../../user/domain/user.role';
 import { StorageService } from '../application/storage.service';
-import { MAX_UPLOAD_SIZE_BYTES } from '../domain/storage.type';
+import { LARGEST_UPLOAD_SIZE_BYTES } from '../domain/storage.type';
 import {
   FilePathQueryDto,
   FileUploadQueryDto,
@@ -53,7 +53,7 @@ export class AdminStorageController {
   @ApiConsumes('multipart/form-data')
   @Post('upload')
   // 상한이 없으면 어떤 크기든 메모리에 전부 버퍼링한 뒤에야 StorageService 가 거부한다.
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_UPLOAD_SIZE_BYTES } }))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: LARGEST_UPLOAD_SIZE_BYTES } }))
   async uploadFile(@UploadedFile() file: Express.Multer.File, @Query() query: FileUploadQueryDto) {
     const filePayload = file
       ? {
