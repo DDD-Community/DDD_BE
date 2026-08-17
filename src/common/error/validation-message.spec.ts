@@ -1,5 +1,24 @@
-import { BadRequestException, ValidationPipe } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  HttpStatus,
+  INestApplication,
+  Post,
+  ValidationPipe,
+} from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import { Type } from 'class-transformer';
 import type { ValidationError } from 'class-validator';
+import {
+  ArrayMinSize,
+  ArrayUnique,
+  IsISO8601,
+  IsNotEmpty,
+  Length,
+  ValidateNested,
+} from 'class-validator';
+import request from 'supertest';
 
 import {
   ApplicationAdminFilterDto,
@@ -9,6 +28,8 @@ import {
 import { UpdateCohortPartsRequestDto } from '../../cohort/interface/dto/admin-cohort.request.dto';
 import { UpdateProjectMembersRequestDto } from '../../project/interface/dto/project.request.dto';
 import { AssignUserRolesRequestDto } from '../../user/interface/dto/bootstrap-user.request.dto';
+import { HttpExceptionFilter } from '../exception/http-exception.filter';
+import { ApiResponse } from '../response/api-response';
 import { toKoreanValidationMessages } from './validation-message';
 
 const runValidation = async ({
@@ -45,6 +66,31 @@ const descriptionOf = (message: string): string => {
 
   return separator === -1 ? message : message.slice(separator + 2);
 };
+
+class NestedProbeDto {
+  @IsNotEmpty()
+  name!: string;
+}
+
+// class-validator 의 제약 이름은 데코레이터 이름과 다를 수 있다(@IsISO8601 → isIso8601 등).
+// 매핑 키를 눈으로 유추하면 틀리므로 실제 데코레이터가 만드는 키로 검증한다.
+class ConstraintProbeDto {
+  @IsISO8601()
+  iso!: string;
+
+  @ArrayUnique()
+  unique!: string[];
+
+  @ArrayMinSize(1)
+  minSize!: string[];
+
+  @Length(2, 5)
+  length!: string;
+
+  @ValidateNested()
+  @Type(() => NestedProbeDto)
+  nested!: NestedProbeDto;
+}
 
 describe('toKoreanValidationMessages', () => {
   // 한글 enum(ApplicationStatus.서류합격, UserRole.운영자)을 쓰는 DTO 를 반드시 포함한다.
@@ -144,6 +190,33 @@ describe('toKoreanValidationMessages', () => {
     expect(messages).toEqual(['someField: 입력값이 올바르지 않습니다.']);
   });
 
+  it('제약 이름이 데코레이터 이름과 어긋나는 것들도 정확한 문구로 이어진다', async () => {
+    // 매핑 키를 잘못 적으면 폴백 문구로 조용히 떨어진다. '영문이 없다' 단언만으로는 그 회귀를
+    // 잡을 수 없으므로(폴백도 한국어다) 실제 데코레이터를 붙여 문구까지 대조한다.
+    // Given
+    const invalid = {
+      iso: 'not-a-date',
+      unique: ['a', 'a'],
+      minSize: [],
+      length: 'x',
+      nested: 'not-an-object',
+    };
+
+    // When
+    const messages = await runValidation({ metatype: ConstraintProbeDto, value: invalid });
+
+    // Then
+    expect(messages).toEqual(
+      expect.arrayContaining([
+        'iso: 날짜 형식이 올바르지 않습니다.',
+        'unique: 중복된 항목이 있습니다.',
+        'minSize: 항목을 하나 이상 선택해주세요.',
+        'length: 입력 길이가 올바르지 않습니다.',
+        'nested: 하위 항목이 올바르지 않습니다.',
+      ]),
+    );
+  });
+
   it('property 가 없는 에러는 콜론만 남기지 않는다', () => {
     // forbidUnknownValues 로 걸리면 property 가 undefined 로 온다.
     // Given
@@ -156,5 +229,71 @@ describe('toKoreanValidationMessages', () => {
 
     // Then
     expect(messages).toEqual(['입력값이 올바르지 않습니다.']);
+  });
+});
+
+@Controller('applications')
+class ApplicationProbeController {
+  @Post()
+  submit(@Body() _command: SubmitApplicationRequestDto) {
+    return ApiResponse.ok(null, '지원서 제출이 완료되었습니다.');
+  }
+}
+
+// 위 테스트들은 ValidationPipe 만 본다. 파이프가 만든 예외가 전역 필터를 지나 실제 응답이 될 때
+// 공통 envelope 이 유지되는지는 별개 문제라 HTTP 레벨로 확인한다.
+describe('검증 실패 응답 (HTTP)', () => {
+  let app: INestApplication;
+
+  beforeAll(async () => {
+    const moduleRef = await Test.createTestingModule({
+      controllers: [ApplicationProbeController],
+    }).compile();
+
+    // main.ts 와 같은 구성이다. 부트스트랩 코드는 직접 테스트할 수 없으므로 재현한다.
+    app = moduleRef.createNestApplication();
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        transform: true,
+        exceptionFactory: (errors) => new BadRequestException(toKoreanValidationMessages(errors)),
+      }),
+    );
+    app.useGlobalFilters(new HttpExceptionFilter());
+    await app.init();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('공통 envelope 을 유지하면서 message 만 한국어로 내려준다', async () => {
+    // When
+    const response = await request(app.getHttpServer()).post('/applications').send({});
+
+    // Then
+    expect(response.status).toBe(HttpStatus.BAD_REQUEST);
+    expect(response.body.code).toBe('BAD_REQUEST');
+    expect(response.body.data).toBeNull();
+    expect(response.body.message).toContain('필수 항목입니다.');
+    expect(response.body.message).not.toMatch(/must be|should not|Validation failed/);
+  });
+
+  it('검증을 통과한 요청은 그대로 처리된다', async () => {
+    // Given
+    const validForm = {
+      cohortPartId: 1,
+      applicantName: '홍길동',
+      applicantPhone: '010-1234-5678',
+      answers: { motivation: '지원 동기' },
+      privacyAgreed: true,
+    };
+
+    // When
+    const response = await request(app.getHttpServer()).post('/applications').send(validForm);
+
+    // Then
+    expect(response.status).toBe(HttpStatus.CREATED);
+    expect(response.body.code).toBe('SUCCESS');
   });
 });
