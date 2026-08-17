@@ -3,6 +3,7 @@ import {
   BadRequestException,
   HttpException,
   HttpStatus,
+  PayloadTooLargeException,
   UnauthorizedException,
   ValidationPipe,
 } from '@nestjs/common';
@@ -93,6 +94,20 @@ describe('HttpExceptionFilter', () => {
 
     expect(payload.status).toBe(HttpStatus.BAD_REQUEST);
     expect((payload.body as { message: string }).message).toContain('이름은 필수입니다.');
+  });
+
+  it('multer 의 파일 크기 초과(413)는 영문 대신 한국어로, code 도 413 에 맞게 내려준다', () => {
+    // multer 가 실제로 던지는 형태. 설명이 붙어 있어 '프레임워크 기본 문구' 판별을 통과하지 못한다.
+    const { host, payload } = captureResponse();
+
+    filter.catch(new PayloadTooLargeException('File too large'), host);
+
+    expect(payload.status).toBe(HttpStatus.PAYLOAD_TOO_LARGE);
+    expect(payload.body).toEqual({
+      code: 'PAYLOAD_TOO_LARGE',
+      message: ErrorMessage.PAYLOAD_TOO_LARGE,
+      data: null,
+    });
   });
 
   it('AppException 은 기존대로 도메인 코드와 메시지를 그대로 내려준다', () => {

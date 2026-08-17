@@ -71,6 +71,13 @@ export class HttpExceptionFilter implements ExceptionFilter {
       return ErrorMessage[code];
     }
 
+    // multer 의 파일 크기 초과는 PayloadTooLargeException('File too large') 로 올라온다. 설명이
+    // 붙어 있어 위 판별을 통과하지만 영문이므로 사용자에게 그대로 보이면 안 된다. 413 은 우리
+    // 코드가 직접 던지지 않으니(전부 AppException) 항상 프레임워크발로 보고 한국어로 덮는다.
+    if (code === 'PAYLOAD_TOO_LARGE') {
+      return ErrorMessage[code];
+    }
+
     const raw = responseBody.message;
 
     if (Array.isArray(raw)) {
