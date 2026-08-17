@@ -45,21 +45,12 @@ export class CohortRepository {
 
   /**
    * 홈페이지 노출 후보 기수를 모두 가져온다.
-   * CLOSED 를 제외하면 모든 기수가 종료된 시점에 결과가 비어 CTA 가 사전 알림으로 잘못 떨어지므로
-   * 전 상태를 대상으로 두고 우선순위 판정은 애플리케이션에 맡긴다.
+   * 상태로 후보를 좁히면(예전 구현은 CLOSED 를 제외했다) 그 상태만 남은 시점에 결과가 비어
+   * 공개 API 가 기수 없음으로 응답하고 CTA 가 사전 알림으로 잘못 떨어진다.
+   * 어떤 기수를 노출할지는 상태 우선순위를 아는 애플리케이션이 정한다.
    */
-  async findActive() {
-    return this.writeRepository.findMany({
-      where: {
-        statusIn: [
-          CohortStatus.RECRUITING,
-          CohortStatus.UPCOMING,
-          CohortStatus.ACTIVE,
-          CohortStatus.CLOSED,
-        ],
-      },
-      includeParts: true,
-    });
+  async findPublicDisplayCandidates() {
+    return this.writeRepository.findMany({ where: {}, includeParts: true });
   }
 
   async findExpiredRecruiting() {

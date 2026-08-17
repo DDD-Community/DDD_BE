@@ -19,7 +19,8 @@ export class PublicCohortController {
 
   @ApiDoc({
     summary: '현재 활성 기수 조회',
-    description: '현재 모집 중이거나 활동 중인 기수 정보와 홈페이지 CTA 버튼 상태를 반환합니다.',
+    description:
+      '홈페이지에 노출할 기수 정보와 CTA 버튼 상태를 반환합니다. 모집 중인 기수가 없으면 가장 최근 기수를 마감 상태로 반환하며, 기수가 하나도 없을 때만 빈 응답을 반환합니다.',
     operationId: 'cohort_getPublicActive',
     responses: [PublicCohortSwagger.getActive.success],
   })
