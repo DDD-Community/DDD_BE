@@ -32,8 +32,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
       const exceptionResponse = exception.getResponse();
-      const message = this.resolveMessage(exceptionResponse, exception);
       const code = this.resolveCode(HttpStatus[status], status);
+      const message = this.resolveMessage(exceptionResponse, exception, code);
 
       response.status(status).json(ApiResponse.fail(code, message));
       return;
@@ -49,12 +49,29 @@ export class HttpExceptionFilter implements ExceptionFilter {
       .json(ApiResponse.fail('INTERNAL_SERVER_ERROR', ErrorMessage.INTERNAL_SERVER_ERROR));
   }
 
-  private resolveMessage(exceptionResponse: string | object, exception: HttpException): string {
+  private resolveMessage(
+    exceptionResponse: string | object,
+    exception: HttpException,
+    code: ErrorMessageKey,
+  ): string {
     if (typeof exceptionResponse === 'string') {
       return exceptionResponse;
     }
 
-    const raw = (exceptionResponse as Record<string, unknown>).message;
+    const responseBody = exceptionResponse as Record<string, unknown>;
+
+    // NestJS 가 설명 없이 만든 예외의 응답 본문은 message 와 statusCode 딱 두 키다. 이때 message 는
+    // 'Unauthorized' 같은 프레임워크 영문 문구이므로 사용자에게 그대로 노출하지 않는다.
+    // 설명을 직접 넘기면 error 가, 커스텀 객체를 넘기면 그 밖의 키가 함께 오므로 원문을 보존한다.
+    const isFrameworkDefault = Object.keys(responseBody).every(
+      (key) => key === 'message' || key === 'statusCode',
+    );
+
+    if (isFrameworkDefault) {
+      return ErrorMessage[code];
+    }
+
+    const raw = responseBody.message;
 
     if (Array.isArray(raw)) {
       return raw.join(', ');

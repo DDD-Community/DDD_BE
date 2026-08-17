@@ -1,6 +1,6 @@
 import { Module, OnModuleInit } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { APP_FILTER } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { InjectDataSource, TypeOrmModule } from '@nestjs/typeorm';
@@ -12,6 +12,7 @@ import { AuditModule } from './audit/audit.module';
 import { BlogModule } from './blog/blog.module';
 import { CohortModule } from './cohort/cohort.module';
 import { HttpExceptionFilter } from './common/exception/http-exception.filter';
+import { OriginGuard } from './common/guard/origin.guard';
 import { EncryptionTransformer } from './common/util/encryption.transformer';
 import { validate } from './config/env.validation';
 import { createTypeOrmModuleOptions } from './config/typeorm.config';
@@ -49,7 +50,10 @@ const ENV_FILE_PATHS = ['.env.production', '.env.staging', '.env.test', '.env.de
     InterviewModule,
     DiscordModule,
   ],
-  providers: [{ provide: APP_FILTER, useClass: HttpExceptionFilter }],
+  providers: [
+    { provide: APP_FILTER, useClass: HttpExceptionFilter },
+    { provide: APP_GUARD, useClass: OriginGuard },
+  ],
 })
 export class AppModule implements OnModuleInit {
   constructor(
