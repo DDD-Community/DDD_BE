@@ -39,6 +39,19 @@ export class HttpExceptionFilter implements ExceptionFilter {
       return;
     }
 
+    // body-parser 같은 Express 미들웨어는 NestJS HttpException 이 아니라 http-errors 객체를
+    // 던진다. 대표적으로 본문이 express.json() 한도를 넘으면 status 413 짜리 객체가 올라오는데,
+    // 여기서 걸러내지 않으면 아래 일반 처리로 떨어져 500 이 나간다. 긴 지원서를 임시저장·제출하는
+    // 경로가 정확히 이것이라, 지원자는 원인도 모른 채 작성분을 잃는다.
+    // 5xx 는 넘기지 않는다. 서버 잘못은 아래에서 스택과 함께 로그로 남아야 한다.
+    const middlewareStatus = this.resolveMiddlewareErrorStatus(exception);
+
+    if (middlewareStatus) {
+      const code = this.resolveCode(HttpStatus[middlewareStatus], middlewareStatus);
+      response.status(middlewareStatus).json(ApiResponse.fail(code, ErrorMessage[code]));
+      return;
+    }
+
     this.logger.error(
       `Unhandled exception on ${request.method} ${request.url}`,
       exception instanceof Error ? exception.stack : String(exception),
@@ -47,6 +60,22 @@ export class HttpExceptionFilter implements ExceptionFilter {
     response
       .status(HttpStatus.INTERNAL_SERVER_ERROR)
       .json(ApiResponse.fail('INTERNAL_SERVER_ERROR', ErrorMessage.INTERNAL_SERVER_ERROR));
+  }
+
+  // http-errors 규약상 클라이언트 잘못은 status 4xx 로 실려온다. 그 범위만 받아 상태 코드를
+  // 살리고, 문구는 프레임워크 영문이 섞이지 않도록 ErrorMessage 에서만 가져온다.
+  private resolveMiddlewareErrorStatus(exception: unknown): number | null {
+    if (typeof exception !== 'object' || exception === null) {
+      return null;
+    }
+
+    const status = (exception as { status?: unknown }).status;
+
+    if (typeof status !== 'number' || status < 400 || status >= 500) {
+      return null;
+    }
+
+    return status;
   }
 
   private resolveMessage(

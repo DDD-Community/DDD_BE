@@ -1,13 +1,19 @@
 import {
   ArgumentsHost,
   BadRequestException,
+  Body,
+  Controller,
   HttpException,
   HttpStatus,
+  INestApplication,
   PayloadTooLargeException,
+  Post,
   UnauthorizedException,
   ValidationPipe,
 } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
 import { IsNotEmpty, IsString } from 'class-validator';
+import request from 'supertest';
 
 import { ErrorMessage } from '../error/error-message';
 import { AppException } from './app.exception';
@@ -121,5 +127,60 @@ describe('HttpExceptionFilter', () => {
       message: ErrorMessage.ALREADY_SUBMITTED,
       data: null,
     });
+  });
+});
+
+@Controller('drafts')
+class DraftProbeController {
+  @Post()
+  save(@Body() body: unknown) {
+    return { size: JSON.stringify(body).length };
+  }
+}
+
+describe('HttpExceptionFilter — Express 미들웨어가 던진 오류', () => {
+  let app: INestApplication;
+
+  beforeAll(async () => {
+    const moduleRef = await Test.createTestingModule({
+      controllers: [DraftProbeController],
+    }).compile();
+
+    app = moduleRef.createNestApplication();
+    app.useGlobalFilters(new HttpExceptionFilter());
+    await app.init();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('본문이 express.json() 한도를 넘으면 500 이 아니라 413 으로 내려준다', async () => {
+    // 긴 지원서를 임시저장·제출하는 경로다. body-parser 는 NestJS HttpException 이 아니라
+    // http-errors 객체를 던지므로, 걸러내지 않으면 지원자가 원인 모를 500 을 받고 작성분을 잃는다.
+    // Given
+    const oversizedDraft = { answers: '가'.repeat(200_000) };
+
+    // When
+    const response = await request(app.getHttpServer()).post('/drafts').send(oversizedDraft);
+
+    // Then
+    expect(response.status).toBe(HttpStatus.PAYLOAD_TOO_LARGE);
+    expect(response.body).toEqual({
+      code: 'PAYLOAD_TOO_LARGE',
+      message: ErrorMessage.PAYLOAD_TOO_LARGE,
+      data: null,
+    });
+  });
+
+  it('한도 안쪽 본문은 정상 처리된다', async () => {
+    // Given
+    const draft = { answers: '가'.repeat(100) };
+
+    // When
+    const response = await request(app.getHttpServer()).post('/drafts').send(draft);
+
+    // Then
+    expect(response.status).toBe(HttpStatus.CREATED);
   });
 });
