@@ -39,7 +39,7 @@ export class SubmitApplicationRequestDto {
   @IsString()
   @IsNotEmpty()
   @Matches(/^01[0-9]-?\d{3,4}-?\d{4}$/, {
-    message: 'applicantPhone must be a valid Korean mobile number',
+    message: '휴대폰 번호 형식이 올바르지 않습니다.',
   })
   applicantPhone: string;
 
