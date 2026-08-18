@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 
+import { maskEmail } from '../../common/util/mask-email';
 import { EmailLog } from '../domain/email-log.entity';
 import { NotificationRepository } from '../domain/notification.repository';
 import { GmailEmailClient } from '../infrastructure/gmail-email.client';
@@ -45,7 +46,10 @@ export class NotificationService {
       const log = EmailLog.createFailure({ recipientEmail: to, subject, errorMessage });
       await this.notificationRepository.saveLog({ log });
 
-      this.logger.error(`이메일 발송 실패: to=${to}, subject=${subject}`, errorMessage);
+      this.logger.error(
+        `이메일 발송 실패: to=${maskEmail({ email: to })}, subject=${subject}`,
+        errorMessage,
+      );
       throw error;
     }
   }

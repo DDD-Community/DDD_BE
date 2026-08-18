@@ -133,6 +133,28 @@ jobs:
             psql "postgresql://ci:ci@localhost:5432/ci" -tAc \
               "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'"
           }
+          count_migrations() {
+            psql "postgresql://ci:ci@localhost:5432/ci" -tAc \
+              "SELECT count(*) FROM migrations"
+          }
+          # revert 는 한 번에 마지막 하나만 되돌린다. 베이스라인 위에 마이그레이션이 쌓여
+          # 있으면 그것이 먼저 걸려, 아래 검사가 베이스라인이 아니라 그 마이그레이션을
+          # 시험하게 된다. 정상 롤백되므로 "가드가 사라졌다"는 오판이 난다.
+          # 그래서 베이스라인만 남을 때까지 먼저 되돌린다. 이 과정에서 베이스라인 위
+          # 마이그레이션들의 down() 이 실제로 동작하는지도 함께 검증된다.
+          APPLIED="$(count_migrations)" || APPLIED=""
+          case "$APPLIED" in
+            ''|*[!0-9]*) echo "::error::적용된 마이그레이션 수를 세지 못했습니다: '$APPLIED'"; exit 1 ;;
+          esac
+          i=1
+          while [ "$i" -lt "$APPLIED" ]; do
+            if ! yarn migration:revert > revert-stack.log 2>&1; then
+              echo "::error::베이스라인 위 마이그레이션의 롤백이 실패했습니다. down() 을 확인하세요."
+              tail -20 revert-stack.log
+              exit 1
+            fi
+            i=$((i+1))
+          done
           BEFORE="$(count_tables)" || BEFORE=""
           # 값이 없으면 아래 비교가 ''=''  로 통과해 검사가 통째로 무의미해진다.
           case "$BEFORE" in

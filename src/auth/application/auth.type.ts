@@ -4,12 +4,14 @@ export type JwtPayload = {
   sub: number;
   email: string;
   roles: UserRole[];
+  purpose?: 'applicant';
 };
 
 export type JwtUser = {
   id: number;
   email: string;
   roles: UserRole[];
+  purpose?: 'applicant';
 };
 
 export type RefreshTokenResult = {

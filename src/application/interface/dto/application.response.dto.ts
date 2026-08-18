@@ -1,10 +1,22 @@
 import { ApiProperty } from '@nestjs/swagger';
 
+import { maskEmail } from '../../../common/util/mask-email';
 import { UserRole } from '../../../user/domain/user.role';
 import { ApplicationStatus } from '../../domain/application.status';
 import type { ApplicationAttachment } from '../../domain/application-attachment';
 import { ApplicationDraft } from '../../domain/application-draft.entity';
 import { ApplicationForm } from '../../domain/application-form.entity';
+
+export class ApplicationVerificationResponseDto {
+  @ApiProperty({ description: '인증된 지원자 이메일', example: 'applicant@example.com' })
+  email: string;
+
+  static from(email: string): ApplicationVerificationResponseDto {
+    const dto = new ApplicationVerificationResponseDto();
+    dto.email = email;
+    return dto;
+  }
+}
 
 const PII_ACCESSIBLE_ROLES: UserRole[] = [UserRole.계정관리, UserRole.운영자, UserRole.면접관];
 
@@ -49,6 +61,9 @@ export class AdminApplicationFormResponseDto {
   @ApiProperty({ description: '지원자 거주 지역', nullable: true })
   applicantRegion: string | null;
 
+  @ApiProperty({ description: '지원자 이메일' })
+  applicantEmail: string | null;
+
   @ApiProperty({ description: '파트 ID' })
   cohortPartId: number;
 
@@ -73,10 +88,25 @@ export class AdminApplicationFormResponseDto {
     const dto = new AdminApplicationFormResponseDto();
     dto.id = form.id;
     dto.status = form.status;
-    dto.applicantName = canAccessPii ? form.applicantName : this.maskName(form.applicantName);
-    dto.applicantPhone = canAccessPii ? this.maskPhone(form.applicantPhone) : this.redactPhone();
+    const isPurged = form.applicantName === null;
+    dto.applicantName = isPurged
+      ? ''
+      : canAccessPii
+        ? form.applicantName
+        : this.maskName(form.applicantName);
+    dto.applicantPhone = isPurged
+      ? ''
+      : canAccessPii
+        ? this.maskPhone(form.applicantPhone)
+        : this.redactPhone();
     dto.applicantBirthDate = canAccessPii ? (form.applicantBirthDate ?? null) : null;
     dto.applicantRegion = canAccessPii ? (form.applicantRegion ?? null) : null;
+    dto.applicantEmail =
+      form.applicantName === null
+        ? null
+        : canAccessPii
+          ? (form.user?.email ?? null)
+          : maskEmail({ email: form.user?.email ?? '' });
     dto.cohortPartId = form.cohortPartId;
     dto.answers = form.answers;
     dto.privacyAgreedAt = form.privacyAgreedAt;

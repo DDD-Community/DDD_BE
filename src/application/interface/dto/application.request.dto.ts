@@ -3,6 +3,7 @@ import { Type } from 'class-transformer';
 import {
   IsBoolean,
   IsDateString,
+  IsEmail,
   IsEnum,
   IsNotEmpty,
   IsNumber,
@@ -14,6 +15,24 @@ import {
 } from 'class-validator';
 
 import { ApplicationStatus } from '../../domain/application.status';
+
+export class RequestApplicationVerificationRequestDto {
+  @ApiProperty({ description: '지원자 이메일', example: 'applicant@example.com' })
+  @IsEmail()
+  @MaxLength(320)
+  email: string;
+}
+
+export class ConfirmApplicationVerificationRequestDto {
+  @ApiProperty({ description: '지원자 이메일', example: 'applicant@example.com' })
+  @IsEmail()
+  @MaxLength(320)
+  email: string;
+
+  @ApiProperty({ description: '6자리 인증번호', example: '123456' })
+  @Matches(/^\d{6}$/)
+  code: string;
+}
 
 export class SaveApplicationDraftRequestDto {
   @ApiProperty({ description: '파트 ID', example: 1 })

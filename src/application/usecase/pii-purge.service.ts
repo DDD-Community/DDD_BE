@@ -1,8 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 
 import { StorageService } from '../../storage/application/storage.service';
 import { UploadCategory } from '../../storage/domain/storage.type';
 import { ApplicationRepository } from '../domain/application.repository';
+import { ApplicationEmailVerificationRepository } from '../domain/application-email-verification.repository';
 
 /** GCS 목록 조회 페이지 크기. */
 const ATTACHMENT_SCAN_PAGE_SIZE = 100;
@@ -19,6 +20,7 @@ const ATTACHMENT_SCAN_MAX_PAGES = 100_000;
 
 export type PiiPurgeResult = {
   purgedCount: number;
+  verificationDeletedCount: number;
   attachment: AttachmentPurgeResult;
 };
 
@@ -45,13 +47,18 @@ export class PiiPurgeService {
   constructor(
     private readonly applicationRepository: ApplicationRepository,
     private readonly storageService: StorageService,
+    @Optional()
+    private readonly verificationRepository?: ApplicationEmailVerificationRepository,
   ) {}
 
   async purgeExpiredPii({ cutoffDate }: { cutoffDate: Date }): Promise<PiiPurgeResult> {
     const purgedCount = await this.applicationRepository.purgeExpiredPii({ cutoffDate });
+    const verificationDeletedCount = this.verificationRepository
+      ? await this.verificationRepository.deleteConsumedOrExpiredBefore({ cutoffDate })
+      : 0;
     const attachment = await this.purgeExpiredAttachments({ cutoffDate });
 
-    return { purgedCount, attachment };
+    return { purgedCount, verificationDeletedCount, attachment };
   }
 
   /**

@@ -5,6 +5,7 @@ import { ApiExtraModels, ApiTags } from '@nestjs/swagger';
 import type { JwtUser } from '../../auth/application/auth.type';
 import { AuthUser } from '../../common/decorator/auth-user.decorator';
 import { AppException } from '../../common/exception/app.exception';
+import { RejectApplicantSessionGuard } from '../../common/guard/reject-applicant-session.guard';
 import { ApiResponse } from '../../common/response/api-response';
 import { ApiDoc } from '../../common/swagger/api-doc.decorator';
 import { UserService } from '../application/user.service';
@@ -25,7 +26,7 @@ export class UserController {
     responses: [UserSwagger.me.success, UserSwagger.me.unauthorized],
   })
   @Get('me')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), RejectApplicantSessionGuard)
   async me(@AuthUser() jwtUser: JwtUser) {
     const user = await this.userService.findById({ id: jwtUser.id });
     if (!user) {

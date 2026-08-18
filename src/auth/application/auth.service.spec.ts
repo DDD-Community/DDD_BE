@@ -44,4 +44,15 @@ describe('AuthService', () => {
       });
     });
   });
+
+  it('지원자 세션 토큰은 권한이 없는 30일 토큰으로 서명한다', () => {
+    const jwtService = { sign: jest.fn().mockReturnValue('token') };
+    const service = new AuthService(jwtService as never);
+
+    expect(service.signApplicantToken({ id: 7, email: 'applicant@example.com' })).toBe('token');
+    expect(jwtService.sign).toHaveBeenCalledWith(
+      { sub: 7, email: 'applicant@example.com', roles: [], purpose: 'applicant' },
+      { expiresIn: '30d' },
+    );
+  });
 });
