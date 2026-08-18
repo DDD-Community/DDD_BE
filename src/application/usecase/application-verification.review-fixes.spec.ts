@@ -1,3 +1,4 @@
+import { ConfigService } from '@nestjs/config';
 import { addTransactionalDataSource, initializeTransactionalContext } from 'typeorm-transactional';
 
 import { AuthService } from '../../auth/application/auth.service';
@@ -21,6 +22,7 @@ describe('ApplicationVerificationService review fixes', () => {
   it('메일 발송 실패에도 인증 요청은 204 계약을 유지한다', async () => {
     const repository = {
       findLatestByEmail: jest.fn().mockResolvedValue(null),
+      acquireEmailLock: jest.fn().mockResolvedValue(undefined),
       consumeAllUnconsumedByEmail: jest.fn().mockResolvedValue(undefined),
       save: jest.fn().mockResolvedValue(undefined),
     };
@@ -30,6 +32,7 @@ describe('ApplicationVerificationService review fixes', () => {
       notificationService as unknown as NotificationService,
       {} as UserService,
       {} as AuthService,
+      { getOrThrow: jest.fn().mockReturnValue('test-jwt-secret') } as unknown as ConfigService,
     );
 
     await expect(service.requestCode({ email: 'applicant@example.com' })).resolves.toBeUndefined();

@@ -1,6 +1,7 @@
-import { createHash, randomInt, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomInt, timingSafeEqual } from 'node:crypto';
 
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Transactional } from 'typeorm-transactional';
 
 import { AuthService } from '../../auth/application/auth.service';
@@ -18,12 +19,20 @@ const MAX_ATTEMPTS = 5;
 @Injectable()
 export class ApplicationVerificationService {
   private readonly logger = new Logger(ApplicationVerificationService.name);
+  private readonly verificationHashKey: Buffer;
+
   constructor(
     private readonly verificationRepository: ApplicationEmailVerificationRepository,
     private readonly notificationService: NotificationService,
     private readonly userService: UserService,
     private readonly authService: AuthService,
-  ) {}
+    configService: ConfigService,
+  ) {
+    // 6자리 코드는 평문 SHA-256만으로 DB가 유출되면 전수 대입이 가능하므로, JWT_SECRET을 직접 재사용하지 않고 용도를 분리해 키를 만든다.
+    this.verificationHashKey = createHash('sha256')
+      .update(`applicant-verification:${configService.getOrThrow<string>('JWT_SECRET')}`)
+      .digest();
+  }
 
   async requestCode({ email }: { email: string }): Promise<void> {
     const normalizedEmail = this.normalizeEmail(email);
@@ -43,6 +52,7 @@ export class ApplicationVerificationService {
 
   @Transactional()
   private async createVerification({ email }: { email: string }): Promise<{ code: string }> {
+    await this.verificationRepository.acquireEmailLock({ email });
     const latest = await this.verificationRepository.findLatestByEmail({ email, lock: true });
     const now = Date.now();
 
@@ -66,7 +76,6 @@ export class ApplicationVerificationService {
   async confirmCode({ email, code }: { email: string; code: string }) {
     const result = await this.confirmCodeInTransaction({ email, code });
     if (result.kind === 'invalid') {
-      await this.verificationRepository.incrementAttemptCount({ id: result.verificationId });
       throw new AppException('VERIFICATION_CODE_INVALID', HttpStatus.BAD_REQUEST);
     }
     return { accessToken: result.accessToken, email: result.email };
@@ -88,7 +97,10 @@ export class ApplicationVerificationService {
     }
 
     if (!this.isCodeValid({ verification, code })) {
-      return { kind: 'invalid' as const, verificationId: verification.id };
+      // 행 잠금 아래에서 시도 횟수를 저장해야 동시 요청도 제한을 넘길 수 없다. throw가 아닌 return이므로 트랜잭션이 커밋된다.
+      verification.incrementAttempt();
+      await this.verificationRepository.save({ verification });
+      return { kind: 'invalid' as const };
     }
 
     verification.consume();
@@ -122,7 +134,7 @@ export class ApplicationVerificationService {
   }
 
   private hashCode({ code }: { code: string }): string {
-    return createHash('sha256').update(code).digest('hex');
+    return createHmac('sha256', this.verificationHashKey).update(code).digest('hex');
   }
 
   private normalizeEmail(email: string): string {

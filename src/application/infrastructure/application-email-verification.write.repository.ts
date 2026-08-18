@@ -13,6 +13,11 @@ export class ApplicationEmailVerificationWriteRepository extends ApplicationEmai
     this.repository = dataSource.getRepository(ApplicationEmailVerification);
   }
 
+  async acquireEmailLock({ email }: { email: string }): Promise<void> {
+    // 트랜잭션 범위 advisory lock은 자동으로 해제되며, row lock이 보호하지 못하는 미생성 행도 보호한다.
+    await this.repository.manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [email]);
+  }
+
   async save({ verification }: { verification: ApplicationEmailVerification }) {
     return this.repository.save(verification);
   }
@@ -44,15 +49,6 @@ export class ApplicationEmailVerificationWriteRepository extends ApplicationEmai
     }
 
     return queryBuilder.getOne();
-  }
-
-  async incrementAttemptCount({ id }: { id: number }): Promise<void> {
-    await this.repository
-      .createQueryBuilder()
-      .update(ApplicationEmailVerification)
-      .set({ attemptCount: () => '"attemptCount" + 1' })
-      .where('id = :id', { id })
-      .execute();
   }
 
   async consumeAllUnconsumedByEmail({ email }: { email: string }): Promise<void> {

@@ -1,6 +1,8 @@
 import { ApplicationEmailVerification } from './application-email-verification.entity';
 
 export abstract class ApplicationEmailVerificationRepository {
+  abstract acquireEmailLock({ email }: { email: string }): Promise<void>;
+
   abstract save({
     verification,
   }: {
@@ -22,8 +24,6 @@ export abstract class ApplicationEmailVerificationRepository {
     email: string;
     lock?: boolean;
   }): Promise<ApplicationEmailVerification | null>;
-
-  abstract incrementAttemptCount({ id }: { id: number }): Promise<void>;
 
   abstract consumeAllUnconsumedByEmail({ email }: { email: string }): Promise<void>;
 

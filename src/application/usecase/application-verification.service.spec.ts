@@ -1,5 +1,6 @@
-import { createHash } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 
+import { ConfigService } from '@nestjs/config';
 import { addTransactionalDataSource, initializeTransactionalContext } from 'typeorm-transactional';
 
 import { AuthService } from '../../auth/application/auth.service';
@@ -13,7 +14,9 @@ import { ApplicationVerificationService } from './application-verification.servi
 const email = 'Applicant@Example.com';
 const normalizedEmail = 'applicant@example.com';
 const code = '123456';
-const hash = createHash('sha256').update(code).digest('hex');
+const jwtSecret = 'test-jwt-secret';
+const hashKey = createHash('sha256').update(`applicant-verification:${jwtSecret}`).digest();
+const hash = createHmac('sha256', hashKey).update(code).digest('hex');
 
 const makeVerification = (
   overrides: Partial<ApplicationEmailVerification> = {},
@@ -37,13 +40,14 @@ describe('ApplicationVerificationService', () => {
     save: jest.fn(),
     findLatestByEmail: jest.fn(),
     findLatestUnconsumedByEmail: jest.fn(),
-    incrementAttemptCount: jest.fn(),
+    acquireEmailLock: jest.fn(),
     consumeAllUnconsumedByEmail: jest.fn(),
     deleteConsumedOrExpiredBefore: jest.fn(),
   };
   const notificationService = { sendEmail: jest.fn() };
   const userService = { register: jest.fn() };
   const authService = { signApplicantToken: jest.fn() };
+  const configService = { getOrThrow: jest.fn().mockReturnValue(jwtSecret) };
 
   beforeEach(() => {
     service = new ApplicationVerificationService(
@@ -51,12 +55,13 @@ describe('ApplicationVerificationService', () => {
       notificationService as unknown as NotificationService,
       userService as unknown as UserService,
       authService as unknown as AuthService,
+      configService as unknown as ConfigService,
     );
     jest.clearAllMocks();
     repository.save.mockResolvedValue(undefined);
     repository.findLatestByEmail.mockResolvedValue(null);
     repository.findLatestUnconsumedByEmail.mockResolvedValue(null);
-    repository.incrementAttemptCount.mockResolvedValue(undefined);
+    repository.acquireEmailLock.mockResolvedValue(undefined);
     repository.consumeAllUnconsumedByEmail.mockResolvedValue(undefined);
     notificationService.sendEmail.mockResolvedValue(undefined);
     authService.signApplicantToken.mockReturnValue('applicant-token');
@@ -77,6 +82,7 @@ describe('ApplicationVerificationService', () => {
     it('Given 최근 요청이 없으면 When 인증번호를 요청할 때 Then 해시를 저장하고 이메일을 발송한다', async () => {
       await service.requestCode({ email });
 
+      expect(repository.acquireEmailLock).toHaveBeenCalledWith({ email: normalizedEmail });
       expect(repository.findLatestByEmail).toHaveBeenCalledWith({
         email: normalizedEmail,
         lock: true,
@@ -128,8 +134,8 @@ describe('ApplicationVerificationService', () => {
         errorCode: 'VERIFICATION_CODE_INVALID',
       } satisfies Partial<AppException>);
 
-      expect(repository.incrementAttemptCount).toHaveBeenCalledWith({ id: verification.id });
-      expect(repository.save).not.toHaveBeenCalled();
+      expect(repository.save).toHaveBeenCalledWith({ verification });
+      expect(verification.attemptCount).toBe(1);
       expect(userService.register).not.toHaveBeenCalled();
     });
 
