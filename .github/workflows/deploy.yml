@@ -341,33 +341,27 @@ jobs:
             # Email (Gmail SMTP)
             # 여기에 console 이 박혀 있는 동안 사전 알림/면접 안내 메일이 운영에서 한 통도
             # 나가지 않았다. 발송 로그는 SUCCESS 로 쌓여 어드민 화면에 '발송 완료' 로 보였다.
-            # 시크릿을 넣지 않으면 여전히 console 로 떨어지지만, 이제는 발송 시점에 예외로 드러난다.
-            EMAIL_PROVIDER_VALUE="${EMAIL_PROVIDER:-console}"
-            # 앱 env 검증(EMAIL_PROVIDER 화이트리스트)이 거부하는 값이면 컨테이너를 교체한 뒤
-            # 부팅에서 죽는다. 교체 전에 여기서 걸러 운영을 건드리지 않는다.
-            case "$EMAIL_PROVIDER_VALUE" in
-              console|gmail) ;;
-              *)
-                echo "ERROR: EMAIL_PROVIDER 시크릿 값이 console|gmail 이 아닙니다: '$EMAIL_PROVIDER_VALUE'"
-                echo "       이 값으로는 앱이 부팅하지 못합니다. 컨테이너는 교체하지 않았습니다."
-                rm -f "$ENV_TMP"
-                exit 1
-                ;;
-            esac
-            if [ "$EMAIL_PROVIDER_VALUE" = "gmail" ]; then
-              if [ -z "${GMAIL_USER:-}" ] || [ -z "${GMAIL_APP_PASSWORD:-}" ] || [ -z "${EMAIL_FROM:-}" ]; then
-                echo "ERROR: EMAIL_PROVIDER=gmail 인데 GMAIL_USER, GMAIL_APP_PASSWORD, EMAIL_FROM 중 비어 있는 시크릿이 있습니다."
-                echo "       이 상태로 배포하면 앱이 env 검증에서 부팅하지 못합니다. 컨테이너는 교체하지 않았습니다."
-                rm -f "$ENV_TMP"
-                exit 1
-              fi
-            else
-              echo "::warning::EMAIL_PROVIDER=$EMAIL_PROVIDER_VALUE 로 배포합니다. 운영 메일 발송은 예외로 실패합니다(EMAIL_PROVIDER/GMAIL_* 시크릿을 확인하세요)."
+            #
+            # 운영은 gmail 만 허용한다. console 로도 앱은 정상 부팅하고 발송만 전부 예외가
+            # 되므로, 배포는 초록불인데 이메일 기능만 죽은 상태가 된다. 경고로 남기면
+            # 아무도 보지 않는다 - 2026-08 무배포 사고와 같은 실패 유형이다.
+            if [ "${EMAIL_PROVIDER:-}" != "gmail" ]; then
+              echo "ERROR: 운영 배포는 EMAIL_PROVIDER=gmail 이어야 합니다 (현재 '${EMAIL_PROVIDER:-미설정}')."
+              echo "       GitHub Secrets 의 EMAIL_PROVIDER 를 gmail 로 설정하세요."
+              echo "       컨테이너는 교체하지 않았습니다."
+              rm -f "$ENV_TMP"
+              exit 1
             fi
-            printf 'EMAIL_PROVIDER=%s\n'     "$EMAIL_PROVIDER_VALUE"   >> "$ENV_TMP"
-            printf 'GMAIL_USER=%s\n'         "${GMAIL_USER:-}"         >> "$ENV_TMP"
-            printf 'GMAIL_APP_PASSWORD=%s\n' "${GMAIL_APP_PASSWORD:-}" >> "$ENV_TMP"
-            printf 'EMAIL_FROM=%s\n'         "${EMAIL_FROM:-}"         >> "$ENV_TMP"
+            if [ -z "${GMAIL_USER:-}" ] || [ -z "${GMAIL_APP_PASSWORD:-}" ] || [ -z "${EMAIL_FROM:-}" ]; then
+              echo "ERROR: GMAIL_USER, GMAIL_APP_PASSWORD, EMAIL_FROM 중 비어 있는 시크릿이 있습니다."
+              echo "       이 상태로 배포하면 앱이 env 검증에서 부팅하지 못합니다. 컨테이너는 교체하지 않았습니다."
+              rm -f "$ENV_TMP"
+              exit 1
+            fi
+            printf 'EMAIL_PROVIDER=%s\n'     "gmail"                   >> "$ENV_TMP"
+            printf 'GMAIL_USER=%s\n'         "$GMAIL_USER"             >> "$ENV_TMP"
+            printf 'GMAIL_APP_PASSWORD=%s\n' "$GMAIL_APP_PASSWORD"     >> "$ENV_TMP"
+            printf 'EMAIL_FROM=%s\n'         "$EMAIL_FROM"             >> "$ENV_TMP"
             printf 'EMAIL_FROM_NAME=%s\n'    "${EMAIL_FROM_NAME:-DDD}" >> "$ENV_TMP"
 
             # Interview & Calendar
