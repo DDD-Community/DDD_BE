@@ -28,6 +28,9 @@ export const ErrorMessage = {
   APPLICATION_DRAFT_NOT_FOUND: '해당 임시저장 지원서를 찾을 수 없습니다.',
   INVALID_STATUS_TRANSITION: '올바르지 않은 상태 변경입니다.',
   ATTACHMENT_NOT_OWNED: '본인이 업로드한 첨부파일이 아닙니다.',
+  VERIFICATION_CODE_INVALID: '인증번호가 올바르지 않습니다.',
+  VERIFICATION_CODE_EXPIRED: '인증번호가 만료되었거나 더 이상 사용할 수 없습니다.',
+  VERIFICATION_COOLDOWN: '인증번호는 60초마다 요청할 수 있습니다.',
 
   EVALUATION_NOT_FOUND: '평가 정보를 찾을 수 없습니다.',
 

@@ -41,6 +41,26 @@ describe('AdminApplicationFormResponseDto', () => {
     });
   });
 
+  it('PII 비접근 권한이면 지원자 이메일을 마스킹한다', () => {
+    const form = makeForm({
+      user: { email: 'homer@example.com' } as ApplicationForm['user'],
+    });
+
+    const dto = AdminApplicationFormResponseDto.from(form, [UserRole.면접자]);
+
+    expect(dto.applicantEmail).toBe('ho****@example.com');
+  });
+
+  it('PII 접근 권한이면 지원자 이메일을 원문으로 반환한다', () => {
+    const form = makeForm({
+      user: { email: 'homer@example.com' } as ApplicationForm['user'],
+    });
+
+    const dto = AdminApplicationFormResponseDto.from(form, [UserRole.계정관리]);
+
+    expect(dto.applicantEmail).toBe('homer@example.com');
+  });
+
   describe('면접관 역할 (PII 열람 가능)', () => {
     const roles = [UserRole.면접관];
 

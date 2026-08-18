@@ -6,6 +6,17 @@ import type { ApplicationAttachment } from '../../domain/application-attachment'
 import { ApplicationDraft } from '../../domain/application-draft.entity';
 import { ApplicationForm } from '../../domain/application-form.entity';
 
+export class ApplicationVerificationResponseDto {
+  @ApiProperty({ description: '인증된 지원자 이메일', example: 'applicant@example.com' })
+  email: string;
+
+  static from(email: string): ApplicationVerificationResponseDto {
+    const dto = new ApplicationVerificationResponseDto();
+    dto.email = email;
+    return dto;
+  }
+}
+
 const PII_ACCESSIBLE_ROLES: UserRole[] = [UserRole.계정관리, UserRole.운영자, UserRole.면접관];
 
 export class ApplicationAttachmentResponseDto {
@@ -49,6 +60,9 @@ export class AdminApplicationFormResponseDto {
   @ApiProperty({ description: '지원자 거주 지역', nullable: true })
   applicantRegion: string | null;
 
+  @ApiProperty({ description: '지원자 이메일' })
+  applicantEmail: string;
+
   @ApiProperty({ description: '파트 ID' })
   cohortPartId: number;
 
@@ -77,6 +91,9 @@ export class AdminApplicationFormResponseDto {
     dto.applicantPhone = canAccessPii ? this.maskPhone(form.applicantPhone) : this.redactPhone();
     dto.applicantBirthDate = canAccessPii ? (form.applicantBirthDate ?? null) : null;
     dto.applicantRegion = canAccessPii ? (form.applicantRegion ?? null) : null;
+    dto.applicantEmail = canAccessPii
+      ? (form.user?.email ?? '')
+      : this.maskEmail(form.user?.email ?? '');
     dto.cohortPartId = form.cohortPartId;
     dto.answers = form.answers;
     dto.privacyAgreedAt = form.privacyAgreedAt;
@@ -108,6 +125,17 @@ export class AdminApplicationFormResponseDto {
     }
 
     return `${digits.slice(0, 3)}-${digits.slice(3, 6).replace(/./g, '*')}-${digits.slice(6)}`;
+  }
+
+  private static maskEmail(email: string): string {
+    const [localPart, domain] = email.split('@');
+    if (!localPart || !domain) {
+      return '';
+    }
+    if (localPart.length <= 2) {
+      return `${localPart[0]}*@${domain}`;
+    }
+    return `${localPart.slice(0, 2)}****@${domain}`;
   }
 }
 

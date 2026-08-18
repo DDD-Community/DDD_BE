@@ -6,6 +6,8 @@ import type { User } from '../../user/domain/user.entity';
 import { UserRole } from '../../user/domain/user.role';
 import type { RefreshTokenResult } from './auth.type';
 
+const APPLICANT_SESSION_EXPIRES_IN = '30d' as const;
+
 @Injectable()
 export class AuthService {
   constructor(private readonly jwtService: JwtService) {}
@@ -14,6 +16,13 @@ export class AuthService {
     const roles = this.extractRoles({ userRoles });
     const payload = { sub: id, email, roles };
     return this.jwtService.sign(payload);
+  }
+
+  signApplicantToken({ id, email }: { id: number; email: string }): string {
+    return this.jwtService.sign(
+      { sub: id, email, roles: [], purpose: 'applicant' },
+      { expiresIn: APPLICANT_SESSION_EXPIRES_IN },
+    );
   }
 
   extractRoles({ userRoles }: Pick<User, 'userRoles'>): UserRole[] {

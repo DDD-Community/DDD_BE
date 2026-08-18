@@ -45,8 +45,22 @@ export class NotificationService {
       const log = EmailLog.createFailure({ recipientEmail: to, subject, errorMessage });
       await this.notificationRepository.saveLog({ log });
 
-      this.logger.error(`이메일 발송 실패: to=${to}, subject=${subject}`, errorMessage);
+      this.logger.error(
+        `이메일 발송 실패: to=${this.maskEmail({ email: to })}, subject=${subject}`,
+        errorMessage,
+      );
       throw error;
     }
+  }
+
+  private maskEmail({ email }: { email: string }): string {
+    const [localPart, domain] = email.split('@');
+    if (!localPart || !domain) {
+      return 'masked-email';
+    }
+    if (localPart.length <= 2) {
+      return `${localPart[0] ?? '*'}*@${domain}`;
+    }
+    return `${localPart.slice(0, 2)}****@${domain}`;
   }
 }

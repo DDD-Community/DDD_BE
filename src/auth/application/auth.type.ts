@@ -4,6 +4,7 @@ export type JwtPayload = {
   sub: number;
   email: string;
   roles: UserRole[];
+  purpose?: 'applicant';
 };
 
 export type JwtUser = {

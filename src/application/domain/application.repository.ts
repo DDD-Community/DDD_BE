@@ -41,6 +41,7 @@ export class ApplicationRepository {
   }) {
     return this.formWriteRepository.findMany({
       where: { cohortPartIds, status },
+      includeUser: true,
     });
   }
 
