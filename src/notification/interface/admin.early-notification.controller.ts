@@ -93,6 +93,14 @@ export class AdminEarlyNotificationController {
       html: body.html,
       text: body.text,
     });
-    return ApiResponse.ok(result, '발송이 완료되었습니다.');
+
+    // sendBulk 는 개별 발송 실패를 흡수해 카운트로만 돌려준다. 여기서 메시지를 고정하면
+    // 한 통도 못 나간 경우에도 '발송이 완료되었습니다' 가 그대로 노출돼,
+    // 이번에 없앤 거짓 성공이 API 응답에 남는다.
+    const message =
+      result.failed > 0
+        ? `발송 성공 ${result.success}건, 실패 ${result.failed}건`
+        : '발송이 완료되었습니다.';
+    return ApiResponse.ok(result, message);
   }
 }

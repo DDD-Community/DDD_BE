@@ -110,6 +110,7 @@ jobs:
             JWT_SECRET,JWT_EXPIRES_IN,ADMIN_BOOTSTRAP_TOKEN,ADMIN_BOOTSTRAP_TOKEN_EXPIRES_AT,
             GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET,GOOGLE_CALLBACK_URL,
             CLIENT_REDIRECT_URL,ENCRYPTION_KEY,GOOGLE_CALENDAR_ID,
+            EMAIL_PROVIDER,GMAIL_USER,GMAIL_APP_PASSWORD,EMAIL_FROM,EMAIL_FROM_NAME,
             GCS_BUCKET_NAME,GCP_SERVICE_ACCOUNT_JSON,DISCORD_CLIENT_ID,DISCORD_CLIENT_SECRET,
             DISCORD_CALLBACK_URL,DISCORD_BOT_TOKEN,DISCORD_GUILD_ID,DISCORD_INVITE_URL,
             DISCORD_ROLE_ID_PM,DISCORD_ROLE_ID_PD,DISCORD_ROLE_ID_BE,DISCORD_ROLE_ID_FE,
@@ -337,8 +338,31 @@ jobs:
             printf 'CLIENT_REDIRECT_URL=%s\n' "$CLIENT_REDIRECT_URL" >> "$ENV_TMP"
             printf 'ENCRYPTION_KEY=%s\n'     "$ENCRYPTION_KEY"       >> "$ENV_TMP"
 
-            # Email (console 모드 - Resend 미사용)
-            printf 'EMAIL_PROVIDER=%s\n'     "console"               >> "$ENV_TMP"
+            # Email (Gmail SMTP)
+            # 여기에 console 이 박혀 있는 동안 사전 알림/면접 안내 메일이 운영에서 한 통도
+            # 나가지 않았다. 발송 로그는 SUCCESS 로 쌓여 어드민 화면에 '발송 완료' 로 보였다.
+            #
+            # 운영은 gmail 만 허용한다. console 로도 앱은 정상 부팅하고 발송만 전부 예외가
+            # 되므로, 배포는 초록불인데 이메일 기능만 죽은 상태가 된다. 경고로 남기면
+            # 아무도 보지 않는다 - 2026-08 무배포 사고와 같은 실패 유형이다.
+            if [ "${EMAIL_PROVIDER:-}" != "gmail" ]; then
+              echo "ERROR: 운영 배포는 EMAIL_PROVIDER=gmail 이어야 합니다 (현재 '${EMAIL_PROVIDER:-미설정}')."
+              echo "       GitHub Secrets 의 EMAIL_PROVIDER 를 gmail 로 설정하세요."
+              echo "       컨테이너는 교체하지 않았습니다."
+              rm -f "$ENV_TMP"
+              exit 1
+            fi
+            if [ -z "${GMAIL_USER:-}" ] || [ -z "${GMAIL_APP_PASSWORD:-}" ] || [ -z "${EMAIL_FROM:-}" ]; then
+              echo "ERROR: GMAIL_USER, GMAIL_APP_PASSWORD, EMAIL_FROM 중 비어 있는 시크릿이 있습니다."
+              echo "       이 상태로 배포하면 앱이 env 검증에서 부팅하지 못합니다. 컨테이너는 교체하지 않았습니다."
+              rm -f "$ENV_TMP"
+              exit 1
+            fi
+            printf 'EMAIL_PROVIDER=%s\n'     "gmail"                   >> "$ENV_TMP"
+            printf 'GMAIL_USER=%s\n'         "$GMAIL_USER"             >> "$ENV_TMP"
+            printf 'GMAIL_APP_PASSWORD=%s\n' "$GMAIL_APP_PASSWORD"     >> "$ENV_TMP"
+            printf 'EMAIL_FROM=%s\n'         "$EMAIL_FROM"             >> "$ENV_TMP"
+            printf 'EMAIL_FROM_NAME=%s\n'    "${EMAIL_FROM_NAME:-DDD}" >> "$ENV_TMP"
 
             # Interview & Calendar
             printf 'INTERVIEW_BOOKING_URL=%s\n' "https://admin.dddstudy.kr/interview" >> "$ENV_TMP"
@@ -508,6 +532,11 @@ jobs:
           CLIENT_REDIRECT_URL: ${{ secrets.CLIENT_REDIRECT_URL }}
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
           GOOGLE_CALENDAR_ID: ${{ secrets.GOOGLE_CALENDAR_ID }}
+          EMAIL_PROVIDER: ${{ secrets.EMAIL_PROVIDER }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_FROM_NAME: ${{ secrets.EMAIL_FROM_NAME }}
           GCS_BUCKET_NAME: ${{ secrets.GCS_BUCKET_NAME }}
           GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
           DISCORD_CLIENT_ID: ${{ secrets.DISCORD_CLIENT_ID }}

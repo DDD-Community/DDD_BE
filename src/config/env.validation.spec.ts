@@ -116,6 +116,83 @@ describe('env validation', () => {
     });
   });
 
+  describe('EMAIL_PROVIDER 조건부 검증', () => {
+    // gmail 로 바꿔만 두고 자격증명을 안 넣으면 앱은 부팅되지만 메일은 한 통도 안 나간다.
+    // 그 상태를 발송 시점이 아니라 부팅 시점에 잡는다.
+    it('EMAIL_PROVIDER 미설정이면 기본값 console 로 통과한다', () => {
+      const config = createValidConfig();
+      delete config.EMAIL_PROVIDER;
+
+      const result = validate(config);
+
+      expect(result.EMAIL_PROVIDER).toBe('console');
+    });
+
+    // 시크릿이 비어 EMAIL_PROVIDER= 만 들어가는 경우다. 조용히 console 로 흘리지 않는다.
+    it('EMAIL_PROVIDER 가 빈 문자열이면 앱 시작 전에 실패한다', () => {
+      expect(() => validate({ ...createValidConfig(), EMAIL_PROVIDER: '' })).toThrow(
+        'EMAIL_PROVIDER',
+      );
+    });
+
+    it('EMAIL_PROVIDER=console 이면 GMAIL_* 없이 통과한다', () => {
+      expect(() => validate(createValidConfig())).not.toThrow();
+    });
+
+    it('EMAIL_PROVIDER=gmail 인데 GMAIL_USER가 없으면 실패한다', () => {
+      expect(() => {
+        validate({
+          ...createValidConfig(),
+          EMAIL_PROVIDER: 'gmail',
+          GMAIL_APP_PASSWORD: 'app-password',
+          EMAIL_FROM: 'noreply@dddstudy.kr',
+        });
+      }).toThrow('GMAIL_USER');
+    });
+
+    it('EMAIL_PROVIDER=gmail 인데 GMAIL_APP_PASSWORD가 없으면 실패한다', () => {
+      expect(() => {
+        validate({
+          ...createValidConfig(),
+          EMAIL_PROVIDER: 'gmail',
+          GMAIL_USER: 'noreply@dddstudy.kr',
+          EMAIL_FROM: 'noreply@dddstudy.kr',
+        });
+      }).toThrow('GMAIL_APP_PASSWORD');
+    });
+
+    it('EMAIL_PROVIDER=gmail 인데 EMAIL_FROM이 없으면 실패한다', () => {
+      expect(() => {
+        validate({
+          ...createValidConfig(),
+          EMAIL_PROVIDER: 'gmail',
+          GMAIL_USER: 'noreply@dddstudy.kr',
+          GMAIL_APP_PASSWORD: 'app-password',
+        });
+      }).toThrow('EMAIL_FROM');
+    });
+
+    it('EMAIL_PROVIDER=gmail 이고 자격증명이 모두 있으면 통과한다', () => {
+      expect(() =>
+        validate({
+          ...createValidConfig(),
+          EMAIL_PROVIDER: 'gmail',
+          GMAIL_USER: 'noreply@dddstudy.kr',
+          GMAIL_APP_PASSWORD: 'app-password',
+          EMAIL_FROM: 'noreply@dddstudy.kr',
+        }),
+      ).not.toThrow();
+    });
+
+    // resend 는 제거된 provider 다. .env.example 에 남아 있던 값이 조용히 통과하면
+    // 다시 console 과 같은 무발송 상태가 된다.
+    it('제거된 provider(resend)는 앱 시작 전에 실패한다', () => {
+      expect(() => {
+        validate({ ...createValidConfig(), EMAIL_PROVIDER: 'resend' });
+      }).toThrow('EMAIL_PROVIDER');
+    });
+  });
+
   describe('STORAGE_PROVIDER 화이트리스트 검증', () => {
     it('STORAGE_PROVIDER 미설정이면 기본값 console 로 통과한다', () => {
       const result = validate(createValidConfig());
