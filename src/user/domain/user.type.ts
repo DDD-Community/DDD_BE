@@ -7,6 +7,7 @@ export type UserType = {
   sub: string;
   googleAccessToken?: string;
   googleRefreshToken?: string;
+  restoreDeleted?: boolean;
 };
 
 export type RegisterResult = {

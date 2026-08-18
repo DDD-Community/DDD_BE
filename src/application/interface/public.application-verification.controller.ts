@@ -1,10 +1,10 @@
 import { Body, Controller, HttpCode, HttpStatus, Post, Res, UseGuards } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiExtraModels, ApiTags } from '@nestjs/swagger';
-import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
 import type { CookieOptions, Response } from 'express';
 
-import { AuthService } from '../../auth/application/auth.service';
+import { KoreanThrottlerGuard } from '../../common/guard/korean-throttler.guard';
 import { ApiResponse } from '../../common/response/api-response';
 import { ApiDoc } from '../../common/swagger/api-doc.decorator';
 import { ApplicationVerificationService } from '../usecase/application-verification.service';
@@ -20,13 +20,12 @@ const APPLICANT_SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 @ApiTags('지원자 이메일 인증')
 @ApiExtraModels(ApplicationVerificationResponseDto)
 @Controller({ path: 'applications/verify', version: '1' })
-@UseGuards(ThrottlerGuard)
+@UseGuards(KoreanThrottlerGuard)
 export class PublicApplicationVerificationController {
   private readonly cookieOptions: CookieOptions;
 
   constructor(
     private readonly verificationService: ApplicationVerificationService,
-    private readonly authService: AuthService,
     configService: ConfigService,
   ) {
     const isProduction = configService.get<string>('NODE_ENV') === 'production';
@@ -49,7 +48,7 @@ export class PublicApplicationVerificationController {
   })
   @Post('request')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @Throttle({ default: { limit: 5, ttl: 10 * 60 * 1000 } })
+  @Throttle({ default: { limit: 10, ttl: 10 * 60 * 1000 } })
   async requestCode(@Body() command: RequestApplicationVerificationRequestDto): Promise<void> {
     await this.verificationService.requestCode({ email: command.email });
   }
@@ -75,11 +74,7 @@ export class PublicApplicationVerificationController {
       email: command.email,
       code: command.code,
     });
-    const accessToken = this.authService.signApplicantToken({
-      id: result.userId,
-      email: result.email,
-    });
-    response.cookie('access_token', accessToken, this.cookieOptions);
+    response.cookie('access_token', result.accessToken, this.cookieOptions);
     return ApiResponse.ok(
       ApplicationVerificationResponseDto.from(result.email),
       '이메일 인증이 완료되었습니다.',

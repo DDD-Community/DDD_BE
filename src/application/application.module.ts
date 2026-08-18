@@ -1,9 +1,9 @@
 import { forwardRef, Module } from '@nestjs/common';
-import { ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { AuthModule } from '../auth/auth.module';
 import { CohortModule } from '../cohort/cohort.module';
+import { KoreanThrottlerGuard } from '../common/guard/korean-throttler.guard';
 import { RolesGuard } from '../common/guard/roles.guard';
 import { InterviewModule } from '../interview/interview.module';
 import { NotificationModule } from '../notification/notification.module';
@@ -32,7 +32,6 @@ import { PiiPurgeService } from './usecase/pii-purge.service';
 @Module({
   imports: [
     TypeOrmModule.forFeature([ApplicationForm, ApplicationDraft, ApplicationEmailVerification]),
-    ThrottlerModule.forRoot([{ ttl: 10 * 60 * 1000, limit: 5 }]),
     AuthModule,
     UserModule,
     CohortModule,
@@ -63,6 +62,7 @@ import { PiiPurgeService } from './usecase/pii-purge.service';
     PiiPurgeService,
     PiiPurgeScheduler,
     RolesGuard,
+    KoreanThrottlerGuard,
   ],
   exports: [ApplicationService],
 })

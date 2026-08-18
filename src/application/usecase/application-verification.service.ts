@@ -1,9 +1,11 @@
 import { createHash, randomInt, timingSafeEqual } from 'node:crypto';
 
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 
+import { AuthService } from '../../auth/application/auth.service';
 import { AppException } from '../../common/exception/app.exception';
+import { maskEmail } from '../../common/util/mask-email';
 import { NotificationService } from '../../notification/application/notification.service';
 import { UserService } from '../../user/application/user.service';
 import { ApplicationEmailVerification } from '../domain/application-email-verification.entity';
@@ -15,48 +17,63 @@ const MAX_ATTEMPTS = 5;
 
 @Injectable()
 export class ApplicationVerificationService {
+  private readonly logger = new Logger(ApplicationVerificationService.name);
   constructor(
     private readonly verificationRepository: ApplicationEmailVerificationRepository,
     private readonly notificationService: NotificationService,
     private readonly userService: UserService,
+    private readonly authService: AuthService,
   ) {}
 
-  @Transactional()
   async requestCode({ email }: { email: string }): Promise<void> {
     const normalizedEmail = this.normalizeEmail(email);
-    const latest = await this.verificationRepository.findLatestByEmail({ email: normalizedEmail });
+    const { code } = await this.createVerification({ email: normalizedEmail });
+
+    try {
+      await this.notificationService.sendEmail({
+        to: normalizedEmail,
+        subject: '[DDD] 지원자 이메일 인증번호',
+        html: `<p>지원자 인증번호는 <strong>${code}</strong>입니다.</p><p>인증번호는 10분 동안 유효합니다.</p>`,
+        text: `지원자 인증번호는 ${code}입니다. 인증번호는 10분 동안 유효합니다.`,
+      });
+    } catch {
+      this.logger.error(`인증 메일 발송 실패: to=${maskEmail({ email: normalizedEmail })}`);
+    }
+  }
+
+  @Transactional()
+  private async createVerification({ email }: { email: string }): Promise<{ code: string }> {
+    const latest = await this.verificationRepository.findLatestByEmail({ email, lock: true });
     const now = Date.now();
 
     if (latest && now - latest.createdAt.getTime() < VERIFICATION_CODE_COOLDOWN_MS) {
       throw new AppException('VERIFICATION_COOLDOWN', HttpStatus.TOO_MANY_REQUESTS);
     }
 
-    const previous = await this.verificationRepository.findLatestUnconsumedByEmail({
-      email: normalizedEmail,
-    });
-    if (previous) {
-      previous.consume();
-      await this.verificationRepository.save({ verification: previous });
-    }
+    await this.verificationRepository.consumeAllUnconsumedByEmail({ email });
 
     const code = randomInt(0, 1_000_000).toString().padStart(6, '0');
     const verification = ApplicationEmailVerification.create({
-      email: normalizedEmail,
+      email,
       codeHash: this.hashCode({ code }),
       expiresAt: new Date(now + VERIFICATION_CODE_EXPIRES_IN_MS),
     });
     await this.verificationRepository.save({ verification });
 
-    await this.notificationService.sendEmail({
-      to: normalizedEmail,
-      subject: '[DDD] 지원자 이메일 인증번호',
-      html: `<p>지원자 인증번호는 <strong>${code}</strong>입니다.</p><p>인증번호는 10분 동안 유효합니다.</p>`,
-      text: `지원자 인증번호는 ${code}입니다. 인증번호는 10분 동안 유효합니다.`,
-    });
+    return { code };
+  }
+
+  async confirmCode({ email, code }: { email: string; code: string }) {
+    const result = await this.confirmCodeInTransaction({ email, code });
+    if (result.kind === 'invalid') {
+      await this.verificationRepository.incrementAttemptCount({ id: result.verificationId });
+      throw new AppException('VERIFICATION_CODE_INVALID', HttpStatus.BAD_REQUEST);
+    }
+    return { accessToken: result.accessToken, email: result.email };
   }
 
   @Transactional()
-  async confirmCode({ email, code }: { email: string; code: string }) {
+  private async confirmCodeInTransaction({ email, code }: { email: string; code: string }) {
     const normalizedEmail = this.normalizeEmail(email);
     const verification = await this.verificationRepository.findLatestUnconsumedByEmail({
       email: normalizedEmail,
@@ -70,11 +87,8 @@ export class ApplicationVerificationService {
       throw new AppException('VERIFICATION_CODE_EXPIRED', HttpStatus.BAD_REQUEST);
     }
 
-    const isValid = this.isCodeValid({ verification, code });
-    if (!isValid) {
-      verification.incrementAttempt();
-      await this.verificationRepository.save({ verification });
-      throw new AppException('VERIFICATION_CODE_INVALID', HttpStatus.BAD_REQUEST);
+    if (!this.isCodeValid({ verification, code })) {
+      return { kind: 'invalid' as const, verificationId: verification.id };
     }
 
     verification.consume();
@@ -85,9 +99,14 @@ export class ApplicationVerificationService {
       email: normalizedEmail,
       firstName: localPart,
       sub: `applicant:${normalizedEmail}`,
+      restoreDeleted: false,
     });
 
-    return { userId: user.id, email: normalizedEmail };
+    return {
+      kind: 'success' as const,
+      accessToken: this.authService.signApplicantToken({ id: user.id, email: normalizedEmail }),
+      email: normalizedEmail,
+    };
   }
 
   private isCodeValid({

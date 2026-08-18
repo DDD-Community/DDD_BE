@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { InjectDataSource, TypeOrmModule } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { addTransactionalDataSource } from 'typeorm-transactional';
@@ -39,6 +40,7 @@ const ENV_FILE_PATHS = ['.env.production', '.env.staging', '.env.test', '.env.de
     }),
     EventEmitterModule.forRoot(),
     ScheduleModule.forRoot(),
+    ThrottlerModule.forRoot([{ ttl: 10 * 60 * 1000, limit: 10 }]),
     HealthModule,
     GoogleModule,
     AuditModule,

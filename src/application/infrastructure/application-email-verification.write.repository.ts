@@ -45,4 +45,35 @@ export class ApplicationEmailVerificationWriteRepository extends ApplicationEmai
 
     return queryBuilder.getOne();
   }
+
+  async incrementAttemptCount({ id }: { id: number }): Promise<void> {
+    await this.repository
+      .createQueryBuilder()
+      .update(ApplicationEmailVerification)
+      .set({ attemptCount: () => '"attemptCount" + 1' })
+      .where('id = :id', { id })
+      .execute();
+  }
+
+  async consumeAllUnconsumedByEmail({ email }: { email: string }): Promise<void> {
+    await this.repository
+      .createQueryBuilder()
+      .update(ApplicationEmailVerification)
+      .set({ consumedAt: () => 'now()' })
+      .where('email = :email', { email })
+      .andWhere('"consumedAt" IS NULL')
+      .execute();
+  }
+
+  async deleteConsumedOrExpiredBefore({ cutoffDate }: { cutoffDate: Date }): Promise<number> {
+    const result = await this.repository
+      .createQueryBuilder()
+      .delete()
+      .from(ApplicationEmailVerification)
+      .where('"createdAt" < :cutoffDate', { cutoffDate })
+      .andWhere('("consumedAt" IS NOT NULL OR "expiresAt" < :cutoffDate)', { cutoffDate })
+      .execute();
+
+    return result.affected ?? 0;
+  }
 }

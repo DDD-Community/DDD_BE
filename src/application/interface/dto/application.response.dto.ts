@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 
+import { maskEmail } from '../../../common/util/mask-email';
 import { UserRole } from '../../../user/domain/user.role';
 import { ApplicationStatus } from '../../domain/application.status';
 import type { ApplicationAttachment } from '../../domain/application-attachment';
@@ -61,7 +62,7 @@ export class AdminApplicationFormResponseDto {
   applicantRegion: string | null;
 
   @ApiProperty({ description: '지원자 이메일' })
-  applicantEmail: string;
+  applicantEmail: string | null;
 
   @ApiProperty({ description: '파트 ID' })
   cohortPartId: number;
@@ -87,13 +88,25 @@ export class AdminApplicationFormResponseDto {
     const dto = new AdminApplicationFormResponseDto();
     dto.id = form.id;
     dto.status = form.status;
-    dto.applicantName = canAccessPii ? form.applicantName : this.maskName(form.applicantName);
-    dto.applicantPhone = canAccessPii ? this.maskPhone(form.applicantPhone) : this.redactPhone();
+    const isPurged = form.applicantName === null;
+    dto.applicantName = isPurged
+      ? ''
+      : canAccessPii
+        ? form.applicantName
+        : this.maskName(form.applicantName);
+    dto.applicantPhone = isPurged
+      ? ''
+      : canAccessPii
+        ? this.maskPhone(form.applicantPhone)
+        : this.redactPhone();
     dto.applicantBirthDate = canAccessPii ? (form.applicantBirthDate ?? null) : null;
     dto.applicantRegion = canAccessPii ? (form.applicantRegion ?? null) : null;
-    dto.applicantEmail = canAccessPii
-      ? (form.user?.email ?? '')
-      : this.maskEmail(form.user?.email ?? '');
+    dto.applicantEmail =
+      form.applicantName === null
+        ? null
+        : canAccessPii
+          ? (form.user?.email ?? null)
+          : maskEmail({ email: form.user?.email ?? '' });
     dto.cohortPartId = form.cohortPartId;
     dto.answers = form.answers;
     dto.privacyAgreedAt = form.privacyAgreedAt;
@@ -125,17 +138,6 @@ export class AdminApplicationFormResponseDto {
     }
 
     return `${digits.slice(0, 3)}-${digits.slice(3, 6).replace(/./g, '*')}-${digits.slice(6)}`;
-  }
-
-  private static maskEmail(email: string): string {
-    const [localPart, domain] = email.split('@');
-    if (!localPart || !domain) {
-      return '';
-    }
-    if (localPart.length <= 2) {
-      return `${localPart[0]}*@${domain}`;
-    }
-    return `${localPart.slice(0, 2)}****@${domain}`;
   }
 }
 

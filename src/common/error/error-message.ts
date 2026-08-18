@@ -69,6 +69,9 @@ export const ErrorMessage = {
   DISCORD_ALREADY_LINKED: '이미 Discord 계정이 연동된 지원서입니다.',
   DISCORD_LINK_NOT_FOUND: 'Discord 연동 정보를 찾을 수 없습니다.',
   DISCORD_NOT_CONFIGURED: 'Discord 연동이 설정되지 않았습니다.',
+  TOO_MANY_REQUESTS: '요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.',
+  WITHDRAWN_ACCOUNT: '탈퇴한 계정은 다시 가입할 수 없습니다.',
+  APPLICANT_SESSION_NOT_ALLOWED: '지원자 인증 세션으로는 이 기능을 사용할 수 없습니다.',
 } as const;
 
 export type ErrorMessageKey = keyof typeof ErrorMessage;

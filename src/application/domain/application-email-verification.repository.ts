@@ -22,4 +22,10 @@ export abstract class ApplicationEmailVerificationRepository {
     email: string;
     lock?: boolean;
   }): Promise<ApplicationEmailVerification | null>;
+
+  abstract incrementAttemptCount({ id }: { id: number }): Promise<void>;
+
+  abstract consumeAllUnconsumedByEmail({ email }: { email: string }): Promise<void>;
+
+  abstract deleteConsumedOrExpiredBefore({ cutoffDate }: { cutoffDate: Date }): Promise<number>;
 }

@@ -15,6 +15,7 @@ const bootstrap = async () => {
   initializeTransactionalContext();
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  app.set('trust proxy', 1);
   // listen() 전에 불러야 Nest 가 등록하는 기본 파서를 선점한다. cookieParser 와의 순서는 무관하다.
   app.useBodyParser('json', { limit: JSON_BODY_LIMIT });
   app.use(cookieParser());

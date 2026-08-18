@@ -17,7 +17,5 @@ export const ALLOWED_ORIGINS = [
   'https://ddd-fe-web.vercel.app',
 ] as const;
 
-// TODO: 지원자 FE 운영 origin은 사용자 확인 후 ALLOWED_ORIGINS에 추가한다. 임의의 origin을 추측하지 않는다.
-
 export const isAllowedOrigin = ({ origin }: { origin: string }): boolean =>
   ALLOWED_ORIGINS.some((allowedOrigin) => allowedOrigin === origin);

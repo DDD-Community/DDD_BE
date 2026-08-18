@@ -24,12 +24,16 @@ export class UserService {
     sub,
     googleAccessToken,
     googleRefreshToken,
+    restoreDeleted = true,
   }: UserType): Promise<RegisterResult> {
     const found = await this.userRepository.findByEmail({ email, withDeleted: true });
 
     if (found) {
       const isNew = !!found.deletedAt;
       if (found.deletedAt) {
+        if (!restoreDeleted) {
+          throw new AppException('WITHDRAWN_ACCOUNT', HttpStatus.CONFLICT);
+        }
         await this.userRepository.restore({ id: found.id });
         found.deletedAt = null;
       }
@@ -44,15 +48,26 @@ export class UserService {
       return { user: found, isNew };
     }
 
-    const user = await this.userRepository.register({
-      email,
-      firstName,
-      lastName,
-      sub,
-      googleAccessToken,
-      googleRefreshToken,
-    });
-    return { user, isNew: true };
+    try {
+      const user = await this.userRepository.register({
+        email,
+        firstName,
+        lastName,
+        sub,
+        googleAccessToken,
+        googleRefreshToken,
+      });
+      return { user, isNew: true };
+    } catch (error) {
+      if ((error as { code?: string }).code !== '23505') {
+        throw error;
+      }
+      const concurrentUser = await this.userRepository.findByEmail({ email });
+      if (!concurrentUser) {
+        throw error;
+      }
+      return { user: concurrentUser, isNew: false };
+    }
   }
 
   async findById({ id }: { id: number }) {

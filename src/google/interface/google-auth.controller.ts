@@ -17,6 +17,7 @@ import type { JwtUser } from '../../auth/application/auth.type';
 import { AuthUser } from '../../common/decorator/auth-user.decorator';
 import { Cookie } from '../../common/decorator/cookie.decorator';
 import { AppException } from '../../common/exception/app.exception';
+import { RejectApplicantSessionGuard } from '../../common/guard/reject-applicant-session.guard';
 import { ApiResponse } from '../../common/response/api-response';
 import { ApiDoc } from '../../common/swagger/api-doc.decorator';
 import type {
@@ -139,7 +140,7 @@ export class GoogleAuthController {
   })
   @Post('logout')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), RejectApplicantSessionGuard)
   async logout(@AuthUser() jwtUser: JwtUser, @Res({ passthrough: true }) response: Response) {
     await this.googleAuthService.logout({ userId: jwtUser.id });
 
@@ -159,7 +160,7 @@ export class GoogleAuthController {
   })
   @Delete('withdrawal')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'), RejectApplicantSessionGuard)
   async withdrawal(@AuthUser() jwtUser: JwtUser, @Res({ passthrough: true }) response: Response) {
     await this.googleAuthService.withdrawal({ userId: jwtUser.id });
 

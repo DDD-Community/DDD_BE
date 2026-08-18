@@ -11,12 +11,16 @@ export class ApplicationEmailVerification1786880782441 implements MigrationInter
       `CREATE INDEX "idx_application_email_verifications_email_created_at" ON "application_email_verifications" ("email", "createdAt" DESC)`,
     );
     await queryRunner.query(
-      `CREATE INDEX "IDX_application_email_verifications_deleted_at" ON "application_email_verifications" ("deletedAt")`,
+      `CREATE INDEX "IDX_ce065b7653184d17183d659cda" ON "application_email_verifications" ("deletedAt")`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_a8b09572a1094f4e833b39d006" ON "application_email_verifications" ("createdAt", "id")`,
     );
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`DROP INDEX "public"."IDX_application_email_verifications_deleted_at"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_a8b09572a1094f4e833b39d006"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_ce065b7653184d17183d659cda"`);
     await queryRunner.query(
       `DROP INDEX "public"."idx_application_email_verifications_email_created_at"`,
     );
