@@ -84,6 +84,10 @@ export class EmailEventHandler {
         subject: '[DDD] 서류전형 결과 안내',
         message: '아쉽게도 이번 서류전형에는 함께하지 못하게 되었습니다.',
       }))
+      .with(ApplicationStatus.면접합격, () => ({
+        subject: '[DDD] 면접전형 합격 안내',
+        message: '면접전형에 합격하셨습니다. 최종 결과는 별도로 안내드립니다.',
+      }))
       .with(ApplicationStatus.최종합격, () => ({
         subject: '[DDD] 최종 합격 안내',
         message: '최종 합격을 축하드립니다.',

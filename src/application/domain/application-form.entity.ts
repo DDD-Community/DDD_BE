@@ -117,6 +117,7 @@ export class ApplicationForm extends BaseEntity {
     return (
       status === ApplicationStatus.서류합격 ||
       status === ApplicationStatus.서류불합격 ||
+      status === ApplicationStatus.면접합격 ||
       status === ApplicationStatus.최종합격 ||
       status === ApplicationStatus.최종불합격
     );
@@ -129,8 +130,9 @@ export class ApplicationForm extends BaseEntity {
   private validateStatusTransition(current: ApplicationStatus, next: ApplicationStatus): void {
     const allowedTransitions: Record<ApplicationStatus, ApplicationStatus[]> = {
       [ApplicationStatus.서류심사대기]: [ApplicationStatus.서류합격, ApplicationStatus.서류불합격],
-      [ApplicationStatus.서류합격]: [ApplicationStatus.최종합격, ApplicationStatus.최종불합격],
+      [ApplicationStatus.서류합격]: [ApplicationStatus.면접합격, ApplicationStatus.최종불합격],
       [ApplicationStatus.서류불합격]: [],
+      [ApplicationStatus.면접합격]: [ApplicationStatus.최종합격, ApplicationStatus.최종불합격],
       [ApplicationStatus.최종합격]: [ApplicationStatus.활동중],
       [ApplicationStatus.최종불합격]: [],
       [ApplicationStatus.활동중]: [ApplicationStatus.활동완료, ApplicationStatus.활동중단],

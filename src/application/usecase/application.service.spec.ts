@@ -417,6 +417,59 @@ describe('ApplicationService', () => {
 
       expect(mockApplicationRepository.saveForm).not.toHaveBeenCalled();
     });
+
+    it('서류합격에서 최종합격으로 건너뛸 수 없다', async () => {
+      const form = makeForm();
+      form.changeStatus(ApplicationStatus.서류합격, 100);
+      mockApplicationRepository.findFormById.mockResolvedValue(form);
+
+      await expect(
+        applicationService.updateStatus(
+          { formId: 1, adminId: 100 },
+          { status: ApplicationStatus.최종합격 },
+        ),
+      ).rejects.toThrow(new AppException('INVALID_STATUS_TRANSITION', HttpStatus.BAD_REQUEST));
+      expect(form.status).toBe(ApplicationStatus.서류합격);
+    });
+
+    it('서류합격 다음 합격은 면접합격이고, 면접합격에서 최종합격으로 이어진다', async () => {
+      const form = makeForm();
+      form.changeStatus(ApplicationStatus.서류합격, 100);
+      mockApplicationRepository.findFormById.mockResolvedValue(form);
+
+      await applicationService.updateStatus(
+        { formId: 1, adminId: 100 },
+        { status: ApplicationStatus.면접합격 },
+      );
+      expect(form.status).toBe(ApplicationStatus.면접합격);
+
+      await applicationService.updateStatus(
+        { formId: 1, adminId: 100 },
+        { status: ApplicationStatus.최종합격 },
+      );
+      expect(form.status).toBe(ApplicationStatus.최종합격);
+    });
+
+    it('불합격은 서류합격·면접합격 어느 단계에서든 최종불합격으로 간다', async () => {
+      const afterDocument = makeForm();
+      afterDocument.changeStatus(ApplicationStatus.서류합격, 100);
+      mockApplicationRepository.findFormById.mockResolvedValue(afterDocument);
+      await applicationService.updateStatus(
+        { formId: 1, adminId: 100 },
+        { status: ApplicationStatus.최종불합격 },
+      );
+      expect(afterDocument.status).toBe(ApplicationStatus.최종불합격);
+
+      const afterInterview = makeForm();
+      afterInterview.changeStatus(ApplicationStatus.서류합격, 100);
+      afterInterview.changeStatus(ApplicationStatus.면접합격, 100);
+      mockApplicationRepository.findFormById.mockResolvedValue(afterInterview);
+      await applicationService.updateStatus(
+        { formId: 1, adminId: 100 },
+        { status: ApplicationStatus.최종불합격 },
+      );
+      expect(afterInterview.status).toBe(ApplicationStatus.최종불합격);
+    });
   });
 
   describe('saveDraft', () => {
