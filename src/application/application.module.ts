@@ -34,7 +34,7 @@ import { PiiPurgeService } from './usecase/pii-purge.service';
     TypeOrmModule.forFeature([ApplicationForm, ApplicationDraft, ApplicationEmailVerification]),
     AuthModule,
     UserModule,
-    CohortModule,
+    forwardRef(() => CohortModule),
     NotificationModule,
     StorageModule,
     forwardRef(() => InterviewModule),

@@ -1,6 +1,7 @@
 import { HttpStatus } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 
+import { ApplicationService } from '../../application/usecase/application.service';
 import { AuditLogService } from '../../audit/application/audit-log.service';
 import { AppException } from '../../common/exception/app.exception';
 import { GeneralEarlyNotificationService } from '../../notification/application/general-early-notification.service';
@@ -22,7 +23,12 @@ const mockCohortRepository = {
   findPartById: jest.fn(),
   checkActiveCohortExistsExcept: jest.fn(),
   findPublicDisplayCandidates: jest.fn(),
+  findEndedActive: jest.fn(),
   update: jest.fn(),
+};
+
+const mockApplicationService = {
+  completeActivitiesForCohort: jest.fn(),
 };
 
 const mockAuditLogService = {
@@ -58,6 +64,7 @@ describe('CohortService', () => {
         CohortService,
         { provide: CohortRepository, useValue: mockCohortRepository },
         { provide: AuditLogService, useValue: mockAuditLogService },
+        { provide: ApplicationService, useValue: mockApplicationService },
         {
           provide: GeneralEarlyNotificationService,
           useValue: mockGeneralEarlyNotificationService,
@@ -359,6 +366,126 @@ describe('CohortService', () => {
 
       // Then
       expect(result).toBeNull();
+    });
+  });
+  describe('활동 종료일 검증', () => {
+    const invalidActivityEnd = new AppException(
+      'INVALID_ACTIVITY_END_DATE',
+      HttpStatus.BAD_REQUEST,
+    );
+
+    it('생성 시 활동 종료일이 모집 종료일보다 빠르면 예외를 던진다', async () => {
+      mockCohortRepository.checkActiveCohortExists.mockResolvedValue(false);
+
+      await expect(
+        cohortService.createCohort({
+          cohort: {
+            name: '15기',
+            recruitStartAt: new Date('2026-03-01T00:00:00.000Z'),
+            recruitEndAt: new Date('2026-03-15T00:00:00.000Z'),
+            activityEndAt: new Date('2026-03-10T00:00:00.000Z'),
+          },
+        }),
+      ).rejects.toThrow(invalidActivityEnd);
+      expect(mockCohortRepository.register).not.toHaveBeenCalled();
+    });
+
+    it('수정 시 기존 활동 종료일과 병합한 결과가 역전되면 예외를 던진다', async () => {
+      mockCohortRepository.findById.mockResolvedValue({
+        id: 1,
+        status: CohortStatus.RECRUITING,
+        recruitStartAt: new Date('2026-03-01T00:00:00.000Z'),
+        recruitEndAt: new Date('2026-03-15T00:00:00.000Z'),
+        activityEndAt: new Date('2026-06-30T00:00:00.000Z'),
+      });
+
+      await expect(
+        cohortService.updateCohort({
+          id: 1,
+          data: { recruitEndAt: new Date('2026-07-15T00:00:00.000Z') },
+        }),
+      ).rejects.toThrow(invalidActivityEnd);
+      expect(mockCohortRepository.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('기수 활동 종료', () => {
+    it('활동 종료일이 지난 ACTIVE 기수를 CLOSED 로 내리고 활동중 지원자를 활동완료로 넘긴다', async () => {
+      // Given
+      mockCohortRepository.findEndedActive.mockResolvedValue([
+        { id: 7, status: CohortStatus.ACTIVE },
+      ]);
+
+      // When
+      await cohortService.transitionEndedActiveToClosed();
+
+      // Then
+      expect(mockCohortRepository.update).toHaveBeenCalledWith({
+        id: 7,
+        status: CohortStatus.CLOSED,
+      });
+      expect(mockApplicationService.completeActivitiesForCohort).toHaveBeenCalledWith({
+        cohortId: 7,
+        adminId: 0,
+      });
+      expect(mockAuditLogService.recordStatusChange).toHaveBeenCalledWith(
+        expect.objectContaining({ entityId: 7, toValue: CohortStatus.CLOSED }),
+      );
+    });
+
+    it('종료 대상이 없으면 아무 것도 전환하지 않는다', async () => {
+      // Given
+      mockCohortRepository.findEndedActive.mockResolvedValue([]);
+
+      // When
+      await cohortService.transitionEndedActiveToClosed();
+
+      // Then
+      expect(mockCohortRepository.update).not.toHaveBeenCalled();
+      expect(mockApplicationService.completeActivitiesForCohort).not.toHaveBeenCalled();
+    });
+
+    it('어드민이 기수를 CLOSED 로 바꿔도 활동중 지원자를 활동완료로 넘긴다', async () => {
+      // Given
+      mockCohortRepository.findById.mockResolvedValue({
+        id: 7,
+        status: CohortStatus.ACTIVE,
+        recruitStartAt: new Date('2026-03-01T00:00:00.000Z'),
+        recruitEndAt: new Date('2026-03-15T00:00:00.000Z'),
+      });
+
+      // When
+      await cohortService.updateCohort({
+        id: 7,
+        data: { status: CohortStatus.CLOSED },
+        adminId: 5,
+      });
+
+      // Then
+      expect(mockApplicationService.completeActivitiesForCohort).toHaveBeenCalledWith({
+        cohortId: 7,
+        adminId: 5,
+      });
+    });
+
+    it('CLOSED 가 아닌 상태 변경은 지원자 상태를 건드리지 않는다', async () => {
+      // Given
+      mockCohortRepository.findById.mockResolvedValue({
+        id: 7,
+        status: CohortStatus.RECRUITING,
+        recruitStartAt: new Date('2026-03-01T00:00:00.000Z'),
+        recruitEndAt: new Date('2026-03-15T00:00:00.000Z'),
+      });
+
+      // When
+      await cohortService.updateCohort({
+        id: 7,
+        data: { status: CohortStatus.ACTIVE },
+        adminId: 5,
+      });
+
+      // Then
+      expect(mockApplicationService.completeActivitiesForCohort).not.toHaveBeenCalled();
     });
   });
 });

@@ -34,6 +34,7 @@ const mockApplicationRepository = {
 
 const mockCohortRepository = {
   findPartById: jest.fn(),
+  findById: jest.fn(),
 };
 
 const mockEventEmitter = {
@@ -509,6 +510,59 @@ describe('ApplicationService', () => {
       );
 
       expect(mockApplicationRepository.saveDraft).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('completeActivitiesForCohort', () => {
+    const createActiveForm = (id: number) => {
+      const form = new ApplicationForm();
+      form.id = id;
+      form.status = ApplicationStatus.활동중;
+      return form;
+    };
+
+    it('기수의 활동중 지원서를 활동완료로 전환하고 저장한다', async () => {
+      mockCohortRepository.findById.mockResolvedValue({ id: 3, parts: [{ id: 10 }, { id: 11 }] });
+      const forms = [createActiveForm(1), createActiveForm(2)];
+      mockApplicationRepository.findFormsByFilter.mockResolvedValue(forms);
+
+      const count = await applicationService.completeActivitiesForCohort({
+        cohortId: 3,
+        adminId: 9,
+      });
+
+      expect(count).toBe(2);
+      expect(mockApplicationRepository.findFormsByFilter).toHaveBeenCalledWith({
+        cohortPartIds: [10, 11],
+        status: ApplicationStatus.활동중,
+      });
+      expect(forms.map((form) => form.status)).toEqual([
+        ApplicationStatus.활동완료,
+        ApplicationStatus.활동완료,
+      ]);
+      expect(forms[0].activityEndedAt).toBeInstanceOf(Date);
+      expect(mockApplicationRepository.saveForm).toHaveBeenCalledTimes(2);
+    });
+
+    it('파트가 없는 기수면 조회 없이 0을 반환한다', async () => {
+      mockCohortRepository.findById.mockResolvedValue({ id: 3, parts: [] });
+
+      const count = await applicationService.completeActivitiesForCohort({
+        cohortId: 3,
+        adminId: 9,
+      });
+
+      expect(count).toBe(0);
+      expect(mockApplicationRepository.findFormsByFilter).not.toHaveBeenCalled();
+    });
+
+    it('활동 종료 전환은 안내 메일 이벤트를 발생시키지 않는다', async () => {
+      mockCohortRepository.findById.mockResolvedValue({ id: 3, parts: [{ id: 10 }] });
+      mockApplicationRepository.findFormsByFilter.mockResolvedValue([createActiveForm(1)]);
+
+      await applicationService.completeActivitiesForCohort({ cohortId: 3, adminId: 9 });
+
+      expect(mockEventEmitter.emit).not.toHaveBeenCalled();
     });
   });
 

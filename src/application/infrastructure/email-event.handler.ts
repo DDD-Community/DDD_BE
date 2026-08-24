@@ -3,7 +3,8 @@ import { OnEvent } from '@nestjs/event-emitter';
 import { match } from 'ts-pattern';
 
 import { NotificationService } from '../../notification/application/notification.service';
-import { ApplicationStatus } from '../domain/application.status';
+import type { AnnouncementStatus } from '../domain/application.status';
+import { ApplicationStatus, isAnnouncementStatus } from '../domain/application.status';
 import type {
   ApplicationStatusChangedEventPayload,
   ApplicationSubmittedEventPayload,
@@ -43,6 +44,10 @@ export class EmailEventHandler {
   async handleApplicationStatusChangedEvent(
     payload: ApplicationStatusChangedEventPayload,
   ): Promise<void> {
+    if (!isAnnouncementStatus(payload.newStatus)) {
+      return;
+    }
+
     this.logger.log(`[이메일 이벤트] 지원서 상태 변경 안내 메일 발송`);
     try {
       const template = this.buildStatusEmailTemplate({
@@ -67,15 +72,11 @@ export class EmailEventHandler {
     newStatus,
   }: {
     name: string;
-    newStatus: ApplicationStatus;
+    newStatus: AnnouncementStatus;
   }): RenderedStatusEmailTemplate {
     const safeName = this.escapeHtml(name);
     const templateByStatus = match(newStatus)
       .returnType<StatusEmailTemplate>()
-      .with(ApplicationStatus.서류심사대기, () => ({
-        subject: '[DDD] 지원 상태가 업데이트되었습니다.',
-        message: '지원 상태가 변경되었습니다.',
-      }))
       .with(ApplicationStatus.서류합격, () => ({
         subject: '[DDD] 서류전형 합격 안내',
         message: '서류전형에 합격하셨습니다.',
@@ -95,18 +96,6 @@ export class EmailEventHandler {
       .with(ApplicationStatus.최종불합격, () => ({
         subject: '[DDD] 최종 결과 안내',
         message: '아쉽게도 이번 기수에서는 함께하지 못하게 되었습니다.',
-      }))
-      .with(ApplicationStatus.활동중, () => ({
-        subject: '[DDD] 활동 시작 안내',
-        message: '활동이 시작되었습니다. 함께하게 되어 기쁩니다.',
-      }))
-      .with(ApplicationStatus.활동완료, () => ({
-        subject: '[DDD] 활동 종료 안내',
-        message: '활동을 무사히 마치셨습니다. 함께해 주셔서 감사합니다.',
-      }))
-      .with(ApplicationStatus.활동중단, () => ({
-        subject: '[DDD] 활동 중단 안내',
-        message: '활동이 중단되었습니다.',
       }))
       .exhaustive();
 

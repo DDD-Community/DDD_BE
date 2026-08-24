@@ -53,6 +53,35 @@ describe('EmailEventHandler', () => {
   });
 
   describe('handleApplicationStatusChangedEvent', () => {
+    it.each([ApplicationStatus.활동중, ApplicationStatus.활동완료, ApplicationStatus.활동중단])(
+      '%s 로 바뀌면 메일을 보내지 않는다',
+      async (newStatus) => {
+        await emailEventHandler.handleApplicationStatusChangedEvent({
+          email: 'applicant@example.com',
+          name: '홍길동',
+          newStatus,
+        });
+
+        expect(notificationService.sendEmail).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each([
+      ApplicationStatus.서류합격,
+      ApplicationStatus.서류불합격,
+      ApplicationStatus.면접합격,
+      ApplicationStatus.최종합격,
+      ApplicationStatus.최종불합격,
+    ])('%s 는 전형 결과라 메일을 보낸다', async (newStatus) => {
+      await emailEventHandler.handleApplicationStatusChangedEvent({
+        email: 'applicant@example.com',
+        name: '홍길동',
+        newStatus,
+      });
+
+      expect(notificationService.sendEmail).toHaveBeenCalledTimes(1);
+    });
+
     it('상태 변경 메일 본문도 escape 처리한다', async () => {
       await emailEventHandler.handleApplicationStatusChangedEvent({
         email: 'applicant@example.com',

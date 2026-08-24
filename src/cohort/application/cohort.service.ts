@@ -1,6 +1,7 @@
 import { forwardRef, HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 
+import { ApplicationService } from '../../application/usecase/application.service';
 import { AuditLogService } from '../../audit/application/audit-log.service';
 import { AppException } from '../../common/exception/app.exception';
 import { hasDefinedValues } from '../../common/util/object-utils';
@@ -27,6 +28,8 @@ export class CohortService {
     private readonly generalEarlyNotificationService: GeneralEarlyNotificationService,
     @Inject(forwardRef(() => NotificationCampaignService))
     private readonly notificationCampaignService: NotificationCampaignService,
+    @Inject(forwardRef(() => ApplicationService))
+    private readonly applicationService: ApplicationService,
   ) {}
 
   /**
@@ -45,9 +48,26 @@ export class CohortService {
     }
   }
 
+  /**
+   * 활동 종료일이 지나면 스케줄러가 기수를 닫고 활동중 지원자를 활동완료로 확정한다.
+   * 활동완료는 되돌릴 수 없으므로, 모집 종료보다 앞선 날짜가 저장되면 지원자 상태가 통째로 오염된다.
+   */
+  private assertActivityEndAt({
+    recruitEndAt,
+    activityEndAt,
+  }: {
+    recruitEndAt: Date;
+    activityEndAt?: Date;
+  }) {
+    if (activityEndAt && activityEndAt.getTime() < recruitEndAt.getTime()) {
+      throw new AppException('INVALID_ACTIVITY_END_DATE', HttpStatus.BAD_REQUEST);
+    }
+  }
+
   @Transactional()
   async createCohort({ cohort }: { cohort: CohortCreateType }) {
     this.assertRecruitPeriod(cohort);
+    this.assertActivityEndAt(cohort);
 
     const isExists = await this.cohortRepository.checkActiveCohortExists();
     if (isExists) {
@@ -117,6 +137,11 @@ export class CohortService {
       recruitEndAt: data.recruitEndAt ?? found.recruitEndAt,
     });
 
+    this.assertActivityEndAt({
+      recruitEndAt: data.recruitEndAt ?? found.recruitEndAt,
+      activityEndAt: data.activityEndAt ?? found.activityEndAt,
+    });
+
     const isTargetStatus =
       data.status !== undefined &&
       [CohortStatus.UPCOMING, CohortStatus.RECRUITING].includes(data.status);
@@ -143,6 +168,13 @@ export class CohortService {
         entityId: id,
         fromValue: previousStatus,
         toValue: data.status,
+        adminId: adminId ?? SYSTEM_ADMIN_ID,
+      });
+    }
+
+    if (statusChanged && data.status === CohortStatus.CLOSED) {
+      await this.applicationService.completeActivitiesForCohort({
+        cohortId: id,
         adminId: adminId ?? SYSTEM_ADMIN_ID,
       });
     }
@@ -193,6 +225,31 @@ export class CohortService {
           entityId: id,
           fromValue: status,
           toValue: CohortStatus.ACTIVE,
+          adminId: SYSTEM_ADMIN_ID,
+        });
+      }),
+    );
+  }
+
+  /**
+   * 활동 종료일이 지난 기수를 CLOSED 로 내리고 활동중 지원자를 활동완료로 넘긴다.
+   * 지원자 상세에 활동완료 버튼이 없으므로 이 경로가 활동완료의 유일한 자동 진입점이다.
+   */
+  @Transactional()
+  async transitionEndedActiveToClosed() {
+    const ended = await this.cohortRepository.findEndedActive();
+    await Promise.all(
+      ended.map(async ({ id, status }) => {
+        await this.cohortRepository.update({ id, status: CohortStatus.CLOSED });
+        await this.auditLogService.recordStatusChange({
+          entityType: AUDIT_ENTITY_TYPE,
+          entityId: id,
+          fromValue: status,
+          toValue: CohortStatus.CLOSED,
+          adminId: SYSTEM_ADMIN_ID,
+        });
+        await this.applicationService.completeActivitiesForCohort({
+          cohortId: id,
           adminId: SYSTEM_ADMIN_ID,
         });
       }),

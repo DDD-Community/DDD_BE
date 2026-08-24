@@ -11,6 +11,7 @@ export type CohortCreateType = {
   name: string;
   recruitStartAt: Date;
   recruitEndAt: Date;
+  activityEndAt?: Date;
   process?: Record<string, unknown>;
   curriculum?: unknown[];
   applicationForm?: Record<string, unknown>;
@@ -22,6 +23,7 @@ export type CohortUpdateType = {
   name?: string;
   recruitStartAt?: Date;
   recruitEndAt?: Date;
+  activityEndAt?: Date;
   process?: Record<string, unknown>;
   curriculum?: unknown[];
   applicationForm?: Record<string, unknown>;

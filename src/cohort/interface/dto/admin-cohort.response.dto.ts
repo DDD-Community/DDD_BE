@@ -49,6 +49,9 @@ export class CohortAdminResponseDto {
   @ApiProperty({ description: '모집 종료일' })
   recruitEndAt: Date;
 
+  @ApiProperty({ description: '활동 종료일', required: false, nullable: true })
+  activityEndAt?: Date | null;
+
   @ApiProperty({ description: '기수 상태', enum: CohortStatus })
   status: CohortStatus;
 
@@ -99,6 +102,7 @@ export class CohortAdminResponseDto {
     dto.name = cohort.name;
     dto.recruitStartAt = cohort.recruitStartAt;
     dto.recruitEndAt = cohort.recruitEndAt;
+    dto.activityEndAt = cohort.activityEndAt ?? null;
     dto.status = cohort.status;
     dto.process = cohort.process ?? null;
     dto.curriculum = cohort.curriculum ?? null;

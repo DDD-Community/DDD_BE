@@ -179,6 +179,41 @@ export class ApplicationService {
     });
   }
 
+  /**
+   * 기수 종료 시 활동중 지원자를 활동완료로 일괄 전환한다.
+   * 활동완료는 개별 버튼이 아니라 기수 종료로만 도달하는 상태라 이 경로가 유일한 진입점이다.
+   * 활동중단(중도 이탈)은 이미 확정된 결과이므로 건드리지 않는다.
+   */
+  @Transactional()
+  async completeActivitiesForCohort({
+    cohortId,
+    adminId,
+  }: {
+    cohortId: number;
+    adminId: number;
+  }): Promise<number> {
+    const cohort = await this.cohortRepository.findById({ id: cohortId });
+    const cohortPartIds = cohort?.parts?.map((part) => part.id) ?? [];
+    if (cohortPartIds.length === 0) {
+      return 0;
+    }
+
+    const forms = await this.applicationRepository.findFormsByFilter({
+      cohortPartIds,
+      status: ApplicationStatus.활동중,
+    });
+
+    for (const form of forms) {
+      form.changeStatus(ApplicationStatus.활동완료, adminId);
+      await this.applicationRepository.saveForm({ form });
+    }
+
+    if (forms.length > 0) {
+      this.logger.log(`기수 종료로 활동완료 전환: cohortId=${cohortId}, count=${forms.length}`);
+    }
+    return forms.length;
+  }
+
   async findDraftByPart({ userId, cohortPartId }: { userId: number; cohortPartId: number }) {
     const draft = await this.applicationRepository.findDraftByUserAndPart({ userId, cohortPartId });
     if (!draft) {

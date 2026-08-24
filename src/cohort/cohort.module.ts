@@ -1,6 +1,7 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { ApplicationModule } from '../application/application.module';
 import { AuditModule } from '../audit/audit.module';
 import { RolesGuard } from '../common/guard/roles.guard';
 import { NotificationModule } from '../notification/notification.module';
@@ -19,6 +20,7 @@ import { PublicCohortController } from './interface/public.cohort.controller';
     TypeOrmModule.forFeature([Cohort, CohortPart]),
     AuditModule,
     forwardRef(() => NotificationModule),
+    forwardRef(() => ApplicationModule),
   ],
   controllers: [AdminCohortController, PublicCohortController],
   providers: [

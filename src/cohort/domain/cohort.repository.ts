@@ -63,6 +63,19 @@ export class CohortRepository {
     });
   }
 
+  /**
+   * 활동 종료일이 지난 활동중(ACTIVE) 기수. activityEndAt 이 비어 있으면 자동 종료 대상이 아니다.
+   */
+  async findEndedActive() {
+    return this.writeRepository.findMany({
+      where: {
+        status: CohortStatus.ACTIVE,
+        activityEndAtLt: new Date(),
+      },
+      includeParts: true,
+    });
+  }
+
   async findUpcomingToRecruiting() {
     return this.writeRepository.findMany({
       where: {
@@ -82,6 +95,7 @@ export class CohortRepository {
     name,
     recruitStartAt,
     recruitEndAt,
+    activityEndAt,
     process,
     curriculum,
     applicationForm,
@@ -89,7 +103,16 @@ export class CohortRepository {
   }: { id: number } & CohortUpdatePatch) {
     await this.writeRepository.update({
       id,
-      patch: { name, recruitStartAt, recruitEndAt, process, curriculum, applicationForm, status },
+      patch: {
+        name,
+        recruitStartAt,
+        recruitEndAt,
+        activityEndAt,
+        process,
+        curriculum,
+        applicationForm,
+        status,
+      },
     });
   }
 

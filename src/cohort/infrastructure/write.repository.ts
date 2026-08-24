@@ -80,6 +80,10 @@ export class WriteRepository {
       where.recruitEndAt = LessThan(filter.recruitEndAtLt);
     }
 
+    if (filter.activityEndAtLt !== undefined) {
+      where.activityEndAt = LessThan(filter.activityEndAtLt);
+    }
+
     return where;
   }
 
