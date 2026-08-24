@@ -82,6 +82,21 @@ describe('EmailEventHandler', () => {
       expect(notificationService.sendEmail).toHaveBeenCalledTimes(1);
     });
 
+    it('면접합격 메일은 최종 결과가 따로 안내된다고 알린다', async () => {
+      await emailEventHandler.handleApplicationStatusChangedEvent({
+        email: 'applicant@example.com',
+        name: '홍길동',
+        newStatus: ApplicationStatus.면접합격,
+      });
+
+      expect(notificationService.sendEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          subject: '[DDD] 면접전형 합격 안내',
+          html: expect.stringContaining('최종 결과는 별도로 안내드립니다') as unknown as string,
+        }),
+      );
+    });
+
     it('상태 변경 메일 본문도 escape 처리한다', async () => {
       await emailEventHandler.handleApplicationStatusChangedEvent({
         email: 'applicant@example.com',
