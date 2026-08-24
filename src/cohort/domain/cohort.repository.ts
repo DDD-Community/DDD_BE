@@ -72,7 +72,6 @@ export class CohortRepository {
         status: CohortStatus.ACTIVE,
         activityEndAtLt: new Date(),
       },
-      includeParts: true,
     });
   }
 

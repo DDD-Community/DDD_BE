@@ -390,6 +390,67 @@ describe('CohortService', () => {
       expect(mockCohortRepository.register).not.toHaveBeenCalled();
     });
 
+    it('생성 시 활동 종료일이 과거면 예외를 던진다', async () => {
+      mockCohortRepository.checkActiveCohortExists.mockResolvedValue(false);
+
+      await expect(
+        cohortService.createCohort({
+          cohort: {
+            name: '15기',
+            recruitStartAt: new Date('2020-03-01T00:00:00.000Z'),
+            recruitEndAt: new Date('2020-03-15T00:00:00.000Z'),
+            activityEndAt: new Date('2020-06-30T00:00:00.000Z'),
+          },
+        }),
+      ).rejects.toThrow(new AppException('ACTIVITY_END_DATE_IN_PAST', HttpStatus.BAD_REQUEST));
+      expect(mockCohortRepository.register).not.toHaveBeenCalled();
+    });
+
+    it('수정 시 활동 종료일을 과거로 넣으면 예외를 던진다', async () => {
+      mockCohortRepository.findById.mockResolvedValue({
+        id: 1,
+        status: CohortStatus.ACTIVE,
+        recruitStartAt: new Date('2020-03-01T00:00:00.000Z'),
+        recruitEndAt: new Date('2020-03-15T00:00:00.000Z'),
+      });
+
+      await expect(
+        cohortService.updateCohort({
+          id: 1,
+          data: { activityEndAt: new Date('2020-06-30T00:00:00.000Z') },
+        }),
+      ).rejects.toThrow(new AppException('ACTIVITY_END_DATE_IN_PAST', HttpStatus.BAD_REQUEST));
+      expect(mockCohortRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('활동 종료일이 이미 지난 기수라도 다른 항목 수정은 막지 않는다', async () => {
+      mockCohortRepository.findById.mockResolvedValue({
+        id: 1,
+        status: CohortStatus.CLOSED,
+        recruitStartAt: new Date('2020-03-01T00:00:00.000Z'),
+        recruitEndAt: new Date('2020-03-15T00:00:00.000Z'),
+        activityEndAt: new Date('2020-06-30T00:00:00.000Z'),
+      });
+
+      await cohortService.updateCohort({ id: 1, data: { name: '14기(수정)' } });
+
+      expect(mockCohortRepository.update).toHaveBeenCalledWith({ id: 1, name: '14기(수정)' });
+    });
+
+    it('null 을 보내면 자동 종료 예약을 해제한다', async () => {
+      mockCohortRepository.findById.mockResolvedValue({
+        id: 1,
+        status: CohortStatus.ACTIVE,
+        recruitStartAt: new Date('2020-03-01T00:00:00.000Z'),
+        recruitEndAt: new Date('2020-03-15T00:00:00.000Z'),
+        activityEndAt: new Date('2027-06-30T00:00:00.000Z'),
+      });
+
+      await cohortService.updateCohort({ id: 1, data: { activityEndAt: null } });
+
+      expect(mockCohortRepository.update).toHaveBeenCalledWith({ id: 1, activityEndAt: null });
+    });
+
     it('수정 시 기존 활동 종료일과 병합한 결과가 역전되면 예외를 던진다', async () => {
       mockCohortRepository.findById.mockResolvedValue({
         id: 1,
@@ -466,6 +527,47 @@ describe('CohortService', () => {
         cohortId: 7,
         adminId: 5,
       });
+    });
+
+    it('한 기수가 실패해도 나머지 기수는 계속 종료한다', async () => {
+      // Given
+      mockCohortRepository.findEndedActive.mockResolvedValue([
+        { id: 7, status: CohortStatus.ACTIVE },
+        { id: 8, status: CohortStatus.ACTIVE },
+      ]);
+      mockApplicationService.completeActivitiesForCohort.mockRejectedValueOnce(
+        new Error('전환 실패'),
+      );
+
+      // When
+      await cohortService.transitionEndedActiveToClosed();
+
+      // Then
+      expect(mockApplicationService.completeActivitiesForCohort).toHaveBeenCalledTimes(2);
+      expect(mockApplicationService.completeActivitiesForCohort).toHaveBeenLastCalledWith({
+        cohortId: 8,
+        adminId: 0,
+      });
+    });
+
+    it('ACTIVE 가 아닌 기수를 CLOSED 로 바꾸면 지원자 상태를 건드리지 않는다', async () => {
+      // Given
+      mockCohortRepository.findById.mockResolvedValue({
+        id: 7,
+        status: CohortStatus.RECRUITING,
+        recruitStartAt: new Date('2026-03-01T00:00:00.000Z'),
+        recruitEndAt: new Date('2026-03-15T00:00:00.000Z'),
+      });
+
+      // When
+      await cohortService.updateCohort({
+        id: 7,
+        data: { status: CohortStatus.CLOSED },
+        adminId: 5,
+      });
+
+      // Then
+      expect(mockApplicationService.completeActivitiesForCohort).not.toHaveBeenCalled();
     });
 
     it('CLOSED 가 아닌 상태 변경은 지원자 상태를 건드리지 않는다', async () => {

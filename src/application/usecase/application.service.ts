@@ -181,8 +181,13 @@ export class ApplicationService {
 
   /**
    * 기수 종료 시 활동중 지원자를 활동완료로 일괄 전환한다.
-   * 활동완료는 개별 버튼이 아니라 기수 종료로만 도달하는 상태라 이 경로가 유일한 진입점이다.
    * 활동중단(중도 이탈)은 이미 확정된 결과이므로 건드리지 않는다.
+   *
+   * 어드민 개별 상태 변경 API 도 활동중 -> 활동완료 를 여전히 받는다(운영 수동 보정용).
+   * 지원자 상세에서 버튼이 사라졌을 뿐 API 가 닫힌 것은 아니다.
+   *
+   * 벌크 UPDATE 대신 건별로 도메인 전이를 태운다. 기수당 수백 명 규모라 비용이 감당되고,
+   * 전이 검증과 activityEndedAt 기록을 SQL 로 복제하지 않아도 된다.
    */
   @Transactional()
   async completeActivitiesForCohort({
@@ -201,6 +206,7 @@ export class ApplicationService {
     const forms = await this.applicationRepository.findFormsByFilter({
       cohortPartIds,
       status: ApplicationStatus.활동중,
+      includeUser: false,
     });
 
     for (const form of forms) {

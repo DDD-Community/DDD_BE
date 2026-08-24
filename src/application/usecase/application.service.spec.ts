@@ -535,6 +535,7 @@ describe('ApplicationService', () => {
       expect(mockApplicationRepository.findFormsByFilter).toHaveBeenCalledWith({
         cohortPartIds: [10, 11],
         status: ApplicationStatus.활동중,
+        includeUser: false,
       });
       expect(forms.map((form) => form.status)).toEqual([
         ApplicationStatus.활동완료,
