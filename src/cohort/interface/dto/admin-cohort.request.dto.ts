@@ -58,6 +58,16 @@ export class CreateCohortRequestDto {
   recruitEndAt: Date;
 
   @ApiPropertyOptional({
+    description:
+      '활동 종료일. 이 시각이 지나면 기수가 자동 종료되고 활동중 지원자가 활동완료로 전환된다.',
+    example: '2026-06-30T23:59:59Z',
+  })
+  @Type(() => Date)
+  @IsDate()
+  @IsOptional()
+  activityEndAt?: Date;
+
+  @ApiPropertyOptional({
     description: '기수 상태',
     enum: CohortStatus,
     default: CohortStatus.UPCOMING,
@@ -123,6 +133,16 @@ export class UpdateCohortRequestDto {
   @IsDate()
   @IsOptional()
   recruitEndAt?: Date;
+
+  @ApiPropertyOptional({
+    description:
+      '활동 종료일. 이 시각이 지나면 기수가 자동 종료되고 활동중 지원자가 활동완료로 전환된다. null 을 보내면 예약을 해제한다.',
+    nullable: true,
+  })
+  @Type(() => Date)
+  @IsDate()
+  @IsOptional()
+  activityEndAt?: Date | null;
 
   @ApiPropertyOptional({ description: '기수 상태', enum: CohortStatus })
   @IsEnum(CohortStatus)

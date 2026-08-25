@@ -7,6 +7,7 @@ export type CohortFilter = {
   statusIn?: CohortStatus[];
   recruitStartAtLte?: Date;
   recruitEndAtLt?: Date;
+  activityEndAtLt?: Date;
 };
 
 export type CohortExistsQuery = CohortFilter;

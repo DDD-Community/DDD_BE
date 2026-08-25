@@ -15,6 +15,8 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags } from '@nestjs/swagger';
 
+import type { JwtUser } from '../../auth/application/auth.type';
+import { AuthUser } from '../../common/decorator/auth-user.decorator';
 import { Roles } from '../../common/decorator/roles.decorator';
 import { RolesGuard } from '../../common/guard/roles.guard';
 import { ApiResponse } from '../../common/response/api-response';
@@ -87,8 +89,12 @@ export class AdminCohortController {
     auth: true,
   })
   @Patch(':id')
-  async updateCohort(@Param('id', ParseIntPipe) id: number, @Body() body: UpdateCohortRequestDto) {
-    await this.cohortService.updateCohort({ id, data: body });
+  async updateCohort(
+    @Param('id', ParseIntPipe) id: number,
+    @AuthUser() user: JwtUser,
+    @Body() body: UpdateCohortRequestDto,
+  ) {
+    await this.cohortService.updateCohort({ id, data: body, adminId: user.id });
     return ApiResponse.ok(null, '기수 정보가 수정되었습니다.');
   }
 

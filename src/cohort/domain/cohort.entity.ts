@@ -16,6 +16,13 @@ export class Cohort extends BaseEntity {
   @Column()
   recruitEndAt: Date;
 
+  /**
+   * 기수 활동 종료일. 이 시각이 지나면 스케줄러가 기수를 CLOSED 로 내리고
+   * 활동중 지원자를 활동완료로 넘긴다. 비어 있으면 자동 종료 대상이 아니다.
+   */
+  @Column({ nullable: true })
+  activityEndAt?: Date;
+
   @Column({ type: 'jsonb', nullable: true })
   process?: Record<string, unknown>;
 

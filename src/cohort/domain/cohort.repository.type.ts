@@ -4,6 +4,7 @@ export type CohortUpdatePatch = {
   name?: string;
   recruitStartAt?: Date;
   recruitEndAt?: Date;
+  activityEndAt?: Date | null;
   process?: Record<string, unknown>;
   curriculum?: unknown[];
   applicationForm?: Record<string, unknown>;

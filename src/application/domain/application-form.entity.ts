@@ -5,7 +5,7 @@ import { BaseEntity } from '../../common/core/base.entity';
 import { EncryptionTransformer } from '../../common/util/encryption.transformer';
 import { User } from '../../user/domain/user.entity';
 import { InvalidApplicationStatusTransitionError } from './application.domain-error';
-import { ApplicationStatus } from './application.status';
+import { ApplicationStatus, isAnnouncementStatus } from './application.status';
 
 @Entity('application_forms')
 @Index('uq_application_forms_user_part_active', ['userId', 'cohortPartId'], {
@@ -105,21 +105,12 @@ export class ApplicationForm extends BaseEntity {
     this.validateStatusTransition(this.status, newStatus);
     this.status = newStatus;
     this.updatedByAdminId = adminId;
-    if (ApplicationForm.isAnnouncementStatus(newStatus)) {
+    if (isAnnouncementStatus(newStatus)) {
       this.announcedAt = new Date();
     }
     if (ApplicationForm.isActivityEndedStatus(newStatus)) {
       this.activityEndedAt = new Date();
     }
-  }
-
-  private static isAnnouncementStatus(status: ApplicationStatus): boolean {
-    return (
-      status === ApplicationStatus.서류합격 ||
-      status === ApplicationStatus.서류불합격 ||
-      status === ApplicationStatus.최종합격 ||
-      status === ApplicationStatus.최종불합격
-    );
   }
 
   private static isActivityEndedStatus(status: ApplicationStatus): boolean {
@@ -129,8 +120,9 @@ export class ApplicationForm extends BaseEntity {
   private validateStatusTransition(current: ApplicationStatus, next: ApplicationStatus): void {
     const allowedTransitions: Record<ApplicationStatus, ApplicationStatus[]> = {
       [ApplicationStatus.서류심사대기]: [ApplicationStatus.서류합격, ApplicationStatus.서류불합격],
-      [ApplicationStatus.서류합격]: [ApplicationStatus.최종합격, ApplicationStatus.최종불합격],
+      [ApplicationStatus.서류합격]: [ApplicationStatus.면접합격, ApplicationStatus.최종불합격],
       [ApplicationStatus.서류불합격]: [],
+      [ApplicationStatus.면접합격]: [ApplicationStatus.최종합격, ApplicationStatus.최종불합격],
       [ApplicationStatus.최종합격]: [ApplicationStatus.활동중],
       [ApplicationStatus.최종불합격]: [],
       [ApplicationStatus.활동중]: [ApplicationStatus.활동완료, ApplicationStatus.활동중단],

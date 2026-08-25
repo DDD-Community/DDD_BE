@@ -1,6 +1,7 @@
-import { forwardRef, HttpStatus, Inject, Injectable } from '@nestjs/common';
+import { forwardRef, HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 
+import { ApplicationService } from '../../application/usecase/application.service';
 import { AuditLogService } from '../../audit/application/audit-log.service';
 import { AppException } from '../../common/exception/app.exception';
 import { hasDefinedValues } from '../../common/util/object-utils';
@@ -20,6 +21,8 @@ const SYSTEM_ADMIN_ID = 0;
 
 @Injectable()
 export class CohortService {
+  private readonly logger = new Logger(CohortService.name);
+
   constructor(
     private readonly cohortRepository: CohortRepository,
     private readonly auditLogService: AuditLogService,
@@ -27,6 +30,8 @@ export class CohortService {
     private readonly generalEarlyNotificationService: GeneralEarlyNotificationService,
     @Inject(forwardRef(() => NotificationCampaignService))
     private readonly notificationCampaignService: NotificationCampaignService,
+    @Inject(forwardRef(() => ApplicationService))
+    private readonly applicationService: ApplicationService,
   ) {}
 
   /**
@@ -45,9 +50,37 @@ export class CohortService {
     }
   }
 
+  /**
+   * 활동 종료일이 모집 종료일보다 앞서면 모집이 끝나는 순간 기수가 종료 대상이 된다.
+   */
+  private assertActivityEndAfterRecruit({
+    recruitEndAt,
+    activityEndAt,
+  }: {
+    recruitEndAt: Date;
+    activityEndAt?: Date | null;
+  }) {
+    if (activityEndAt && activityEndAt.getTime() < recruitEndAt.getTime()) {
+      throw new AppException('INVALID_ACTIVITY_END_DATE', HttpStatus.BAD_REQUEST);
+    }
+  }
+
+  /**
+   * 활동 종료일이 지나면 스케줄러가 기수를 닫고 활동중 지원자를 활동완료로 확정한다.
+   * 활동완료는 되돌릴 수 없어서, 과거 날짜가 저장되면 다음 자정에 기수 전원이 오염된다.
+   * 이미 끝난 기수를 닫는 건 status 를 CLOSED 로 바꾸는 경로가 따로 있다.
+   */
+  private assertActivityEndNotPast({ activityEndAt }: { activityEndAt?: Date | null }) {
+    if (activityEndAt && activityEndAt.getTime() < Date.now()) {
+      throw new AppException('ACTIVITY_END_DATE_IN_PAST', HttpStatus.BAD_REQUEST);
+    }
+  }
+
   @Transactional()
   async createCohort({ cohort }: { cohort: CohortCreateType }) {
     this.assertRecruitPeriod(cohort);
+    this.assertActivityEndAfterRecruit(cohort);
+    this.assertActivityEndNotPast(cohort);
 
     const isExists = await this.cohortRepository.checkActiveCohortExists();
     if (isExists) {
@@ -117,6 +150,16 @@ export class CohortService {
       recruitEndAt: data.recruitEndAt ?? found.recruitEndAt,
     });
 
+    this.assertActivityEndAfterRecruit({
+      recruitEndAt: data.recruitEndAt ?? found.recruitEndAt,
+      activityEndAt: data.activityEndAt === undefined ? found.activityEndAt : data.activityEndAt,
+    });
+
+    // 이미 지난 활동 종료일을 가진 기수의 다른 항목을 고치는 건 막지 않는다.
+    if (data.activityEndAt !== undefined) {
+      this.assertActivityEndNotPast({ activityEndAt: data.activityEndAt });
+    }
+
     const isTargetStatus =
       data.status !== undefined &&
       [CohortStatus.UPCOMING, CohortStatus.RECRUITING].includes(data.status);
@@ -132,20 +175,46 @@ export class CohortService {
       return;
     }
 
-    const statusChanged = data.status !== undefined && data.status !== found.status;
     const previousStatus = found.status;
+    const { status, ...rest } = data;
+    const statusChanged = status !== undefined && status !== previousStatus;
 
-    await this.cohortRepository.update({ id, ...data });
+    await this.cohortRepository.update({ id, ...rest });
 
-    if (statusChanged && data.status !== undefined) {
-      await this.auditLogService.recordStatusChange({
-        entityType: AUDIT_ENTITY_TYPE,
-        entityId: id,
-        fromValue: previousStatus,
-        toValue: data.status,
+    if (!statusChanged || status === undefined) {
+      return;
+    }
+
+    // 되돌릴 수 없는 전환이라 트리거를 좁힌다. 활동중 지원자는 ACTIVE 기수에만 존재한다.
+    // 기수를 닫기 "전에" 지원자를 넘긴다. 이유는 closeCohortWithActivities 주석 참고.
+    if (previousStatus === CohortStatus.ACTIVE && status === CohortStatus.CLOSED) {
+      await this.applicationService.completeActivitiesForCohort({
+        cohortId: id,
         adminId: adminId ?? SYSTEM_ADMIN_ID,
       });
     }
+
+    // 상태 전환은 조건부로 건다. findById 로 읽은 상태는 스냅샷이라, 그 사이 스케줄러가
+    // 같은 전환을 마쳤으면 감사 로그가 두 번 남는다.
+    const transitioned = await this.cohortRepository.updateStatusFrom({
+      id,
+      fromStatus: previousStatus,
+      toStatus: status,
+    });
+    if (!transitioned) {
+      this.logger.log(
+        `기수 상태 전환을 건너뛴다(이미 다른 경로에서 전환됨): cohortId=${id}, from=${previousStatus}, to=${status}`,
+      );
+      return;
+    }
+
+    await this.auditLogService.recordStatusChange({
+      entityType: AUDIT_ENTITY_TYPE,
+      entityId: id,
+      fromValue: previousStatus,
+      toValue: status,
+      adminId: adminId ?? SYSTEM_ADMIN_ID,
+    });
   }
 
   @Transactional()
@@ -197,6 +266,69 @@ export class CohortService {
         });
       }),
     );
+  }
+
+  /**
+   * 활동 종료일이 지난 기수를 CLOSED 로 내리고 활동중 지원자를 활동완료로 넘긴다.
+   * 지원자 상세에 활동완료 버튼이 없으므로 이 경로가 활동완료의 유일한 자동 진입점이다.
+   *
+   * 기수마다 트랜잭션을 따로 연다. 한 배치로 묶으면 지원서 한 건의 실패가 그날 닫혀야 할
+   * 다른 기수까지 되돌리고, 크론은 다음 자정까지 다시 돌지 않아 조용히 밀린다.
+   */
+  async transitionEndedActiveToClosed() {
+    const ended = await this.cohortRepository.findEndedActive();
+    for (const { id, status } of ended) {
+      try {
+        await this.closeCohortWithActivities({ id, fromStatus: status, adminId: SYSTEM_ADMIN_ID });
+      } catch (error) {
+        this.logger.error(
+          `기수 자동 종료 실패: cohortId=${id}`,
+          error instanceof Error ? error.stack : String(error),
+        );
+      }
+    }
+  }
+
+  /**
+   * 지원자 전환을 먼저 하고 기수를 나중에 닫는다. 순서가 중요하다.
+   *
+   * 기수를 먼저 닫으면 지원자 전환이 실패했을 때 기수만 CLOSED 로 남는데,
+   * findEndedActive 는 ACTIVE 만 보므로 다음 스케줄에도 잡히지 않는다. 즉 조용히 굳는다.
+   * 트랜잭션이 롤백해 주는 게 정상이고 실제로 그렇게 동작하지만, 전파가 깨지는 날에도
+   * 다음 실행이 스스로 복구하도록 순서로 한 겹 더 받쳐 둔다.
+   *
+   * 반대 방향은 안전하다. 지원자만 넘어가고 기수가 안 닫혔으면 다음 실행에서
+   * 활동중이 0건이라 전환은 건너뛰고 기수만 닫힌다.
+   */
+  @Transactional()
+  private async closeCohortWithActivities({
+    id,
+    fromStatus,
+    adminId,
+  }: {
+    id: number;
+    fromStatus: CohortStatus;
+    adminId: number;
+  }) {
+    await this.applicationService.completeActivitiesForCohort({ cohortId: id, adminId });
+
+    // 조회 결과는 스냅샷이다. 그 사이 어드민이 같은 기수를 닫았으면 감사 로그를 남기지 않는다.
+    const transitioned = await this.cohortRepository.updateStatusFrom({
+      id,
+      fromStatus,
+      toStatus: CohortStatus.CLOSED,
+    });
+    if (!transitioned) {
+      return;
+    }
+
+    await this.auditLogService.recordStatusChange({
+      entityType: AUDIT_ENTITY_TYPE,
+      entityId: id,
+      fromValue: fromStatus,
+      toValue: CohortStatus.CLOSED,
+      adminId,
+    });
   }
 
   @Transactional()

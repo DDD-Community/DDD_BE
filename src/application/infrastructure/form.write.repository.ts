@@ -7,7 +7,7 @@ import type { ApplicationFormFilter, ApplicationFormQuery } from './write.reposi
 
 // 기산점 우선순위:
 //   1) activityEndedAt (활동완료/활동중단 확정일)
-//   2) announcedAt (서류/최종 합격 발표일)
+//   2) announcedAt (서류/면접/최종 발표일)
 //   3) updatedAt (터미널 상태 진입 시점 fallback)
 //   4) createdAt (비터미널 상태 기본 fallback)
 // 활동 종료 시점이 존재하면 수료생에 대해 가장 늦은 기산점으로 동작하며,

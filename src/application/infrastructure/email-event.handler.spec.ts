@@ -53,6 +53,50 @@ describe('EmailEventHandler', () => {
   });
 
   describe('handleApplicationStatusChangedEvent', () => {
+    it.each([ApplicationStatus.활동중, ApplicationStatus.활동완료, ApplicationStatus.활동중단])(
+      '%s 로 바뀌면 메일을 보내지 않는다',
+      async (newStatus) => {
+        await emailEventHandler.handleApplicationStatusChangedEvent({
+          email: 'applicant@example.com',
+          name: '홍길동',
+          newStatus,
+        });
+
+        expect(notificationService.sendEmail).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each([
+      ApplicationStatus.서류합격,
+      ApplicationStatus.서류불합격,
+      ApplicationStatus.면접합격,
+      ApplicationStatus.최종합격,
+      ApplicationStatus.최종불합격,
+    ])('%s 는 전형 결과라 메일을 보낸다', async (newStatus) => {
+      await emailEventHandler.handleApplicationStatusChangedEvent({
+        email: 'applicant@example.com',
+        name: '홍길동',
+        newStatus,
+      });
+
+      expect(notificationService.sendEmail).toHaveBeenCalledTimes(1);
+    });
+
+    it('면접합격 메일은 최종 결과가 따로 안내된다고 알린다', async () => {
+      await emailEventHandler.handleApplicationStatusChangedEvent({
+        email: 'applicant@example.com',
+        name: '홍길동',
+        newStatus: ApplicationStatus.면접합격,
+      });
+
+      expect(notificationService.sendEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          subject: '[DDD] 면접전형 합격 안내',
+          html: expect.stringContaining('최종 결과는 별도로 안내드립니다') as unknown as string,
+        }),
+      );
+    });
+
     it('상태 변경 메일 본문도 escape 처리한다', async () => {
       await emailEventHandler.handleApplicationStatusChangedEvent({
         email: 'applicant@example.com',

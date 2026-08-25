@@ -35,13 +35,15 @@ export class ApplicationRepository {
   async findFormsByFilter({
     cohortPartIds,
     status,
+    includeUser = true,
   }: {
     cohortPartIds?: number[];
     status?: ApplicationStatus;
+    includeUser?: boolean;
   }) {
     return this.formWriteRepository.findMany({
       where: { cohortPartIds, status },
-      includeUser: true,
+      includeUser,
     });
   }
 

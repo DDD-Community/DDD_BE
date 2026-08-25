@@ -5,6 +5,7 @@ import { DataSource, In, LessThan, LessThanOrEqual, Not, Repository } from 'type
 import { filterDefinedFields } from '../../common/util/object-utils';
 import { Cohort } from '../domain/cohort.entity';
 import type { CohortUpdatePatch } from '../domain/cohort.repository.type';
+import type { CohortStatus } from '../domain/cohort.status';
 import type { CohortCreateType } from '../domain/cohort.type';
 import type { CohortExistsQuery, CohortFilter } from './write.repository.type';
 
@@ -49,6 +50,26 @@ export class WriteRepository {
     await this.repository.update(id, defined);
   }
 
+  /**
+   * 현재 상태가 fromStatus 일 때만 전환한다. 전환에 성공했으면 true.
+   *
+   * 스케줄러의 자동 종료와 어드민의 수동 종료가 같은 기수를 동시에 잡으면, 둘 다 ACTIVE 를
+   * 읽고 둘 다 후속 처리(감사 로그·지원자 일괄 전환)를 돌린다. 조건을 UPDATE 안에 넣으면
+   * PostgreSQL 이 행 잠금으로 직렬화하고 뒤늦은 쪽은 affected 0 을 받아 스스로 물러난다.
+   */
+  async updateStatusFrom({
+    id,
+    fromStatus,
+    toStatus,
+  }: {
+    id: number;
+    fromStatus: CohortStatus;
+    toStatus: CohortStatus;
+  }): Promise<boolean> {
+    const result = await this.repository.update({ id, status: fromStatus }, { status: toStatus });
+    return (result.affected ?? 0) > 0;
+  }
+
   async softDelete({ where }: { where: CohortFilter }) {
     const whereOptions = this.buildWhere(where);
 
@@ -78,6 +99,10 @@ export class WriteRepository {
 
     if (filter.recruitEndAtLt !== undefined) {
       where.recruitEndAt = LessThan(filter.recruitEndAtLt);
+    }
+
+    if (filter.activityEndAtLt !== undefined) {
+      where.activityEndAt = LessThan(filter.activityEndAtLt);
     }
 
     return where;
