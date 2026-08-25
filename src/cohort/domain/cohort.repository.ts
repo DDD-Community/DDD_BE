@@ -115,6 +115,18 @@ export class CohortRepository {
     });
   }
 
+  async updateStatusFrom({
+    id,
+    fromStatus,
+    toStatus,
+  }: {
+    id: number;
+    fromStatus: CohortStatus;
+    toStatus: CohortStatus;
+  }): Promise<boolean> {
+    return this.writeRepository.updateStatusFrom({ id, fromStatus, toStatus });
+  }
+
   async save({ cohort }: { cohort: Cohort }) {
     return this.writeRepository.save({ cohort });
   }

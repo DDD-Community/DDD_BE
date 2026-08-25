@@ -122,6 +122,27 @@ jobs:
           fi
           echo "정합성 확인: 엔티티와 마이그레이션이 일치합니다."
 
+      # 아래 롤백 루프는 빈 DB 위에서 돌기 때문에, down() 의 데이터 변환 경로(캐스팅 전에
+      # 잔존 행을 이전 값으로 되돌리는 부분)가 한 번도 실행되지 않는다. 그 경로가 빠지면
+      # 롤백이 `invalid input value for enum` 으로 통째로 실패하는데, 그건 장애 대응 중에야
+      # 드러난다. 전이 도중 상태의 행을 심어 두고 실제로 되돌려 본다.
+      - name: 롤백 검증용 전이 상태 행 시딩
+        run: |
+          set -euo pipefail
+          psql "postgresql://ci:ci@localhost:5432/ci" -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO users (email, "firstName", sub) VALUES ('rollback-probe@example.com', '롤백', 'rollback-probe-sub');
+          INSERT INTO cohorts (name, "recruitStartAt", "recruitEndAt") VALUES ('롤백검증기수', now(), now());
+          INSERT INTO cohort_parts ("partName", "applicationSchema", "cohortId")
+            VALUES ('FE', '{}'::jsonb, (SELECT id FROM cohorts WHERE name = '롤백검증기수'));
+          INSERT INTO application_forms ("userId", "cohortPartId", status, "applicantName", "applicantPhone", answers, "privacyAgreedAt")
+            VALUES (
+              (SELECT id FROM users WHERE email = 'rollback-probe@example.com'),
+              (SELECT id FROM cohort_parts WHERE "cohortId" = (SELECT id FROM cohorts WHERE name = '롤백검증기수')),
+              '면접합격', 'enc:name', 'enc:phone', '{}'::jsonb, now()
+            );
+          SQL
+          echo "시딩 완료: 면접합격 지원서 1건"
+
       # 베이스라인은 운영 스키마에 적용됨으로 표시만 되어 있어, revert 하면 up() 이 만들지
       # 않은 운영 테이블과 데이터를 지운다. down() 에 가드를 넣어 뒀는데 그 가드가 실제로
       # 막는지, 그리고 막다가 스키마를 훼손하지 않는지를 확인한다.
@@ -155,6 +176,15 @@ jobs:
             fi
             i=$((i+1))
           done
+          # down() 이 캐스팅 전에 면접합격 행을 서류합격으로 되돌렸는지 확인한다.
+          # 루프가 통과했다는 것만으로는 부족하다. 데이터가 사라졌거나 다른 값으로
+          # 변환됐어도 revert 자체는 성공할 수 있다.
+          PROBE="$(psql "postgresql://ci:ci@localhost:5432/ci" -tAc             "SELECT status FROM application_forms WHERE \"applicantPhone\" = 'enc:phone'")" || PROBE=""
+          if [ "$PROBE" != "서류합격" ]; then
+            echo "::error::면접합격 행의 롤백 변환이 어긋났습니다. 기대 '서류합격', 실제 '$PROBE'."
+            exit 1
+          fi
+          echo "롤백 데이터 변환 확인: 면접합격 -> 서류합격"
           BEFORE="$(count_tables)" || BEFORE=""
           # 값이 없으면 아래 비교가 ''=''  로 통과해 검사가 통째로 무의미해진다.
           case "$BEFORE" in

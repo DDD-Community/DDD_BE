@@ -175,32 +175,46 @@ export class CohortService {
       return;
     }
 
-    const statusChanged = data.status !== undefined && data.status !== found.status;
     const previousStatus = found.status;
+    const { status, ...rest } = data;
+    const statusChanged = status !== undefined && status !== previousStatus;
 
-    await this.cohortRepository.update({ id, ...data });
+    await this.cohortRepository.update({ id, ...rest });
 
-    if (statusChanged && data.status !== undefined) {
-      await this.auditLogService.recordStatusChange({
-        entityType: AUDIT_ENTITY_TYPE,
-        entityId: id,
-        fromValue: previousStatus,
-        toValue: data.status,
-        adminId: adminId ?? SYSTEM_ADMIN_ID,
-      });
+    if (!statusChanged || status === undefined) {
+      return;
     }
 
     // 되돌릴 수 없는 전환이라 트리거를 좁힌다. 활동중 지원자는 ACTIVE 기수에만 존재한다.
-    if (
-      statusChanged &&
-      previousStatus === CohortStatus.ACTIVE &&
-      data.status === CohortStatus.CLOSED
-    ) {
+    // 기수를 닫기 "전에" 지원자를 넘긴다. 이유는 closeCohortWithActivities 주석 참고.
+    if (previousStatus === CohortStatus.ACTIVE && status === CohortStatus.CLOSED) {
       await this.applicationService.completeActivitiesForCohort({
         cohortId: id,
         adminId: adminId ?? SYSTEM_ADMIN_ID,
       });
     }
+
+    // 상태 전환은 조건부로 건다. findById 로 읽은 상태는 스냅샷이라, 그 사이 스케줄러가
+    // 같은 전환을 마쳤으면 감사 로그가 두 번 남는다.
+    const transitioned = await this.cohortRepository.updateStatusFrom({
+      id,
+      fromStatus: previousStatus,
+      toStatus: status,
+    });
+    if (!transitioned) {
+      this.logger.log(
+        `기수 상태 전환을 건너뛴다(이미 다른 경로에서 전환됨): cohortId=${id}, from=${previousStatus}, to=${status}`,
+      );
+      return;
+    }
+
+    await this.auditLogService.recordStatusChange({
+      entityType: AUDIT_ENTITY_TYPE,
+      entityId: id,
+      fromValue: previousStatus,
+      toValue: status,
+      adminId: adminId ?? SYSTEM_ADMIN_ID,
+    });
   }
 
   @Transactional()
@@ -275,6 +289,17 @@ export class CohortService {
     }
   }
 
+  /**
+   * 지원자 전환을 먼저 하고 기수를 나중에 닫는다. 순서가 중요하다.
+   *
+   * 기수를 먼저 닫으면 지원자 전환이 실패했을 때 기수만 CLOSED 로 남는데,
+   * findEndedActive 는 ACTIVE 만 보므로 다음 스케줄에도 잡히지 않는다. 즉 조용히 굳는다.
+   * 트랜잭션이 롤백해 주는 게 정상이고 실제로 그렇게 동작하지만, 전파가 깨지는 날에도
+   * 다음 실행이 스스로 복구하도록 순서로 한 겹 더 받쳐 둔다.
+   *
+   * 반대 방향은 안전하다. 지원자만 넘어가고 기수가 안 닫혔으면 다음 실행에서
+   * 활동중이 0건이라 전환은 건너뛰고 기수만 닫힌다.
+   */
   @Transactional()
   private async closeCohortWithActivities({
     id,
@@ -285,7 +310,18 @@ export class CohortService {
     fromStatus: CohortStatus;
     adminId: number;
   }) {
-    await this.cohortRepository.update({ id, status: CohortStatus.CLOSED });
+    await this.applicationService.completeActivitiesForCohort({ cohortId: id, adminId });
+
+    // 조회 결과는 스냅샷이다. 그 사이 어드민이 같은 기수를 닫았으면 감사 로그를 남기지 않는다.
+    const transitioned = await this.cohortRepository.updateStatusFrom({
+      id,
+      fromStatus,
+      toStatus: CohortStatus.CLOSED,
+    });
+    if (!transitioned) {
+      return;
+    }
+
     await this.auditLogService.recordStatusChange({
       entityType: AUDIT_ENTITY_TYPE,
       entityId: id,
@@ -293,7 +329,6 @@ export class CohortService {
       toValue: CohortStatus.CLOSED,
       adminId,
     });
-    await this.applicationService.completeActivitiesForCohort({ cohortId: id, adminId });
   }
 
   @Transactional()
