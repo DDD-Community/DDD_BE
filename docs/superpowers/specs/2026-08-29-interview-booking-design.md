@@ -148,9 +148,14 @@ export type ApplicationStatusChangedEventPayload = {
 
 1. 슬롯 행을 `SELECT ... FOR UPDATE` (TypeORM `pessimistic_write`) 로 잠근다.
 2. 슬롯 검증: 존재 + 토큰의 `cohortPartId` 일치 + `startAt > now`.
-3. 해당 슬롯의 활성 예약 수를 세서 `capacity` 미만인지 확인. 아니면 `INTERVIEW_SLOT_FULL`.
-4. 본인 활성 예약 존재 여부 확인. 있으면 `INTERVIEW_RESERVATION_EXISTS`.
+3. 본인 활성 예약 존재 여부 확인. 있으면 `INTERVIEW_RESERVATION_EXISTS`.
+   (정원 검사보다 먼저 — 이미 예약한 지원자가 만석 슬롯을 눌러도 프론트가
+   확정 화면으로 안내할 수 있도록 `RESERVATION_EXISTS` 를 우선한다.)
+4. 해당 슬롯의 활성 예약 수를 세서 `capacity` 미만인지 확인. 아니면 `INTERVIEW_SLOT_FULL`.
 5. INSERT.
+
+어드민 예약 생성 경로도 같은 행 잠금을 사용한다 — 어드민과 지원자가 같은 슬롯에
+동시에 예약해도 정원 불변식이 유지된다.
 
 정원 경합은 1번 행 잠금이 직렬화한다 — 동시 요청 중 한 명만 201, 나머지는 반드시 409.
 "1인 1예약" 은 기존 부분 유니크 인덱스

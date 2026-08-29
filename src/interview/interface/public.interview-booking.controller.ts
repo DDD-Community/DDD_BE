@@ -4,8 +4,8 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ApplicationService } from '../../application/usecase/application.service';
 import { ApiResponse } from '../../common/response/api-response';
 import { ApiDoc } from '../../common/swagger/api-doc.decorator';
-import type { InterviewBookingTokenPayload } from '../application/interview-booking-token.service';
 import { InterviewService } from '../application/interview.service';
+import type { InterviewBookingTokenPayload } from '../application/interview-booking-token.service';
 import { CreateInterviewBookingRequestDto } from './dto/interview-booking.request.dto';
 import {
   BookingContextResponseDto,

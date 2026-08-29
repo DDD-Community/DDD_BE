@@ -7,7 +7,6 @@ import type { CohortPart } from '../../cohort/domain/cohort-part.entity';
 import { isRecruitmentOpenAt } from '../../cohort/domain/cohort-recruitment';
 import { AppException } from '../../common/exception/app.exception';
 import { InterviewService } from '../../interview/application/interview.service';
-import type { ApplicationStatusChangedEventPayload } from '../infrastructure/email-event.type';
 import { InvalidApplicationStatusTransitionError } from '../domain/application.domain-error';
 import { ApplicationRepository } from '../domain/application.repository';
 import { ApplicationStatus } from '../domain/application.status';
@@ -18,6 +17,7 @@ import type {
 } from '../domain/application.type';
 import { ApplicationDraft } from '../domain/application-draft.entity';
 import { ApplicationForm } from '../domain/application-form.entity';
+import type { ApplicationStatusChangedEventPayload } from '../infrastructure/email-event.type';
 import { ApplicationAnswerValidator } from './application-answer.validator';
 import { ApplicationAttachmentService } from './application-attachment.service';
 
@@ -172,7 +172,14 @@ export class ApplicationService {
     );
 
     runOnTransactionCommit(() => {
-      const cohort = form.cohortPart.cohort;
+      // 기수가 soft-delete 되면 leftJoin 결과가 비어 커밋 후 콜백이 터질 수 있다.
+      const cohort = form.cohortPart?.cohort;
+      if (!cohort) {
+        this.logger.error(
+          `상태 변경 이벤트 발행 생략: formId=${form.id} 의 기수 정보를 찾을 수 없습니다.`,
+        );
+        return;
+      }
       this.eventEmitter.emit('application.status_changed', {
         email: form.user.email,
         name: form.applicantName,

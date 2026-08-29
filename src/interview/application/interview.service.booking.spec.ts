@@ -1,5 +1,5 @@
-import { Test } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
+import { Test } from '@nestjs/testing';
 import { QueryFailedError } from 'typeorm';
 
 import { NotificationService } from '../../notification/application/notification.service';
@@ -143,9 +143,13 @@ describe('InterviewService (지원자 예약)', () => {
       mockRepository.findReservationByApplicationFormId.mockResolvedValue(null);
       mockRepository.countActiveReservationsBySlotId.mockResolvedValue(0);
       mockRepository.saveReservation.mockRejectedValue(
-        new QueryFailedError('INSERT', [], Object.assign(new Error('duplicate'), {
-          code: '23505',
-        })),
+        new QueryFailedError(
+          'INSERT',
+          [],
+          Object.assign(new Error('duplicate'), {
+            code: '23505',
+          }),
+        ),
       );
 
       await expect(service.createReservationByApplicant({ input })).rejects.toMatchObject({

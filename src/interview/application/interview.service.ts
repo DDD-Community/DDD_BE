@@ -130,7 +130,8 @@ export class InterviewService {
   }: {
     input: ReservationCreateInput;
   }): Promise<InterviewReservation> {
-    const slot = await this.interviewRepository.findSlotById({ id: input.slotId });
+    // 지원자 예약 경로와 같은 행 잠금을 타야 교차 경로 정원 초과가 없다.
+    const slot = await this.interviewRepository.findSlotByIdForUpdate({ id: input.slotId });
     if (!slot) {
       throw new AppException('INTERVIEW_SLOT_NOT_FOUND', HttpStatus.NOT_FOUND);
     }

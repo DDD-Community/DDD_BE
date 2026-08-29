@@ -20,12 +20,7 @@ import { AppException } from '../../common/exception/app.exception';
 import { RejectApplicantSessionGuard } from '../../common/guard/reject-applicant-session.guard';
 import { ApiResponse } from '../../common/response/api-response';
 import { ApiDoc } from '../../common/swagger/api-doc.decorator';
-import type {
-  GoogleAuthCallbackResult,
-  GoogleProfile,
-  GoogleRefreshResult,
-  RefreshResult,
-} from '../application/google.type';
+import type { GoogleProfile, GoogleRefreshResult, RefreshResult } from '../application/google.type';
 import { GoogleAuthService } from '../application/google-auth.service';
 import { GoogleAuthCallbackResponseDto, GoogleRefreshResponseDto } from './dto/google-auth.dto';
 import { GoogleAuthSwagger } from './google-auth.swagger';
@@ -95,10 +90,10 @@ export class GoogleAuthController {
     });
 
     // 로컬 테스트 환경에서는 바로 토큰을 복사할 수 있도록 화면에 JSON으로 띄워줍니다.
-    if (!this.isProduction) {
-      // NOTE: 디버그용 — 프로덕션에서는 실행되지 않음
-      return ApiResponse.ok<GoogleAuthCallbackResult>({ accessToken: user.accessToken });
-    }
+    // if (!this.isProduction) {
+    //   // NOTE: 디버그용 — 프로덕션에서는 실행되지 않음
+    //   return ApiResponse.ok<GoogleAuthCallbackResult>({ accessToken: user.accessToken });
+    // }
 
     response.redirect(this.clientRedirectUrl);
   }

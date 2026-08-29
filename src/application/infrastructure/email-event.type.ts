@@ -20,6 +20,8 @@ export type ApplicationStatusChangedEventPayload = {
 export type StatusEmailTemplate = {
   subject: string;
   message: string;
+  extraHtml?: string;
+  extraText?: string;
 };
 
 export type RenderedStatusEmailTemplate = {

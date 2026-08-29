@@ -15,8 +15,6 @@ export const UserSwagger = {
       description: '현재 로그인한 사용자의 식별 정보와 활성 권한을 반환합니다.',
       ...successResponseSchema(MeResponseDto),
     },
-    unauthorized: CommonSwaggerResponses.unauthorized(
-      'access_token 쿠키가 없거나 만료되었습니다.',
-    ),
+    unauthorized: CommonSwaggerResponses.unauthorized('access_token 쿠키가 없거나 만료되었습니다.'),
   },
 } as const;
