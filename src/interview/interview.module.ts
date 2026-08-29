@@ -15,6 +15,8 @@ import { GoogleCalendarClient } from './infrastructure/google-calendar.client';
 import { ReservationWriteRepository } from './infrastructure/reservation.write.repository';
 import { SlotWriteRepository } from './infrastructure/slot.write.repository';
 import { AdminInterviewController } from './interface/admin.interview.controller';
+import { InterviewBookingGuard } from './interface/interview-booking.guard';
+import { PublicInterviewBookingController } from './interface/public.interview-booking.controller';
 
 @Module({
   imports: [
@@ -29,7 +31,7 @@ import { AdminInterviewController } from './interface/admin.interview.controller
       inject: [ConfigService],
     }),
   ],
-  controllers: [AdminInterviewController],
+  controllers: [AdminInterviewController, PublicInterviewBookingController],
   providers: [
     InterviewService,
     InterviewRepository,
@@ -38,6 +40,7 @@ import { AdminInterviewController } from './interface/admin.interview.controller
     GoogleCalendarClient,
     RolesGuard,
     InterviewBookingTokenService,
+    InterviewBookingGuard,
   ],
   exports: [InterviewService, InterviewBookingTokenService],
 })
