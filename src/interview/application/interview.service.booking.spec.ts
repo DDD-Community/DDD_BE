@@ -88,6 +88,9 @@ describe('InterviewService (지원자 예약)', () => {
       expect(mockRepository.findSlotByIdForUpdate).toHaveBeenCalledWith({ id: 7 });
       expect(saved.applicationFormId).toBe(123);
       expect(saved.slotId).toBe(7);
+      // 응답 DTO 가 일정·장소를 내보낼 수 있게 잠금 조회한 슬롯이 붙는다
+      expect(saved.slot).toBeDefined();
+      expect(saved.slot.id).toBe(7);
     });
 
     it('없는 슬롯이면 404', async () => {

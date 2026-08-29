@@ -1,7 +1,9 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
+import { ApplicationStatus } from '../../application/domain/application.status';
 import { ApplicationService } from '../../application/usecase/application.service';
+import { AppException } from '../../common/exception/app.exception';
 import { ApiResponse } from '../../common/response/api-response';
 import { ApiDoc } from '../../common/swagger/api-doc.decorator';
 import { InterviewService } from '../application/interview.service';
@@ -70,6 +72,10 @@ export class PublicInterviewBookingController {
     @Body() body: CreateInterviewBookingRequestDto,
   ) {
     const form = await this.applicationService.findFormById({ id: token.applicationFormId });
+    // 토큰은 면접 종료일까지 살아 있으므로, 이후 탈락 처리된 지원자의 재예약을 상태로 막는다.
+    if (form.status !== ApplicationStatus.서류합격) {
+      throw new AppException('INTERVIEW_BOOKING_NOT_ELIGIBLE', HttpStatus.FORBIDDEN);
+    }
     const reservation = await this.interviewService.createReservationByApplicant({
       input: {
         slotId: body.slotId,

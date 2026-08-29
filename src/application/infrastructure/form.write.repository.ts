@@ -71,6 +71,8 @@ export class FormWriteRepository {
       qb.leftJoinAndSelect('cohortPart.cohort', 'cohort');
     }
 
+    // QueryBuilder 는 soft delete 필터를 자동 적용하지 않는다.
+    qb.andWhere('form.deletedAt IS NULL');
     this.applyFilter(qb, where);
     return qb.getOne();
   }

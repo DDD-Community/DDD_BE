@@ -238,6 +238,8 @@ export class InterviewService {
 
     try {
       const saved = await this.interviewRepository.saveReservation({ reservation });
+      // 응답 DTO 가 슬롯 일정·장소를 내보낼 수 있도록 잠금 조회한 슬롯을 붙인다.
+      saved.slot = slot;
 
       runOnTransactionCommit(() => {
         this.schedulePostCommit(() =>

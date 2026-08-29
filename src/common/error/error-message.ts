@@ -45,6 +45,7 @@ export const ErrorMessage = {
   INTERVIEW_SLOT_FULL: '방금 해당 시간대 예약이 마감되었습니다. 다른 시간을 선택해주세요.',
   INTERVIEW_RESERVATION_EXISTS: '이미 면접 예약이 완료되어 있습니다.',
   INTERVIEW_SLOT_CLOSED: '이미 시작되었거나 예약할 수 없는 면접 슬롯입니다.',
+  INTERVIEW_BOOKING_NOT_ELIGIBLE: '면접 예약 대상이 아닙니다.',
 
   BLOG_POST_NOT_FOUND: '블로그 게시글을 찾을 수 없습니다.',
 
