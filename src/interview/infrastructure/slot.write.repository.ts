@@ -41,6 +41,16 @@ export class SlotWriteRepository {
     await this.repository.softDelete(id);
   }
 
+  // QueryBuilder 는 soft delete 필터를 자동 적용하지 않으므로 deletedAt 조건을 명시한다.
+  async findOneForUpdate({ id }: { id: number }) {
+    return this.repository
+      .createQueryBuilder('slot')
+      .setLock('pessimistic_write')
+      .where('slot.id = :id', { id })
+      .andWhere('slot.deletedAt IS NULL')
+      .getOne();
+  }
+
   async countByCohortPartId({ cohortPartId }: { cohortPartId: number }): Promise<number> {
     return this.repository.count({ where: { cohortPartId } });
   }

@@ -10,6 +10,7 @@ import { NotificationService } from '../../notification/application/notification
 import { buildIcsFile } from '../../notification/util/build-ics';
 import { InterviewRepository } from '../domain/interview.repository';
 import type {
+  ApplicantReservationCreateInput,
   InterviewSlotCreateInput,
   InterviewSlotUpdatePatch,
   ReservationCreateInput,
@@ -171,6 +172,87 @@ export class InterviewService {
     } catch (error) {
       if (isPostgresUniqueViolation(error)) {
         throw new AppException('INTERVIEW_SLOT_ALREADY_RESERVED', HttpStatus.CONFLICT);
+      }
+      throw error;
+    }
+  }
+
+  async findOpenSlotsForBooking({
+    cohortPartId,
+  }: {
+    cohortPartId: number;
+  }): Promise<Array<{ slot: InterviewSlot; remainingSeats: number }>> {
+    const slots = await this.interviewRepository.findSlots({ where: { cohortPartId } });
+    const now = new Date();
+    return slots
+      .filter((slot) => slot.startAt > now)
+      .map((slot) => ({
+        slot,
+        remainingSeats: Math.max(0, slot.capacity - (slot.reservations?.length ?? 0)),
+      }));
+  }
+
+  async findActiveReservationByApplicationFormId({
+    applicationFormId,
+  }: {
+    applicationFormId: number;
+  }): Promise<InterviewReservation | null> {
+    return this.interviewRepository.findReservationByApplicationFormId({ applicationFormId });
+  }
+
+  @Transactional()
+  async createReservationByApplicant({
+    input,
+  }: {
+    input: ApplicantReservationCreateInput;
+  }): Promise<InterviewReservation> {
+    // 행 잠금으로 같은 슬롯의 동시 예약을 직렬화한다 — 정원 검사와 INSERT 가 원자적이 된다.
+    const slot = await this.interviewRepository.findSlotByIdForUpdate({ id: input.slotId });
+    if (!slot || slot.cohortPartId !== input.cohortPartId) {
+      // 타 직군 슬롯은 존재 자체를 숨긴다
+      throw new AppException('INTERVIEW_SLOT_NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+    if (slot.startAt <= new Date()) {
+      throw new AppException('INTERVIEW_SLOT_CLOSED', HttpStatus.BAD_REQUEST);
+    }
+
+    const duplicate = await this.interviewRepository.findReservationByApplicationFormId({
+      applicationFormId: input.applicationFormId,
+    });
+    if (duplicate) {
+      throw new AppException('INTERVIEW_RESERVATION_EXISTS', HttpStatus.CONFLICT);
+    }
+
+    const currentCount = await this.interviewRepository.countActiveReservationsBySlotId({
+      slotId: input.slotId,
+    });
+    if (currentCount >= slot.capacity) {
+      throw new AppException('INTERVIEW_SLOT_FULL', HttpStatus.CONFLICT);
+    }
+
+    const reservation = InterviewReservation.create({
+      slotId: input.slotId,
+      applicationFormId: input.applicationFormId,
+    });
+
+    try {
+      const saved = await this.interviewRepository.saveReservation({ reservation });
+
+      runOnTransactionCommit(() => {
+        this.schedulePostCommit(() =>
+          this.afterCreateReservation({
+            reservationId: saved.id,
+            applicantName: input.applicantName,
+            applicantEmail: input.applicantEmail,
+            slot,
+          }),
+        );
+      });
+
+      return saved;
+    } catch (error) {
+      if (isPostgresUniqueViolation(error)) {
+        throw new AppException('INTERVIEW_RESERVATION_EXISTS', HttpStatus.CONFLICT);
       }
       throw error;
     }
