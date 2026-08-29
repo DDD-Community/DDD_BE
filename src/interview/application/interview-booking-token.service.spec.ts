@@ -54,6 +54,12 @@ describe('InterviewBookingTokenService', () => {
     expect(decoded.exp - decoded.iat).toBe(30 * 24 * 60 * 60);
   });
 
+  it('형식은 맞지만 달력상 무효인 날짜(2099-02-30)는 30일 폴백을 쓴다', () => {
+    const token = service.issue({ ...input, interviewEndDate: '2099-02-30' });
+    const decoded = jwtService.decode<{ exp: number; iat: number }>(token);
+    expect(decoded.exp - decoded.iat).toBe(30 * 24 * 60 * 60);
+  });
+
   it('purpose 가 다른 토큰(지원자 세션 토큰)은 거부한다', () => {
     const sessionToken = jwtService.sign({ sub: 1, email: 'a@b.c', purpose: 'applicant' });
     expect(() => service.verify({ token: sessionToken })).toThrow(AppException);

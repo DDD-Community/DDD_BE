@@ -60,13 +60,20 @@ export class InterviewBookingTokenService {
     return payload;
   }
 
-  // 면접 종료일 23:59:59 KST 까지. 값이 없거나 과거·파싱 불가면 30일 폴백.
+  // 면접 종료일 23:59:59 KST 까지. 값이 없거나 과거·달력상 무효면 30일 폴백.
   private resolveExpiresInSeconds(interviewEndDate: string | null): number {
     if (!interviewEndDate || !/^\d{4}-\d{2}-\d{2}$/.test(interviewEndDate)) {
       return FALLBACK_EXPIRES_IN_SECONDS;
     }
-    const expiresAt = new Date(`${interviewEndDate}T23:59:59+09:00`);
-    if (Number.isNaN(expiresAt.getTime())) {
+    const [year, month, day] = interviewEndDate.split('-').map(Number);
+    // KST 23:59:59 = UTC 14:59:59 같은 날짜. Date.UTC 는 무효 날짜(2월 30일 등)를
+    // 다음 달로 롤오버시키므로 구성 요소를 되짚어 달력 유효성을 확인한다.
+    const expiresAt = new Date(Date.UTC(year, month - 1, day, 14, 59, 59));
+    const isValidCalendarDate =
+      expiresAt.getUTCFullYear() === year &&
+      expiresAt.getUTCMonth() === month - 1 &&
+      expiresAt.getUTCDate() === day;
+    if (!isValidCalendarDate) {
       return FALLBACK_EXPIRES_IN_SECONDS;
     }
     const seconds = Math.floor((expiresAt.getTime() - Date.now()) / 1000);
