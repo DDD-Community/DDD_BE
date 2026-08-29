@@ -348,7 +348,9 @@ describe('ApplicationService', () => {
   });
 
   describe('updateStatus', () => {
-    const makeForm = () => {
+    const makeForm = ({
+      process = { interviewEndDate: '2026-09-20' } as Record<string, unknown> | null,
+    } = {}) => {
       const form = ApplicationForm.create({
         userId: 1,
         cohortPartId: 1,
@@ -357,7 +359,13 @@ describe('ApplicationService', () => {
         answers: { motivation: '열심히 하겠습니다.' },
         privacyAgreedAt: new Date(),
       });
+      form.id = 123;
       form.user = { email: 'user@example.com' } as User;
+      form.cohortPart = {
+        id: 1,
+        partName: 'BE',
+        cohort: { id: 12, process: process ?? undefined },
+      } as unknown as ApplicationForm['cohortPart'];
       return form;
     };
 
@@ -401,7 +409,28 @@ describe('ApplicationService', () => {
         email: 'user@example.com',
         name: '홍길동',
         newStatus: ApplicationStatus.서류합격,
+        applicationFormId: 123,
+        cohortId: 12,
+        cohortPartId: 1,
+        partName: 'BE',
+        interviewEndDate: '2026-09-20',
       });
+    });
+
+    it('기수 process 에 면접 종료일이 없으면 interviewEndDate 를 null 로 발행한다', async () => {
+      const form = makeForm({ process: null });
+      mockApplicationRepository.findFormById.mockResolvedValue(form);
+      mockInterviewService.hasSlotsForCohortPart.mockResolvedValue(true);
+
+      await applicationService.updateStatus(
+        { formId: 123, adminId: 100 },
+        { status: ApplicationStatus.서류합격 },
+      );
+
+      expect(mockEventEmitter.emit).toHaveBeenCalledWith(
+        'application.status_changed',
+        expect.objectContaining({ interviewEndDate: null }),
+      );
     });
 
     it('서류합격 전환 시 면접 슬롯이 없으면 예외를 던진다', async () => {

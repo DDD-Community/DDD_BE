@@ -7,6 +7,7 @@ import type { CohortPart } from '../../cohort/domain/cohort-part.entity';
 import { isRecruitmentOpenAt } from '../../cohort/domain/cohort-recruitment';
 import { AppException } from '../../common/exception/app.exception';
 import { InterviewService } from '../../interview/application/interview.service';
+import type { ApplicationStatusChangedEventPayload } from '../infrastructure/email-event.type';
 import { InvalidApplicationStatusTransitionError } from '../domain/application.domain-error';
 import { ApplicationRepository } from '../domain/application.repository';
 import { ApplicationStatus } from '../domain/application.status';
@@ -171,11 +172,20 @@ export class ApplicationService {
     );
 
     runOnTransactionCommit(() => {
+      const cohort = form.cohortPart.cohort;
       this.eventEmitter.emit('application.status_changed', {
         email: form.user.email,
         name: form.applicantName,
         newStatus: form.status,
-      });
+        applicationFormId: form.id,
+        cohortId: cohort.id,
+        cohortPartId: form.cohortPartId,
+        partName: form.cohortPart.partName,
+        interviewEndDate:
+          typeof cohort.process?.interviewEndDate === 'string'
+            ? cohort.process.interviewEndDate
+            : null,
+      } satisfies ApplicationStatusChangedEventPayload);
     });
   }
 

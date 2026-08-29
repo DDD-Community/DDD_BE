@@ -85,10 +85,12 @@ export type ApplicationStatusChangedEventPayload = {
   cohortId: number;
   cohortPartId: number;
   partName: string;
+  interviewEndDate: string | null; // cohort.process.interviewEndDate — 토큰 만료 계산용
 };
 ```
 
 발행 지점은 `ApplicationService.updateStatus` 하나뿐이므로 그곳에서 form 관계를 함께 로드해 채운다.
+`interviewEndDate` 를 페이로드에 실어 보내므로 토큰 서비스는 기수를 다시 조회할 필요가 없다.
 
 ## 4. 공개 API
 

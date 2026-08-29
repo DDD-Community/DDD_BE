@@ -68,6 +68,7 @@ export class FormWriteRepository {
 
     if (includeCohortPart) {
       qb.leftJoinAndSelect('form.cohortPart', 'cohortPart');
+      qb.leftJoinAndSelect('cohortPart.cohort', 'cohort');
     }
 
     this.applyFilter(qb, where);
