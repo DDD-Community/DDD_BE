@@ -28,6 +28,4 @@ export type ApplicantReservationCreateInput = {
   applicationFormId: number;
   /** 예약 토큰에서 온 직군 — 슬롯 소유 검증용 */
   cohortPartId: number;
-  applicantName: string;
-  applicantEmail: string;
 };

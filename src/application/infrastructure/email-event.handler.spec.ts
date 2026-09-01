@@ -173,6 +173,41 @@ describe('EmailEventHandler', () => {
       );
     });
 
+    it('기수 정보가 없으면(cohortId null) 링크 없이 합격 메일을 발송한다', async () => {
+      await emailEventHandler.handleApplicationStatusChangedEvent(
+        makeStatusPayload({ cohortId: null }),
+      );
+
+      expect(bookingTokenService.issue).not.toHaveBeenCalled();
+      expect(notificationService.sendEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          subject: '[DDD] 서류전형 합격 안내',
+          html: expect.stringContaining(
+            '면접 일정 안내는 추후 별도로 드릴 예정입니다',
+          ) as unknown as string,
+        }),
+      );
+    });
+
+    it('파트 정보가 없으면(partName null) 링크 없이 합격 메일을 발송한다', async () => {
+      await emailEventHandler.handleApplicationStatusChangedEvent(
+        makeStatusPayload({ partName: null }),
+      );
+
+      expect(bookingTokenService.issue).not.toHaveBeenCalled();
+      expect(notificationService.sendEmail).toHaveBeenCalledTimes(1);
+    });
+
+    it('기수 정보가 없어도 서류불합격 안내 메일은 정상 발송한다', async () => {
+      await emailEventHandler.handleApplicationStatusChangedEvent(
+        makeStatusPayload({ newStatus: ApplicationStatus.서류불합격, cohortId: null }),
+      );
+
+      expect(notificationService.sendEmail).toHaveBeenCalledWith(
+        expect.objectContaining({ subject: '[DDD] 서류전형 결과 안내' }),
+      );
+    });
+
     it('서류합격이 아닌 발표 상태는 예약 링크를 만들지 않는다', async () => {
       await emailEventHandler.handleApplicationStatusChangedEvent(
         makeStatusPayload({ newStatus: ApplicationStatus.최종합격 }),

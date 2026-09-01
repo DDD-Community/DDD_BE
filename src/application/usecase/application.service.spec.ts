@@ -350,6 +350,9 @@ describe('ApplicationService', () => {
   describe('updateStatus', () => {
     const makeForm = ({
       process = { interviewEndDate: '2026-09-20' } as Record<string, unknown> | null,
+      withCohort = true,
+      withCohortPart = true,
+      withUser = true,
     } = {}) => {
       const form = ApplicationForm.create({
         userId: 1,
@@ -360,12 +363,14 @@ describe('ApplicationService', () => {
         privacyAgreedAt: new Date(),
       });
       form.id = 123;
-      form.user = { email: 'user@example.com' } as User;
-      form.cohortPart = {
-        id: 1,
-        partName: 'BE',
-        cohort: { id: 12, process: process ?? undefined },
-      } as unknown as ApplicationForm['cohortPart'];
+      form.user = withUser ? ({ email: 'user@example.com' } as User) : undefined!;
+      form.cohortPart = withCohortPart
+        ? ({
+            id: 1,
+            partName: 'BE',
+            cohort: withCohort ? { id: 12, process: process ?? undefined } : undefined,
+          } as unknown as ApplicationForm['cohortPart'])
+        : undefined!;
       return form;
     };
 
@@ -415,6 +420,73 @@ describe('ApplicationService', () => {
         partName: 'BE',
         interviewEndDate: '2026-09-20',
       });
+    });
+
+    it('기수가 soft-delete 되어도 결과 안내 메일 이벤트는 발행한다 (예약 링크 필드만 null)', async () => {
+      const form = makeForm({ withCohort: false });
+      mockApplicationRepository.findFormById.mockResolvedValue(form);
+      mockInterviewService.hasSlotsForCohortPart.mockResolvedValue(true);
+
+      await applicationService.updateStatus(
+        { formId: 123, adminId: 100 },
+        { status: ApplicationStatus.서류합격 },
+      );
+
+      expect(mockEventEmitter.emit).toHaveBeenCalledWith('application.status_changed', {
+        email: 'user@example.com',
+        name: '홍길동',
+        newStatus: ApplicationStatus.서류합격,
+        applicationFormId: 123,
+        cohortId: null,
+        cohortPartId: 1,
+        partName: 'BE',
+        interviewEndDate: null,
+      });
+    });
+
+    it('기수가 없어도 예약과 무관한 서류불합격 안내 메일 이벤트는 발행한다', async () => {
+      const form = makeForm({ withCohort: false });
+      mockApplicationRepository.findFormById.mockResolvedValue(form);
+
+      await applicationService.updateStatus(
+        { formId: 123, adminId: 100 },
+        { status: ApplicationStatus.서류불합격 },
+      );
+
+      expect(mockEventEmitter.emit).toHaveBeenCalledWith(
+        'application.status_changed',
+        expect.objectContaining({
+          newStatus: ApplicationStatus.서류불합격,
+          cohortId: null,
+        }),
+      );
+    });
+
+    it('파트 관계까지 비어도 던지지 않고 partName 을 null 로 발행한다', async () => {
+      const form = makeForm({ withCohortPart: false });
+      mockApplicationRepository.findFormById.mockResolvedValue(form);
+
+      await applicationService.updateStatus(
+        { formId: 123, adminId: 100 },
+        { status: ApplicationStatus.서류불합격 },
+      );
+
+      expect(mockEventEmitter.emit).toHaveBeenCalledWith(
+        'application.status_changed',
+        expect.objectContaining({ cohortId: null, partName: null, cohortPartId: 1 }),
+      );
+    });
+
+    it('수신 이메일이 없으면 보낼 곳이 없으므로 이벤트를 생략한다', async () => {
+      const form = makeForm({ withUser: false });
+      mockApplicationRepository.findFormById.mockResolvedValue(form);
+
+      await applicationService.updateStatus(
+        { formId: 123, adminId: 100 },
+        { status: ApplicationStatus.서류불합격 },
+      );
+
+      expect(mockEventEmitter.emit).not.toHaveBeenCalled();
     });
 
     it('기수 process 에 면접 종료일이 없으면 interviewEndDate 를 null 로 발행한다', async () => {

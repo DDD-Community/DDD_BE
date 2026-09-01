@@ -60,6 +60,38 @@ export class FormWriteRepository {
     includeUser = false,
     includeCohortPart = false,
   }: ApplicationFormQuery) {
+    return this.buildFindQuery({ where, includeUser, includeCohortPart }).getOne();
+  }
+
+  /**
+   * 예약 트랜잭션이 지원서 상태를 검증하는 동안 어드민의 상태 변경(UPDATE = FOR NO KEY UPDATE)을
+   * 직렬화하기 위해 지원서 행을 FOR UPDATE 로 잠근다.
+   *
+   * leftJoin 된 user/cohortPart 는 outer join 의 nullable side 라 잠금 대상을 base alias(form) 로
+   * 한정하지 않으면 Postgres 가 "FOR UPDATE cannot be applied to the nullable side of an
+   * outer join" 으로 거부한다.
+   *
+   * 반드시 트랜잭션 안에서만 호출한다.
+   */
+  async findOneForUpdate({
+    where = {},
+    includeUser = false,
+    includeCohortPart = false,
+  }: ApplicationFormQuery) {
+    return this.buildFindQuery({ where, includeUser, includeCohortPart })
+      .setLock('pessimistic_write', undefined, ['form'])
+      .getOne();
+  }
+
+  private buildFindQuery({
+    where,
+    includeUser,
+    includeCohortPart,
+  }: {
+    where: ApplicationFormFilter;
+    includeUser: boolean;
+    includeCohortPart: boolean;
+  }) {
     const qb = this.repository.createQueryBuilder('form');
 
     if (includeUser) {
@@ -74,7 +106,7 @@ export class FormWriteRepository {
     // QueryBuilder 는 soft delete 필터를 자동 적용하지 않는다.
     qb.andWhere('form.deletedAt IS NULL');
     this.applyFilter(qb, where);
-    return qb.getOne();
+    return qb;
   }
 
   async findMany({ where = {}, includeUser = false }: ApplicationFormQuery = {}) {

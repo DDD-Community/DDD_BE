@@ -2,6 +2,8 @@ import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { QueryFailedError } from 'typeorm';
 
+import { ApplicationStatus } from '../../application/domain/application.status';
+import { ApplicationService } from '../../application/usecase/application.service';
 import { NotificationService } from '../../notification/application/notification.service';
 import { InterviewRepository } from '../domain/interview.repository';
 import { InterviewReservation } from '../domain/interview-reservation.entity';
@@ -36,6 +38,28 @@ const mockConfigService = {
   get: jest.fn(),
 };
 
+const mockApplicationService = {
+  findFormByIdForUpdate: jest.fn(),
+  findFormById: jest.fn(),
+};
+
+const flushPostCommitTasks = async (target: InterviewService): Promise<void> => {
+  const pending = (target as unknown as { pendingPostCommitTasks: Set<Promise<unknown>> })
+    .pendingPostCommitTasks;
+  while (pending.size > 0) {
+    await Promise.all([...pending]);
+  }
+};
+
+const makeForm = (over: Record<string, unknown> = {}) => ({
+  id: 123,
+  status: ApplicationStatus.서류합격,
+  cohortPartId: 52,
+  applicantName: '장원석',
+  user: { email: 'applicant@example.com' },
+  ...over,
+});
+
 describe('InterviewService (지원자 예약)', () => {
   let service: InterviewService;
 
@@ -47,11 +71,13 @@ describe('InterviewService (지원자 예약)', () => {
         { provide: GoogleCalendarClient, useValue: mockCalendarClient },
         { provide: NotificationService, useValue: mockNotificationService },
         { provide: ConfigService, useValue: mockConfigService },
+        { provide: ApplicationService, useValue: mockApplicationService },
       ],
     }).compile();
 
     service = module.get(InterviewService);
     jest.clearAllMocks();
+    mockApplicationService.findFormByIdForUpdate.mockResolvedValue(makeForm());
   });
 
   const makeSlot = (over: Partial<InterviewSlot> = {}): InterviewSlot =>
@@ -69,8 +95,6 @@ describe('InterviewService (지원자 예약)', () => {
     slotId: 7,
     applicationFormId: 123,
     cohortPartId: 52,
-    applicantName: '장원석',
-    applicantEmail: 'applicant@example.com',
   };
 
   describe('createReservationByApplicant', () => {
@@ -91,6 +115,82 @@ describe('InterviewService (지원자 예약)', () => {
       // 응답 DTO 가 일정·장소를 내보낼 수 있게 잠금 조회한 슬롯이 붙는다
       expect(saved.slot).toBeDefined();
       expect(saved.slot.id).toBe(7);
+    });
+
+    it('자격 조회는 잠금 경로(FOR UPDATE)를 쓴다', async () => {
+      mockRepository.findSlotByIdForUpdate.mockResolvedValue(makeSlot());
+      mockRepository.findReservationByApplicationFormId.mockResolvedValue(null);
+      mockRepository.countActiveReservationsBySlotId.mockResolvedValue(0);
+      mockRepository.saveReservation.mockImplementation(
+        ({ reservation }: { reservation: InterviewReservation }) =>
+          Promise.resolve(Object.assign(reservation, { id: 55 })),
+      );
+
+      await service.createReservationByApplicant({ input });
+
+      expect(mockApplicationService.findFormByIdForUpdate).toHaveBeenCalledWith({ id: 123 });
+      expect(mockApplicationService.findFormById).not.toHaveBeenCalled();
+    });
+
+    it('지원서가 서류합격이 아니면 INTERVIEW_BOOKING_NOT_ELIGIBLE(403)', async () => {
+      mockApplicationService.findFormByIdForUpdate.mockResolvedValue(
+        makeForm({ status: ApplicationStatus.최종불합격 }),
+      );
+
+      await expect(service.createReservationByApplicant({ input })).rejects.toMatchObject({
+        errorCode: 'INTERVIEW_BOOKING_NOT_ELIGIBLE',
+      });
+      expect(mockRepository.saveReservation).not.toHaveBeenCalled();
+    });
+
+    it('자격 검증이 슬롯 잠금보다 먼저 일어난다 (잠금 순서: 지원서 → 슬롯)', async () => {
+      mockApplicationService.findFormByIdForUpdate.mockResolvedValue(
+        makeForm({ status: ApplicationStatus.최종불합격 }),
+      );
+
+      await expect(service.createReservationByApplicant({ input })).rejects.toMatchObject({
+        errorCode: 'INTERVIEW_BOOKING_NOT_ELIGIBLE',
+      });
+      expect(mockRepository.findSlotByIdForUpdate).not.toHaveBeenCalled();
+    });
+
+    it('탈퇴 회원(수신 이메일 없음)은 403 으로 막아 커밋 후 훅이 터지지 않게 한다', async () => {
+      mockApplicationService.findFormByIdForUpdate.mockResolvedValue(makeForm({ user: undefined }));
+
+      await expect(service.createReservationByApplicant({ input })).rejects.toMatchObject({
+        errorCode: 'INTERVIEW_BOOKING_NOT_ELIGIBLE',
+      });
+      expect(mockRepository.saveReservation).not.toHaveBeenCalled();
+    });
+
+    it('토큰 직군과 지원서 직군이 다르면 403', async () => {
+      mockApplicationService.findFormByIdForUpdate.mockResolvedValue(
+        makeForm({ cohortPartId: 53 }),
+      );
+
+      await expect(service.createReservationByApplicant({ input })).rejects.toMatchObject({
+        errorCode: 'INTERVIEW_BOOKING_NOT_ELIGIBLE',
+      });
+    });
+
+    it('안내 메일은 입력이 아니라 잠근 지원서의 이름·이메일로 나간다', async () => {
+      mockApplicationService.findFormByIdForUpdate.mockResolvedValue(
+        makeForm({ applicantName: '홍길동', user: { email: 'locked@example.com' } }),
+      );
+      mockRepository.findSlotByIdForUpdate.mockResolvedValue(makeSlot());
+      mockRepository.findReservationByApplicationFormId.mockResolvedValue(null);
+      mockRepository.countActiveReservationsBySlotId.mockResolvedValue(0);
+      mockRepository.saveReservation.mockImplementation(
+        ({ reservation }: { reservation: InterviewReservation }) =>
+          Promise.resolve(Object.assign(reservation, { id: 55 })),
+      );
+
+      await service.createReservationByApplicant({ input });
+      await flushPostCommitTasks(service);
+
+      expect(mockNotificationService.sendEmail).toHaveBeenCalledWith(
+        expect.objectContaining({ to: 'locked@example.com' }),
+      );
     });
 
     it('없는 슬롯이면 404', async () => {

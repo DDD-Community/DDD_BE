@@ -26,6 +26,13 @@ export class ApplicationRepository {
     });
   }
 
+  async findFormByIdForUpdate({ id }: { id: number }) {
+    return this.formWriteRepository.findOneForUpdate({
+      where: { id },
+      includeUser: true,
+    });
+  }
+
   async findFormByUserAndPart({ userId, cohortPartId }: { userId: number; cohortPartId: number }) {
     return this.formWriteRepository.findOne({
       where: { userId, cohortPartId },

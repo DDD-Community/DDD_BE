@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { QueryFailedError } from 'typeorm';
 
+import { ApplicationService } from '../../application/usecase/application.service';
 import { AppException } from '../../common/exception/app.exception';
 import { NotificationService } from '../../notification/application/notification.service';
 import { InterviewRepository } from '../domain/interview.repository';
@@ -95,6 +96,7 @@ describe('InterviewService', () => {
         { provide: GoogleCalendarClient, useValue: mockGoogleCalendarClient },
         { provide: NotificationService, useValue: mockNotificationService },
         { provide: ConfigService, useValue: mockConfigService },
+        { provide: ApplicationService, useValue: {} },
       ],
     }).compile();
 

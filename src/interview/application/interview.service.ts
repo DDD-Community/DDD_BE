@@ -1,8 +1,10 @@
-import { HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { forwardRef, HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { match } from 'ts-pattern';
 import { runOnTransactionCommit, Transactional } from 'typeorm-transactional';
 
+import { ApplicationStatus } from '../../application/domain/application.status';
+import { ApplicationService } from '../../application/usecase/application.service';
 import { AppException } from '../../common/exception/app.exception';
 import { hasDefinedValues } from '../../common/util/object-utils';
 import { isPostgresUniqueViolation } from '../../common/util/postgres-error';
@@ -36,6 +38,8 @@ export class InterviewService {
     private readonly googleCalendarClient: GoogleCalendarClient,
     private readonly notificationService: NotificationService,
     private readonly configService: ConfigService,
+    @Inject(forwardRef(() => ApplicationService))
+    private readonly applicationService: ApplicationService,
   ) {}
 
   @Transactional()
@@ -207,6 +211,30 @@ export class InterviewService {
   }: {
     input: ApplicantReservationCreateInput;
   }): Promise<InterviewReservation> {
+    // 잠금 순서는 지원서 -> 슬롯으로 고정한다. 어드민의 상태 변경(지원서 UPDATE)과 같은 방향이라
+    // 락 사이클이 생기지 않고, 훗날 "탈락 시 예약 자동 취소"(지원서 -> 예약/슬롯)가 붙어도
+    // 순서가 어긋나지 않는다.
+    //
+    // 자격 검증은 예약 INSERT 와 같은 트랜잭션 + 같은 행 잠금 안에 있어야 한다. 잠금 없는 조회는
+    // READ COMMITTED 에서 어드민 커밋을 막지 못해, 검증 직후 탈락 처리된 지원자의 예약이
+    // 그대로 커밋된다.
+    const form = await this.applicationService.findFormByIdForUpdate({
+      id: input.applicationFormId,
+    });
+    // 토큰은 면접 종료일까지 살아 있으므로, 이후 탈락 처리된 지원자의 재예약을 상태로 막는다.
+    //
+    // 수신 이메일도 여기서 확인한다. 탈퇴(soft-delete)한 회원은 leftJoin 결과가 비어 form.user 가
+    // 사라지는데, 이를 통과시키면 확정 메일을 보내는 커밋 후 훅에서 TypeError 가 나고
+    // 그 시점엔 예약이 이미 커밋된 뒤라 되돌릴 수도 없다.
+    const applicantEmail = form.user?.email;
+    if (
+      form.status !== ApplicationStatus.서류합격 ||
+      form.cohortPartId !== input.cohortPartId ||
+      !applicantEmail
+    ) {
+      throw new AppException('INTERVIEW_BOOKING_NOT_ELIGIBLE', HttpStatus.FORBIDDEN);
+    }
+
     // 행 잠금으로 같은 슬롯의 동시 예약을 직렬화한다 — 정원 검사와 INSERT 가 원자적이 된다.
     const slot = await this.interviewRepository.findSlotByIdForUpdate({ id: input.slotId });
     if (!slot || slot.cohortPartId !== input.cohortPartId) {
@@ -245,8 +273,8 @@ export class InterviewService {
         this.schedulePostCommit(() =>
           this.afterCreateReservation({
             reservationId: saved.id,
-            applicantName: input.applicantName,
-            applicantEmail: input.applicantEmail,
+            applicantName: form.applicantName,
+            applicantEmail,
             slot,
           }),
         );

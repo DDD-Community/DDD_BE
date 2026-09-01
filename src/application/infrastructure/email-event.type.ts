@@ -10,9 +10,11 @@ export type ApplicationStatusChangedEventPayload = {
   name: string;
   newStatus: ApplicationStatus;
   applicationFormId: number;
-  cohortId: number;
+  /** cohortPart→cohort 조인 결과. 기수가 soft-delete 되면 null — 예약 링크만 생략된다 */
+  cohortId: number | null;
   cohortPartId: number;
-  partName: string;
+  /** cohortPart 조인 결과. 파트가 사라지면 null — 예약 링크만 생략된다 */
+  partName: string | null;
   /** cohort.process.interviewEndDate (YYYY-MM-DD). 없으면 null — 토큰 만료 폴백 대상 */
   interviewEndDate: string | null;
 };

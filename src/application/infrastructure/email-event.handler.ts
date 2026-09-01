@@ -131,6 +131,14 @@ export class EmailEventHandler {
   }
 
   private buildBookingLink(payload: ApplicationStatusChangedEventPayload): string | null {
+    const { cohortId, partName } = payload;
+    if (cohortId === null || partName === null) {
+      this.logger.error(
+        `기수 정보가 없어 서류합격 메일을 예약 링크 없이 발송합니다. applicationFormId=${payload.applicationFormId}`,
+      );
+      return null;
+    }
+
     const baseUrl = this.configService.get<string>('INTERVIEW_BOOKING_URL');
     if (!baseUrl) {
       this.logger.error(
@@ -140,9 +148,9 @@ export class EmailEventHandler {
     }
     const token = this.bookingTokenService.issue({
       applicationFormId: payload.applicationFormId,
-      cohortId: payload.cohortId,
+      cohortId,
       cohortPartId: payload.cohortPartId,
-      partName: payload.partName,
+      partName,
       applicantName: payload.name,
       interviewEndDate: payload.interviewEndDate,
     });

@@ -1,9 +1,6 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
-import { ApplicationStatus } from '../../application/domain/application.status';
-import { ApplicationService } from '../../application/usecase/application.service';
-import { AppException } from '../../common/exception/app.exception';
 import { ApiResponse } from '../../common/response/api-response';
 import { ApiDoc } from '../../common/swagger/api-doc.decorator';
 import { InterviewService } from '../application/interview.service';
@@ -21,10 +18,7 @@ import { BookingToken, InterviewBookingGuard } from './interview-booking.guard';
 @Controller({ path: 'interview-bookings', version: '1' })
 @UseGuards(InterviewBookingGuard)
 export class PublicInterviewBookingController {
-  constructor(
-    private readonly interviewService: InterviewService,
-    private readonly applicationService: ApplicationService,
-  ) {}
+  constructor(private readonly interviewService: InterviewService) {}
 
   @ApiDoc({
     summary: '면접 예약 컨텍스트 조회',
@@ -62,7 +56,7 @@ export class PublicInterviewBookingController {
   @ApiDoc({
     summary: '면접 슬롯 예약',
     description:
-      '슬롯을 예약합니다. 정원 마감 시 INTERVIEW_SLOT_FULL(409), 기존 예약 존재 시 INTERVIEW_RESERVATION_EXISTS(409) 를 반환합니다. 예약 후 지원자 변경은 불가합니다.',
+      '슬롯을 예약합니다. 서류합격 상태가 아니면 INTERVIEW_BOOKING_NOT_ELIGIBLE(403), 정원 마감 시 INTERVIEW_SLOT_FULL(409), 기존 예약 존재 시 INTERVIEW_RESERVATION_EXISTS(409) 를 반환합니다. 예약 후 지원자 변경은 불가합니다.',
     operationId: 'interviewBooking_createReservation',
   })
   @Post('reservations')
@@ -71,18 +65,12 @@ export class PublicInterviewBookingController {
     @BookingToken() token: InterviewBookingTokenPayload,
     @Body() body: CreateInterviewBookingRequestDto,
   ) {
-    const form = await this.applicationService.findFormById({ id: token.applicationFormId });
-    // 토큰은 면접 종료일까지 살아 있으므로, 이후 탈락 처리된 지원자의 재예약을 상태로 막는다.
-    if (form.status !== ApplicationStatus.서류합격) {
-      throw new AppException('INTERVIEW_BOOKING_NOT_ELIGIBLE', HttpStatus.FORBIDDEN);
-    }
+    // 자격 검증은 예약 트랜잭션 안(지원서 행 잠금 아래)에서 수행된다.
     const reservation = await this.interviewService.createReservationByApplicant({
       input: {
         slotId: body.slotId,
         applicationFormId: token.applicationFormId,
         cohortPartId: token.cohortPartId,
-        applicantName: form.applicantName,
-        applicantEmail: form.user.email,
       },
     });
     return ApiResponse.ok(
