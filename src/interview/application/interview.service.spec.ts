@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { QueryFailedError } from 'typeorm';
 
+import { ApplicationService } from '../../application/usecase/application.service';
 import { AppException } from '../../common/exception/app.exception';
 import { NotificationService } from '../../notification/application/notification.service';
 import { InterviewRepository } from '../domain/interview.repository';
@@ -31,6 +32,7 @@ const flushPostCommitTasks = async (target: InterviewService): Promise<void> => 
 const mockInterviewRepository = {
   saveSlot: jest.fn(),
   findSlotById: jest.fn(),
+  findSlotByIdForUpdate: jest.fn(),
   findSlots: jest.fn(),
   updateSlot: jest.fn(),
   deleteSlot: jest.fn(),
@@ -94,6 +96,7 @@ describe('InterviewService', () => {
         { provide: GoogleCalendarClient, useValue: mockGoogleCalendarClient },
         { provide: NotificationService, useValue: mockNotificationService },
         { provide: ConfigService, useValue: mockConfigService },
+        { provide: ApplicationService, useValue: {} },
       ],
     }).compile();
 
@@ -130,7 +133,7 @@ describe('InterviewService', () => {
 
     it('슬롯이 없으면 INTERVIEW_SLOT_NOT_FOUND 예외를 던진다', async () => {
       // Given
-      mockInterviewRepository.findSlotById.mockResolvedValue(null);
+      mockInterviewRepository.findSlotByIdForUpdate.mockResolvedValue(null);
 
       // When / Then
       await expect(service.createReservation({ input })).rejects.toThrow(
@@ -140,7 +143,7 @@ describe('InterviewService', () => {
 
     it('정원 초과 시 INTERVIEW_SLOT_ALREADY_RESERVED(409)를 던진다', async () => {
       // Given
-      mockInterviewRepository.findSlotById.mockResolvedValue(buildSlot({ capacity: 1 }));
+      mockInterviewRepository.findSlotByIdForUpdate.mockResolvedValue(buildSlot({ capacity: 1 }));
       mockInterviewRepository.countActiveReservationsBySlotId.mockResolvedValue(1);
 
       // When / Then
@@ -151,7 +154,7 @@ describe('InterviewService', () => {
 
     it('같은 지원서가 이미 예약이 있으면 INTERVIEW_SLOT_ALREADY_RESERVED(409)를 던진다', async () => {
       // Given
-      mockInterviewRepository.findSlotById.mockResolvedValue(buildSlot());
+      mockInterviewRepository.findSlotByIdForUpdate.mockResolvedValue(buildSlot());
       mockInterviewRepository.countActiveReservationsBySlotId.mockResolvedValue(0);
       mockInterviewRepository.findReservationByApplicationFormId.mockResolvedValue(
         buildReservation(),
@@ -165,7 +168,7 @@ describe('InterviewService', () => {
 
     it('저장 시 unique 제약(23505) 위반이면 409로 변환한다', async () => {
       // Given
-      mockInterviewRepository.findSlotById.mockResolvedValue(buildSlot());
+      mockInterviewRepository.findSlotByIdForUpdate.mockResolvedValue(buildSlot());
       mockInterviewRepository.countActiveReservationsBySlotId.mockResolvedValue(0);
       mockInterviewRepository.findReservationByApplicationFormId.mockResolvedValue(null);
 
@@ -184,7 +187,7 @@ describe('InterviewService', () => {
       // Given
       const slot = buildSlot();
       const saved = buildReservation();
-      mockInterviewRepository.findSlotById.mockResolvedValue(slot);
+      mockInterviewRepository.findSlotByIdForUpdate.mockResolvedValue(slot);
       mockInterviewRepository.countActiveReservationsBySlotId.mockResolvedValue(0);
       mockInterviewRepository.findReservationByApplicationFormId.mockResolvedValue(null);
       mockInterviewRepository.saveReservation.mockResolvedValue(saved);
@@ -203,7 +206,7 @@ describe('InterviewService', () => {
       // Given
       const slot = buildSlot();
       const saved = buildReservation();
-      mockInterviewRepository.findSlotById.mockResolvedValue(slot);
+      mockInterviewRepository.findSlotByIdForUpdate.mockResolvedValue(slot);
       mockInterviewRepository.countActiveReservationsBySlotId.mockResolvedValue(0);
       mockInterviewRepository.findReservationByApplicationFormId.mockResolvedValue(null);
       mockInterviewRepository.saveReservation.mockResolvedValue(saved);
@@ -242,7 +245,7 @@ describe('InterviewService', () => {
       );
       const slot = buildSlot();
       const saved = buildReservation();
-      mockInterviewRepository.findSlotById.mockResolvedValue(slot);
+      mockInterviewRepository.findSlotByIdForUpdate.mockResolvedValue(slot);
       mockInterviewRepository.countActiveReservationsBySlotId.mockResolvedValue(0);
       mockInterviewRepository.findReservationByApplicationFormId.mockResolvedValue(null);
       mockInterviewRepository.saveReservation.mockResolvedValue(saved);
@@ -265,7 +268,7 @@ describe('InterviewService', () => {
       // Given
       const slot = buildSlot();
       const saved = buildReservation();
-      mockInterviewRepository.findSlotById.mockResolvedValue(slot);
+      mockInterviewRepository.findSlotByIdForUpdate.mockResolvedValue(slot);
       mockInterviewRepository.countActiveReservationsBySlotId.mockResolvedValue(0);
       mockInterviewRepository.findReservationByApplicationFormId.mockResolvedValue(null);
       mockInterviewRepository.saveReservation.mockResolvedValue(saved);

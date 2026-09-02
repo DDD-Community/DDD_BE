@@ -17,6 +17,7 @@ import type {
 } from '../domain/application.type';
 import { ApplicationDraft } from '../domain/application-draft.entity';
 import { ApplicationForm } from '../domain/application-form.entity';
+import type { ApplicationStatusChangedEventPayload } from '../infrastructure/email-event.type';
 import { ApplicationAnswerValidator } from './application-answer.validator';
 import { ApplicationAttachmentService } from './application-attachment.service';
 
@@ -171,11 +172,37 @@ export class ApplicationService {
     );
 
     runOnTransactionCommit(() => {
+      // 기수·파트가 soft-delete 되면 leftJoin 결과가 비어 이 콜백에서 참조가 끊긴다.
+      // 비는 필드는 예약 링크에만 쓰이므로 null 로 발행하고, 결과 안내 메일 자체는 항상 내보낸다.
+      const cohortPart = form.cohortPart ?? null;
+      const cohort = cohortPart?.cohort ?? null;
+      const email = form.user?.email;
+
+      // 수신 주소가 없으면 보낼 곳이 없다. 발행을 생략하는 유일한 조건.
+      if (!email) {
+        this.logger.error(
+          `상태 변경 이벤트 발행 생략: formId=${form.id} 의 수신 이메일을 찾을 수 없습니다.`,
+        );
+        return;
+      }
+
+      if (!cohort) {
+        this.logger.warn(
+          `상태 변경 이벤트: formId=${form.id} 의 기수 정보를 찾을 수 없어 예약 링크 없이 발행합니다.`,
+        );
+      }
+
+      const interviewEndDate = cohort?.process?.interviewEndDate;
       this.eventEmitter.emit('application.status_changed', {
-        email: form.user.email,
+        email,
         name: form.applicantName,
         newStatus: form.status,
-      });
+        applicationFormId: form.id,
+        cohortId: cohort?.id ?? null,
+        cohortPartId: form.cohortPartId,
+        partName: cohortPart?.partName ?? null,
+        interviewEndDate: typeof interviewEndDate === 'string' ? interviewEndDate : null,
+      } satisfies ApplicationStatusChangedEventPayload);
     });
   }
 
@@ -230,6 +257,19 @@ export class ApplicationService {
 
   async findFormById({ id }: { id: number }) {
     const form = await this.applicationRepository.findFormById({ id });
+    if (!form) {
+      throw new AppException('APPLICATION_NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+    return form;
+  }
+
+  /**
+   * 면접 예약 트랜잭션 전용 조회.
+   * 지원서 행을 FOR UPDATE 로 잠가, 자격 검증과 예약 INSERT 사이에
+   * 어드민 상태 변경이 끼어들지 못하게 한다. 반드시 @Transactional 안에서만 호출한다.
+   */
+  async findFormByIdForUpdate({ id }: { id: number }) {
+    const form = await this.applicationRepository.findFormByIdForUpdate({ id });
     if (!form) {
       throw new AppException('APPLICATION_NOT_FOUND', HttpStatus.NOT_FOUND);
     }

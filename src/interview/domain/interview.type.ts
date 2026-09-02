@@ -22,3 +22,10 @@ export type ReservationCreateInput = {
   applicantName: string;
   applicantEmail: string;
 };
+
+export type ApplicantReservationCreateInput = {
+  slotId: number;
+  applicationFormId: number;
+  /** 예약 토큰에서 온 직군 — 슬롯 소유 검증용 */
+  cohortPartId: number;
+};

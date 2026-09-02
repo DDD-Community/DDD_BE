@@ -215,3 +215,48 @@ jobs:
             exit 1
           fi
           echo "롤백 차단 확인: 테이블 ${AFTER}개 유지, 기록도 그대로."
+
+  # 슬롯 행 잠금(pessimistic_write)이 동시 예약을 실제로 직렬화하는지는 실 DB 없이 검증할 수 없다.
+  # 잠금이 빠지면 정원 초과 예약이 조용히 통과하는데, mock 기반 단위 테스트는 이를 잡지 못한다.
+  integration-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_USERNAME: ci
+      DB_PASSWORD: ci
+      DB_NAME: ci
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      # 스펙이 전용 스키마를 synchronize() 로 직접 만든다. 마이그레이션 상태와 무관하게 돈다.
+      - name: 동시성 통합 테스트
+        run: yarn test:integration

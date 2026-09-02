@@ -44,6 +44,10 @@ export class InterviewRepository {
     return this.slotWriteRepository.countByCohortPartId({ cohortPartId });
   }
 
+  async findSlotByIdForUpdate({ id }: { id: number }) {
+    return this.slotWriteRepository.findOneForUpdate({ id });
+  }
+
   async saveReservation({
     reservation,
   }: {
