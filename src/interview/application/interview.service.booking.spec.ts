@@ -9,6 +9,7 @@ import { InterviewRepository } from '../domain/interview.repository';
 import { InterviewReservation } from '../domain/interview-reservation.entity';
 import { InterviewSlot } from '../domain/interview-slot.entity';
 import { GoogleCalendarClient } from '../infrastructure/google-calendar.client';
+import { BookingSlotResponseDto } from '../interface/dto/interview-booking.response.dto';
 import { InterviewService } from './interview.service';
 
 jest.mock('typeorm-transactional', () => ({
@@ -88,6 +89,7 @@ describe('InterviewService (지원자 예약)', () => {
       startAt: new Date(Date.now() + 86_400_000),
       endAt: new Date(Date.now() + 90_000_000),
       capacity: 2,
+      location: 'https://meet.google.com/abc-defg-hij',
       ...over,
     });
 
@@ -191,6 +193,79 @@ describe('InterviewService (지원자 예약)', () => {
       expect(mockNotificationService.sendEmail).toHaveBeenCalledWith(
         expect.objectContaining({ to: 'locked@example.com' }),
       );
+    });
+
+    it('확정 메일에 장소가 담기고, 미팅 링크면 클릭 가능한 링크로 렌더링한다', async () => {
+      mockRepository.findSlotByIdForUpdate.mockResolvedValue(
+        makeSlot({ location: 'https://meet.google.com/abc-defg-hij' }),
+      );
+      mockRepository.findReservationByApplicationFormId.mockResolvedValue(null);
+      mockRepository.countActiveReservationsBySlotId.mockResolvedValue(0);
+      mockRepository.saveReservation.mockImplementation(
+        ({ reservation }: { reservation: InterviewReservation }) =>
+          Promise.resolve(Object.assign(reservation, { id: 55 })),
+      );
+
+      await service.createReservationByApplicant({ input });
+      await flushPostCommitTasks(service);
+
+      const sent = mockNotificationService.sendEmail.mock.calls[0][0] as {
+        html: string;
+        text: string;
+      };
+      expect(sent.html).toContain('<a href="https://meet.google.com/abc-defg-hij"');
+      expect(sent.text).toContain('https://meet.google.com/abc-defg-hij');
+    });
+
+    it('장소가 오프라인 주소면 링크로 감싸지 않는다', async () => {
+      mockRepository.findSlotByIdForUpdate.mockResolvedValue(
+        makeSlot({ location: '강남역 3번 출구 스터디룸' }),
+      );
+      mockRepository.findReservationByApplicationFormId.mockResolvedValue(null);
+      mockRepository.countActiveReservationsBySlotId.mockResolvedValue(0);
+      mockRepository.saveReservation.mockImplementation(
+        ({ reservation }: { reservation: InterviewReservation }) =>
+          Promise.resolve(Object.assign(reservation, { id: 55 })),
+      );
+
+      await service.createReservationByApplicant({ input });
+      await flushPostCommitTasks(service);
+
+      const sent = mockNotificationService.sendEmail.mock.calls[0][0] as { html: string };
+      expect(sent.html).toContain('강남역 3번 출구 스터디룸');
+      expect(sent.html).not.toContain('<a href="강남역');
+    });
+
+    it.each(['javascript:alert(1)', 'JaVaScRiPt:alert(1)', 'data:text/html,<script>x</script>'])(
+      '위험한 스킴(%s)은 링크로 감싸지 않는다',
+      async (location) => {
+        mockRepository.findSlotByIdForUpdate.mockResolvedValue(makeSlot({ location }));
+        mockRepository.findReservationByApplicationFormId.mockResolvedValue(null);
+        mockRepository.countActiveReservationsBySlotId.mockResolvedValue(0);
+        mockRepository.saveReservation.mockImplementation(
+          ({ reservation }: { reservation: InterviewReservation }) =>
+            Promise.resolve(Object.assign(reservation, { id: 55 })),
+        );
+
+        await service.createReservationByApplicant({ input });
+        await flushPostCommitTasks(service);
+
+        const sent = mockNotificationService.sendEmail.mock.calls[0][0] as { html: string };
+        expect(sent.html).not.toContain('<a href');
+      },
+    );
+
+    it('예약 전 슬롯 목록에는 장소를 내려보내지 않는다', async () => {
+      // 온라인 면접 링크가 예약하지 않은 지원자에게까지 노출되면 안 된다.
+      mockRepository.findSlots.mockResolvedValue([
+        makeSlot({ id: 1, reservations: [], location: 'https://meet.google.com/secret-room' }),
+      ]);
+
+      const result = await service.findOpenSlotsForBooking({ cohortPartId: 52 });
+      const dto = BookingSlotResponseDto.from(result[0]);
+
+      expect(dto).not.toHaveProperty('location');
+      expect(JSON.stringify(dto)).not.toContain('secret-room');
     });
 
     it('없는 슬롯이면 404', async () => {

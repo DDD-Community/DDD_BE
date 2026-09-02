@@ -114,6 +114,7 @@ describe('InterviewService', () => {
         startAt: new Date('2026-05-01T11:00:00Z'),
         endAt: new Date('2026-05-01T10:00:00Z'),
         capacity: 1,
+        location: 'https://meet.google.com/abc-defg-hij',
       };
 
       // When / Then

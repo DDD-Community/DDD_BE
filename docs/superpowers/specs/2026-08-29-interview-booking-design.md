@@ -124,6 +124,9 @@ export type ApplicationStatusChangedEventPayload = {
 - 조건: `startAt > now`, 삭제되지 않은 슬롯.
 - 각 슬롯에 `remainingSeats` (capacity - 활성 예약 수) 포함.
   `remainingSeats = 0` 인 슬롯도 목록에는 포함해 프론트가 '마감' 으로 비활성 표시할 수 있게 한다.
+- **`location` 은 내려보내지 않는다.** 온라인 면접에서는 미팅 링크가 들어가는 자리라,
+  목록에 실으면 예약하지 않은 지원자까지 같은 파트의 모든 면접방 주소를 알게 된다.
+  예약을 확정한 본인에게만 확정 응답·`GET /context`·확정 메일·ics 로 전달한다.
 
 ### 4.3 `POST /reservations` — 예약 생성
 
@@ -170,6 +173,15 @@ export type ApplicationStatusChangedEventPayload = {
 
 확정 메일에 필요한 지원자 이메일은 토큰에 담지 않고(PII 최소화),
 토큰의 `applicationFormId` 로 지원서를 로드해 얻는다.
+
+### 6.1 장소 전달
+
+슬롯의 `location` 은 필수다(DB `NOT NULL`). 온라인 면접이면 이 자리에 미팅 링크를 넣는다.
+확정 메일 본문과 ics 첨부에 담기며, `http(s)` 로 시작하면 메일에서 클릭 가능한 링크로
+렌더링하고 그 외에는 텍스트로 둔다. 구글 캘린더 이벤트의 `location` 에도 그대로 들어간다.
+
+슬롯 하나에 링크 하나이므로 정원이 2 이상이면 여러 지원자가 같은 미팅 방을 받는다.
+1:1 면접은 정원을 1 로 둔다.
 
 ## 7. 이메일 템플릿 개선
 

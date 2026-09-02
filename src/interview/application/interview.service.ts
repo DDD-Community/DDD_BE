@@ -506,7 +506,7 @@ export class InterviewService {
       const greeting = this.buildGreeting(applicantName);
       const dateLine = this.formatKstDate(slot.startAt);
       const timeLine = this.formatKstTimeRange({ startAt: slot.startAt, endAt: slot.endAt });
-      const locationLine = slot.location ? this.escapeHtml(slot.location) : '추후 안내';
+      const locationLine = this.renderLocationHtml(slot.location);
 
       await this.notificationService.sendEmail({
         to: applicantEmail,
@@ -516,7 +516,7 @@ export class InterviewService {
           greeting,
           dateLine,
           timeLine,
-          locationLine: slot.location ?? '추후 안내',
+          locationLine: slot.location,
         }),
         attachments: [
           {
@@ -539,6 +539,20 @@ export class InterviewService {
       return '안녕하세요, 지원자님';
     }
     return `안녕하세요, ${this.escapeHtml(name)}님`;
+  }
+
+  /**
+   * 온라인 면접이면 장소 자리에 미팅 링크가 들어온다. 그대로 두면 메일에서 클릭이 안 되므로
+   * http(s) 로 시작할 때만 앵커로 감싼다. 그 외에는 기존처럼 escape 한 텍스트로 둔다.
+   */
+  private renderLocationHtml(location: string): string {
+    // 판정과 출력이 같은 값을 봐야 한다. 원본으로 출력하면 href 에 앞뒤 공백이 섞인다.
+    const trimmed = location.trim();
+    const escaped = this.escapeHtml(trimmed);
+    if (!/^https?:\/\/\S+$/.test(trimmed)) {
+      return escaped;
+    }
+    return `<a href="${escaped}" style="color:#1a56db;text-decoration:underline;word-break:break-all;">${escaped}</a>`;
   }
 
   private formatKstDate(date: Date): string {
