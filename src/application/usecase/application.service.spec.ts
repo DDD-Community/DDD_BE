@@ -4,6 +4,7 @@ import { Test } from '@nestjs/testing';
 
 import { CohortRepository } from '../../cohort/domain/cohort.repository';
 import { CohortStatus } from '../../cohort/domain/cohort.status';
+import { EMPTY_COHORT_ANNOUNCEMENT_INFO } from '../../cohort/domain/cohort-announcement-info';
 import { AppException } from '../../common/exception/app.exception';
 import { InterviewService } from '../../interview/application/interview.service';
 import { StorageService } from '../../storage/application/storage.service';
@@ -368,7 +369,9 @@ describe('ApplicationService', () => {
         ? ({
             id: 1,
             partName: 'BE',
-            cohort: withCohort ? { id: 12, process: process ?? undefined } : undefined,
+            cohort: withCohort
+              ? { id: 12, name: '14기', process: process ?? undefined }
+              : undefined,
           } as unknown as ApplicationForm['cohortPart'])
         : undefined!;
       return form;
@@ -419,6 +422,7 @@ describe('ApplicationService', () => {
         cohortPartId: 1,
         partName: 'BE',
         interviewEndDate: '2026-09-20',
+        cohort: expect.objectContaining({ name: '14기' }) as unknown,
       });
     });
 
@@ -441,6 +445,7 @@ describe('ApplicationService', () => {
         cohortPartId: 1,
         partName: 'BE',
         interviewEndDate: null,
+        cohort: EMPTY_COHORT_ANNOUNCEMENT_INFO,
       });
     });
 

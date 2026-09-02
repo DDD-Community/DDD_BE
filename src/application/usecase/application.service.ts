@@ -3,6 +3,10 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { runOnTransactionCommit, Transactional } from 'typeorm-transactional';
 
 import { CohortRepository } from '../../cohort/domain/cohort.repository';
+import {
+  EMPTY_COHORT_ANNOUNCEMENT_INFO,
+  toCohortAnnouncementInfo,
+} from '../../cohort/domain/cohort-announcement-info';
 import type { CohortPart } from '../../cohort/domain/cohort-part.entity';
 import { isRecruitmentOpenAt } from '../../cohort/domain/cohort-recruitment';
 import { AppException } from '../../common/exception/app.exception';
@@ -194,6 +198,9 @@ export class ApplicationService {
 
       const interviewEndDate = cohort?.process?.interviewEndDate;
       this.eventEmitter.emit('application.status_changed', {
+        cohort: cohort
+          ? toCohortAnnouncementInfo({ name: cohort.name, process: cohort.process })
+          : EMPTY_COHORT_ANNOUNCEMENT_INFO,
         email,
         name: form.applicantName,
         newStatus: form.status,

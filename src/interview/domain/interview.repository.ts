@@ -24,7 +24,8 @@ export class InterviewRepository {
   async findSlotById({ id }: { id: number }) {
     return this.slotWriteRepository.findOne({
       where: { id },
-      relations: ['reservations', 'cohortPart'],
+      // cohort 는 확정 안내 메일의 기수명·기한 문구에 쓰인다.
+      relations: ['reservations', 'cohortPart', 'cohort'],
     });
   }
 

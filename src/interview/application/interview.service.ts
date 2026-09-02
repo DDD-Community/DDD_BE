@@ -5,11 +5,20 @@ import { runOnTransactionCommit, Transactional } from 'typeorm-transactional';
 
 import { ApplicationStatus } from '../../application/domain/application.status';
 import { ApplicationService } from '../../application/usecase/application.service';
+import type { CohortAnnouncementInfo } from '../../cohort/domain/cohort-announcement-info';
+import { toCohortAnnouncementInfo } from '../../cohort/domain/cohort-announcement-info';
 import { AppException } from '../../common/exception/app.exception';
 import { hasDefinedValues } from '../../common/util/object-utils';
 import { isPostgresUniqueViolation } from '../../common/util/postgres-error';
 import { NotificationService } from '../../notification/application/notification.service';
+import type { EmailBullet } from '../../notification/util/build-email';
+import { buildEmail } from '../../notification/util/build-email';
 import { buildIcsFile } from '../../notification/util/build-ics';
+import {
+  diffMinutes,
+  formatKoreanDateTime,
+  formatKoreanDeadline,
+} from '../../notification/util/format-korean-date';
 import { InterviewRepository } from '../domain/interview.repository';
 import type {
   ApplicantReservationCreateInput,
@@ -20,6 +29,8 @@ import type {
 import { InterviewReservation } from '../domain/interview-reservation.entity';
 import { InterviewSlot } from '../domain/interview-slot.entity';
 import { GoogleCalendarClient } from '../infrastructure/google-calendar.client';
+
+const ONLINE_INTERVIEW = '온라인 인터뷰(Google Meet)';
 
 type CalendarFailureContext = {
   operation: 'create' | 'update' | 'delete';
@@ -340,7 +351,15 @@ export class InterviewService {
       });
     }
 
-    await this.sendInterviewInviteEmail({ applicantName, applicantEmail, slot });
+    // 잠금 조회한 슬롯에는 관계가 없다. 메일 문구에 쓸 기수 정보를 여기서 채운다.
+    // 커밋 이후라 실패해도 예약에는 영향이 없다.
+    const slotWithCohort = await this.interviewRepository.findSlotById({ id: slot.id });
+    const cohort = toCohortAnnouncementInfo({
+      name: slotWithCohort?.cohort?.name,
+      process: slotWithCohort?.cohort?.process,
+    });
+
+    await this.sendInterviewInviteEmail({ applicantName, applicantEmail, slot, cohort });
   }
 
   private async afterCancelReservation({
@@ -487,10 +506,12 @@ export class InterviewService {
     applicantName,
     applicantEmail,
     slot,
+    cohort,
   }: {
     applicantName: string;
     applicantEmail: string;
     slot: InterviewSlot;
+    cohort: CohortAnnouncementInfo;
   }): Promise<void> {
     try {
       const summary = `[DDD] 면접 일정 안내`;
@@ -503,21 +524,69 @@ export class InterviewService {
         description: slot.description,
       });
 
-      const greeting = this.buildGreeting(applicantName);
-      const dateLine = this.formatKstDate(slot.startAt);
-      const timeLine = this.formatKstTimeRange({ startAt: slot.startAt, endAt: slot.endAt });
-      const locationLine = slot.location ? this.escapeHtml(slot.location) : '추후 안내';
+      // 기수명은 운영진 입력값이라 escape 한다(buildEmail 은 escape 된 값을 받는 계약).
+      const label = cohort.name ? `DDD ${this.escapeHtml(cohort.name)}` : 'DDD';
+      const scheduledAt = formatKoreanDateTime(slot.startAt);
+      // 기수에 지정한 값이 있으면 그쪽을 쓴다. 없으면 슬롯 길이가 곧 답이다.
+      // (서류합격 메일이 안내한 소요 시간과 어긋나지 않게 하기 위함)
+      const durationMinutes =
+        cohort.interviewDurationMinutes ??
+        diffMinutes({ startAt: slot.startAt, endAt: slot.endAt });
+      const hasName = applicantName.trim().length > 0;
+      const safeName = this.escapeHtml(applicantName.trim());
+
+      const bullets: EmailBullet[] = [
+        {
+          label: '인터뷰 일시',
+          valueHtml: this.escapeHtml(scheduledAt),
+          valueText: scheduledAt,
+        },
+      ];
+      if (durationMinutes > 0) {
+        const duration = `약 ${durationMinutes}분`;
+        bullets.push({ label: '예상 소요 시간', valueHtml: duration, valueText: duration });
+      }
+      bullets.push(
+        {
+          label: '진행 방식',
+          valueHtml: ONLINE_INTERVIEW,
+          valueText: ONLINE_INTERVIEW,
+        },
+        {
+          label: '참여 링크',
+          valueHtml: this.renderLocationHtml(slot.location),
+          valueText: slot.location.trim(),
+        },
+      );
+
+      const rescheduleSentence = cohort.interviewRescheduleDeadline
+        ? `부득이하게 참석이 어렵거나 일정 조정이 필요한 경우에는 ${formatKoreanDeadline(cohort.interviewRescheduleDeadline)}까지 본 메일로 회신 부탁드립니다.`
+        : '부득이하게 참석이 어렵거나 일정 조정이 필요한 경우에는 본 메일로 회신 부탁드립니다.';
+
+      const { html, text } = buildEmail({
+        title: '면접 일정 확정 안내',
+        // 이름이 비어 있으면 "안녕하세요, 님." 이 나가므로 호칭을 일반화한다.
+        greetingHtml: hasName
+          ? `안녕하세요, ${safeName}님. DDD 운영진입니다.`
+          : '안녕하세요, 지원자님. DDD 운영진입니다.',
+        greetingText: hasName
+          ? `안녕하세요, ${applicantName.trim()}님. DDD 운영진입니다.`
+          : '안녕하세요, 지원자님. DDD 운영진입니다.',
+        introParagraphs: [`${label} 인터뷰 일정이 아래와 같이 확정되어 안내드립니다.`],
+        bullets,
+        outroParagraphs: [
+          '원활한 진행을 위해 인터뷰 시작 5분 전까지 접속 환경과 마이크를 확인해 주세요.',
+          rescheduleSentence,
+          '첨부된 interview.ics 파일을 열면 본인 캘린더에 일정을 바로 추가할 수 있습니다.',
+          '인터뷰에서 뵙겠습니다.',
+        ],
+      });
 
       await this.notificationService.sendEmail({
         to: applicantEmail,
-        subject: '[DDD] 면접 일정이 확정되었습니다',
-        html: this.renderInterviewHtml({ greeting, dateLine, timeLine, locationLine }),
-        text: this.renderInterviewText({
-          greeting,
-          dateLine,
-          timeLine,
-          locationLine: slot.location ?? '추후 안내',
-        }),
+        subject: '[DDD] 면접 일정 확정 안내',
+        html,
+        text,
         attachments: [
           {
             filename: 'interview.ics',
@@ -534,120 +603,18 @@ export class InterviewService {
     }
   }
 
-  private buildGreeting(name: string): string {
-    if (!name || name.includes('�')) {
-      return '안녕하세요, 지원자님';
+  /**
+   * 온라인 면접이면 장소 자리에 미팅 링크가 들어온다. 그대로 두면 메일에서 클릭이 안 되므로
+   * http(s) 로 시작할 때만 앵커로 감싼다. 그 외에는 기존처럼 escape 한 텍스트로 둔다.
+   */
+  private renderLocationHtml(location: string): string {
+    // 판정과 출력이 같은 값을 봐야 한다. 원본으로 출력하면 href 에 앞뒤 공백이 섞인다.
+    const trimmed = location.trim();
+    const escaped = this.escapeHtml(trimmed);
+    if (!/^https?:\/\/\S+$/.test(trimmed)) {
+      return escaped;
     }
-    return `안녕하세요, ${this.escapeHtml(name)}님`;
-  }
-
-  private formatKstDate(date: Date): string {
-    return new Intl.DateTimeFormat('ko-KR', {
-      timeZone: 'Asia/Seoul',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      weekday: 'short',
-    }).format(date);
-  }
-
-  private formatKstTimeRange({ startAt, endAt }: { startAt: Date; endAt: Date }): string {
-    const formatter = new Intl.DateTimeFormat('ko-KR', {
-      timeZone: 'Asia/Seoul',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    });
-    return `${formatter.format(startAt)} ~ ${formatter.format(endAt)} (KST)`;
-  }
-
-  private renderInterviewHtml({
-    greeting,
-    dateLine,
-    timeLine,
-    locationLine,
-  }: {
-    greeting: string;
-    dateLine: string;
-    timeLine: string;
-    locationLine: string;
-  }): string {
-    return `
-<div style="margin:0;padding:0;background:#f4f6f8;font-family:'Apple SD Gothic Neo','Malgun Gothic',Arial,sans-serif;color:#111;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f6f8;padding:32px 0;">
-    <tr>
-      <td align="center">
-        <table role="presentation" width="560" cellspacing="0" cellpadding="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06);max-width:560px;width:100%;">
-          <tr>
-            <td style="padding:32px 32px 16px 32px;">
-              <div style="font-size:13px;letter-spacing:1px;color:#5b6470;font-weight:600;">DDD</div>
-              <div style="font-size:22px;font-weight:700;line-height:1.4;color:#111;margin-top:8px;">면접 일정이 확정되었습니다</div>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:0 32px 16px 32px;font-size:15px;line-height:1.65;color:#222;">
-              <p style="margin:0 0 16px 0;">${greeting},</p>
-              <p style="margin:0 0 24px 0;">DDD 면접 일정이 아래와 같이 안내되었습니다.</p>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:0 32px 24px 32px;">
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f8fafc;border-radius:8px;border:1px solid #e5e9ef;">
-                <tr>
-                  <td style="padding:18px 20px;font-size:14px;color:#111;">
-                    <div style="margin-bottom:10px;"><span style="display:inline-block;width:64px;color:#6b7280;font-weight:600;">일자</span><span>${dateLine}</span></div>
-                    <div style="margin-bottom:10px;"><span style="display:inline-block;width:64px;color:#6b7280;font-weight:600;">시간</span><span>${timeLine}</span></div>
-                    <div><span style="display:inline-block;width:64px;color:#6b7280;font-weight:600;">장소</span><span>${locationLine}</span></div>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:0 32px 24px 32px;font-size:14px;line-height:1.65;color:#374151;">
-              <p style="margin:0 0 8px 0;">첨부된 <b>interview.ics</b> 파일을 클릭하면 본인 캘린더에 한 번에 추가됩니다.</p>
-              <p style="margin:0;">변경/취소 등 문의는 운영진 이메일로 회신 부탁드립니다.</p>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:20px 32px 28px 32px;border-top:1px solid #eef0f3;font-size:12px;color:#9097a3;">
-              본 메일은 발신 전용입니다. © DDD
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</div>
-    `.trim();
-  }
-
-  private renderInterviewText({
-    greeting,
-    dateLine,
-    timeLine,
-    locationLine,
-  }: {
-    greeting: string;
-    dateLine: string;
-    timeLine: string;
-    locationLine: string;
-  }): string {
-    return [
-      '[DDD] 면접 일정이 확정되었습니다',
-      '',
-      `${greeting},`,
-      'DDD 면접 일정이 아래와 같이 안내되었습니다.',
-      '',
-      `일자  ${dateLine}`,
-      `시간  ${timeLine}`,
-      `장소  ${locationLine}`,
-      '',
-      '첨부된 interview.ics 파일을 클릭하면 본인 캘린더에 한 번에 추가됩니다.',
-      '변경/취소 등 문의는 운영진 이메일로 회신 부탁드립니다.',
-      '',
-      '— DDD',
-    ].join('\n');
+    return `<a href="${escaped}" style="color:#1a56db;text-decoration:underline;word-break:break-all;">${escaped}</a>`;
   }
 
   private escapeHtml(input: string): string {

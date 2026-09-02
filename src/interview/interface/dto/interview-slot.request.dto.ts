@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsDate, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsDate, IsInt, IsNotEmpty, IsOptional, IsString, MaxLength, Min } from 'class-validator';
 
 export class CreateInterviewSlotRequestDto {
   @ApiProperty({ description: '기수 ID', example: 1 })
@@ -27,10 +27,18 @@ export class CreateInterviewSlotRequestDto {
   @IsOptional()
   capacity?: number;
 
-  @ApiPropertyOptional({ description: '장소', example: '온라인 (Zoom)' })
+  @ApiProperty({
+    description:
+      '장소. 예약 확정 시 지원자에게 메일과 캘린더 초대로 전달됩니다. 온라인 면접이면 미팅 링크를 넣으세요.',
+    example: 'https://meet.google.com/abc-defg-hij',
+  })
+  // IsNotEmpty 는 공백 문자열을 통과시킨다. 앞뒤 공백을 먼저 털어내야
+  // 스페이스 한 칸으로 필수 검증을 우회하는 길이 막힌다.
+  @Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
-  @IsOptional()
-  location?: string;
+  @IsNotEmpty()
+  @MaxLength(500)
+  location: string;
 
   @ApiPropertyOptional({ description: '설명' })
   @IsString()
@@ -57,8 +65,14 @@ export class UpdateInterviewSlotRequestDto {
   @IsOptional()
   capacity?: number;
 
-  @ApiPropertyOptional({ description: '장소' })
+  @ApiPropertyOptional({
+    description: '장소. 부분 수정이라 생략할 수 있지만, 보낼 경우 빈 값은 허용하지 않습니다.',
+    example: 'https://meet.google.com/abc-defg-hij',
+  })
+  @Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
   @IsOptional()
   location?: string;
 
