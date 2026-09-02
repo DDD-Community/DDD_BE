@@ -49,8 +49,8 @@ export class InterviewSlotResponseDto {
   @ApiProperty({ description: '수용 인원', example: 1 })
   capacity: number;
 
-  @ApiPropertyOptional({ description: '장소', nullable: true })
-  location: string | null;
+  @ApiProperty({ description: '장소', example: 'https://meet.google.com/abc-defg-hij' })
+  location: string;
 
   @ApiPropertyOptional({ description: '설명', nullable: true })
   description: string | null;
@@ -72,7 +72,7 @@ export class InterviewSlotResponseDto {
     dto.startAt = slot.startAt;
     dto.endAt = slot.endAt;
     dto.capacity = slot.capacity;
-    dto.location = slot.location ?? null;
+    dto.location = slot.location;
     dto.description = slot.description ?? null;
     const reservations = slot.reservations ?? [];
     dto.reservedCount = reservations.length;

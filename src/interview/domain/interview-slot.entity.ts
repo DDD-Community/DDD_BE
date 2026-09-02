@@ -31,8 +31,9 @@ export class InterviewSlot extends BaseEntity {
   @Column({ default: 1 })
   capacity: number;
 
-  @Column({ nullable: true })
-  location?: string;
+  /** 예약 확정 시 지원자에게 메일·캘린더로 전달된다. 온라인 면접이면 미팅 링크가 들어간다. */
+  @Column()
+  location: string;
 
   @Column({ type: 'text', nullable: true })
   description?: string;
@@ -47,9 +48,7 @@ export class InterviewSlot extends BaseEntity {
     slot.startAt = input.startAt;
     slot.endAt = input.endAt;
     slot.capacity = input.capacity;
-    if (input.location) {
-      slot.location = input.location;
-    }
+    slot.location = input.location;
     if (input.description) {
       slot.description = input.description;
     }

@@ -114,6 +114,7 @@ describe('면접 예약 동시성 (실 DB 통합)', () => {
         startAt: new Date(Date.now() + 3_600_000),
         endAt: new Date(Date.now() + 7_200_000),
         capacity: 1, // 정원 1 — 둘 중 하나만 성공해야 한다
+        location: 'https://meet.google.com/test-room',
       }),
     );
   });

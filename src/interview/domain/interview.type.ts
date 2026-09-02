@@ -4,7 +4,8 @@ export type InterviewSlotCreateInput = {
   startAt: Date;
   endAt: Date;
   capacity: number;
-  location?: string;
+  /** 예약 확정 시 지원자에게 전달된다. 온라인 면접이면 미팅 링크가 들어간다. */
+  location: string;
   description?: string;
 };
 

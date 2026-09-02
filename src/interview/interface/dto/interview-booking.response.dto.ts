@@ -13,18 +13,17 @@ export class BookingSlotResponseDto {
   @ApiProperty({ description: '종료 시각' })
   endAt: Date;
 
-  @ApiPropertyOptional({ description: '장소' })
-  location?: string;
-
   @ApiProperty({ description: '잔여석 (0 이면 마감)', example: 1 })
   remainingSeats: number;
 
+  // 장소는 의도적으로 내려보내지 않는다. 온라인 면접에서는 미팅 링크가 들어가는 자리라,
+  // 목록에 실으면 예약하지 않은 지원자까지 같은 파트의 모든 면접방 주소를 알게 된다.
+  // 예약을 확정한 본인에게만 확정 응답·메일·캘린더로 전달한다.
   static from({ slot, remainingSeats }: { slot: InterviewSlot; remainingSeats: number }) {
     const dto = new BookingSlotResponseDto();
     dto.id = slot.id;
     dto.startAt = slot.startAt;
     dto.endAt = slot.endAt;
-    dto.location = slot.location;
     dto.remainingSeats = remainingSeats;
     return dto;
   }
