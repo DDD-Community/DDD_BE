@@ -1,3 +1,4 @@
+import type { CohortAnnouncementInfo } from '../../cohort/domain/cohort-announcement-info';
 import type { ApplicationStatus } from '../domain/application.status';
 
 export type ApplicationSubmittedEventPayload = {
@@ -17,13 +18,8 @@ export type ApplicationStatusChangedEventPayload = {
   partName: string | null;
   /** cohort.process.interviewEndDate (YYYY-MM-DD). 없으면 null — 토큰 만료 폴백 대상 */
   interviewEndDate: string | null;
-};
-
-export type StatusEmailTemplate = {
-  subject: string;
-  message: string;
-  extraHtml?: string;
-  extraText?: string;
+  /** 메일 본문에 들어가는 기수 정보. 없는 항목은 해당 줄을 생략한다 */
+  cohort: CohortAnnouncementInfo;
 };
 
 export type RenderedStatusEmailTemplate = {

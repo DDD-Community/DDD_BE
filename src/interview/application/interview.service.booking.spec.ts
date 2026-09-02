@@ -21,6 +21,8 @@ jest.mock('typeorm-transactional', () => ({
 
 const mockRepository = {
   findSlotByIdForUpdate: jest.fn(),
+  // 확정 메일 문구에 쓸 기수 정보를 커밋 후에 다시 읽는다.
+  findSlotById: jest.fn(),
   findSlots: jest.fn(),
   findReservationByApplicationFormId: jest.fn(),
   countActiveReservationsBySlotId: jest.fn(),
