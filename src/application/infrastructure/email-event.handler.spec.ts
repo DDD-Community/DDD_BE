@@ -97,22 +97,24 @@ describe('EmailEventHandler', () => {
   });
 
   describe('handleApplicationStatusChangedEvent', () => {
-    it.each([ApplicationStatus.활동중, ApplicationStatus.활동완료, ApplicationStatus.활동중단])(
-      '%s 로 바뀌면 메일을 보내지 않는다',
-      async (newStatus) => {
-        await emailEventHandler.handleApplicationStatusChangedEvent(
-          makeStatusPayload({ newStatus }),
-        );
+    it.each([
+      // 최종합격은 운영진이 입금을 확인해 올리는 내부 단계다. 지원자에게 알리는 합격·입금
+      // 안내는 이미 면접합격 시점에 나갔으므로 여기서 또 보내면 중복이다.
+      ApplicationStatus.최종합격,
+      ApplicationStatus.활동중,
+      ApplicationStatus.활동완료,
+      ApplicationStatus.활동중단,
+    ])('%s 로 바뀌면 메일을 보내지 않는다', async (newStatus) => {
+      await emailEventHandler.handleApplicationStatusChangedEvent(makeStatusPayload({ newStatus }));
 
-        expect(notificationService.sendEmail).not.toHaveBeenCalled();
-      },
-    );
+      expect(notificationService.sendEmail).not.toHaveBeenCalled();
+    });
 
     it.each([
       [ApplicationStatus.서류합격, '[DDD] 서류 합격 및 면접 일정 선택 안내'],
       [ApplicationStatus.서류불합격, '[DDD] 서류 전형 결과 안내'],
-      [ApplicationStatus.면접합격, '[DDD] 면접 전형 합격 안내'],
-      [ApplicationStatus.최종합격, '[DDD] 최종 합격 및 참가 안내'],
+      // 면접합격이 지원자에게 알리는 최종 합격 시점이다.
+      [ApplicationStatus.면접합격, '[DDD] 최종 합격 및 참가 안내'],
       [ApplicationStatus.최종불합격, '[DDD] 면접 전형 결과 안내'],
     ])('%s 는 정해진 제목으로 메일을 보낸다', async (newStatus, subject) => {
       await emailEventHandler.handleApplicationStatusChangedEvent(makeStatusPayload({ newStatus }));
@@ -196,10 +198,10 @@ describe('EmailEventHandler', () => {
       });
     });
 
-    describe('최종합격', () => {
+    describe('면접합격 (지원자에게 알리는 최종 합격)', () => {
       it('참가비·계좌·기한과 입금자명(이름_파트)을 안내한다', async () => {
         await emailEventHandler.handleApplicationStatusChangedEvent(
-          makeStatusPayload({ newStatus: ApplicationStatus.최종합격, name: '홍길동' }),
+          makeStatusPayload({ newStatus: ApplicationStatus.면접합격, name: '홍길동' }),
         );
 
         const { html, text } = lastEmail();
@@ -217,7 +219,7 @@ describe('EmailEventHandler', () => {
       it('기수명이 html 에 escape 되고 text 는 원문으로 복원된다', async () => {
         await emailEventHandler.handleApplicationStatusChangedEvent(
           makeStatusPayload({
-            newStatus: ApplicationStatus.최종합격,
+            newStatus: ApplicationStatus.면접합격,
             cohort: { ...fullCohort, name: '14기<img src=x onerror=alert(1)>' },
           }),
         );
@@ -231,7 +233,7 @@ describe('EmailEventHandler', () => {
       it('참가비 정보가 비어 있으면 해당 줄을 생략한다', async () => {
         await emailEventHandler.handleApplicationStatusChangedEvent(
           makeStatusPayload({
-            newStatus: ApplicationStatus.최종합격,
+            newStatus: ApplicationStatus.면접합격,
             cohort: { ...fullCohort, participationFee: null, bankAccount: null },
           }),
         );
@@ -246,7 +248,7 @@ describe('EmailEventHandler', () => {
       it('파트 정보가 없으면 입금자명에 이름만 넣는다', async () => {
         await emailEventHandler.handleApplicationStatusChangedEvent(
           makeStatusPayload({
-            newStatus: ApplicationStatus.최종합격,
+            newStatus: ApplicationStatus.면접합격,
             name: '홍길동',
             partName: null,
           }),

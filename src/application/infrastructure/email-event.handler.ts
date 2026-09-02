@@ -85,14 +85,17 @@ export class EmailEventHandler {
     payload: ApplicationStatusChangedEventPayload,
     newStatus: AnnouncementStatus,
   ): RenderedStatusEmailTemplate {
-    return match(newStatus)
-      .returnType<RenderedStatusEmailTemplate>()
-      .with(ApplicationStatus.서류합격, () => this.buildDocumentPassEmail(payload))
-      .with(ApplicationStatus.서류불합격, () => this.buildDocumentFailEmail(payload))
-      .with(ApplicationStatus.면접합격, () => this.buildInterviewPassEmail(payload))
-      .with(ApplicationStatus.최종합격, () => this.buildFinalPassEmail(payload))
-      .with(ApplicationStatus.최종불합격, () => this.buildInterviewFailEmail(payload))
-      .exhaustive();
+    return (
+      match(newStatus)
+        .returnType<RenderedStatusEmailTemplate>()
+        .with(ApplicationStatus.서류합격, () => this.buildDocumentPassEmail(payload))
+        .with(ApplicationStatus.서류불합격, () => this.buildDocumentFailEmail(payload))
+        // 면접합격이 지원자에게 알리는 최종 합격 시점이다. 참가비·입금 안내가 여기서 나가고,
+        // 최종합격은 운영진이 입금을 확인해 올리는 내부 단계라 메일이 없다.
+        .with(ApplicationStatus.면접합격, () => this.buildFinalPassEmail(payload))
+        .with(ApplicationStatus.최종불합격, () => this.buildInterviewFailEmail(payload))
+        .exhaustive()
+    );
   }
 
   /**
@@ -204,24 +207,6 @@ export class EmailEventHandler {
     });
 
     return { subject: '[DDD] 면접 전형 결과 안내', html, text };
-  }
-
-  private buildInterviewPassEmail(
-    payload: ApplicationStatusChangedEventPayload,
-  ): RenderedStatusEmailTemplate {
-    const safeName = this.escapeHtml(payload.name);
-    const { html, text } = buildEmail({
-      title: '면접 전형 합격 안내',
-      greetingHtml: `안녕하세요, ${safeName}님. DDD 운영진입니다.`,
-      greetingText: `안녕하세요, ${payload.name}님. DDD 운영진입니다.`,
-      introParagraphs: [
-        `${this.cohortLabel(payload.cohort)} 면접 전형에 합격하셨습니다. 축하드립니다.`,
-        '최종 결과는 별도 메일로 안내드리겠습니다.',
-      ],
-      outroParagraphs: ['조금만 더 기다려 주시기 바랍니다.'],
-    });
-
-    return { subject: '[DDD] 면접 전형 합격 안내', html, text };
   }
 
   private buildFinalPassEmail(
