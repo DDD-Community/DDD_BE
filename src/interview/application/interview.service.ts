@@ -584,7 +584,6 @@ export class InterviewService {
       const { html, text } = buildEmail({
         title,
         blocks,
-        logoUrl: this.configService.get<string>('EMAIL_LOGO_URL') ?? null,
       });
 
       await this.notificationService.sendEmail({

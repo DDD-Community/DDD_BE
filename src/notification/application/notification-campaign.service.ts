@@ -129,7 +129,6 @@ export class NotificationCampaignService {
     const { html, text } = buildEmail({
       title,
       blocks,
-      logoUrl: this.configService.get<string>('EMAIL_LOGO_URL') ?? null,
     });
     return { subject: toEmailSubject(`DDD ${cohort.name} 지원이 시작되었습니다`), html, text };
   }

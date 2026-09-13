@@ -21,7 +21,6 @@ const MAX_ATTEMPTS = 5;
 export class ApplicationVerificationService {
   private readonly logger = new Logger(ApplicationVerificationService.name);
   private readonly verificationHashKey: Buffer;
-  private readonly emailLogoUrl: string | null;
 
   constructor(
     private readonly verificationRepository: ApplicationEmailVerificationRepository,
@@ -34,7 +33,6 @@ export class ApplicationVerificationService {
     this.verificationHashKey = createHash('sha256')
       .update(`applicant-verification:${configService.getOrThrow<string>('JWT_SECRET')}`)
       .digest();
-    this.emailLogoUrl = configService.get<string>('EMAIL_LOGO_URL') ?? null;
   }
 
   async requestCode({ email }: { email: string }): Promise<void> {
@@ -45,7 +43,6 @@ export class ApplicationVerificationService {
       const title = '이메일 인증번호를 안내드립니다';
       const { html, text } = buildEmail({
         title,
-        logoUrl: this.emailLogoUrl,
         blocks: [
           { type: 'lead', html: '지원서 화면에 아래 인증번호를 입력해 주세요.' },
           { type: 'code', value: code },

@@ -32,10 +32,7 @@ describe('ApplicationVerificationService review fixes', () => {
       notificationService as unknown as NotificationService,
       {} as UserService,
       {} as AuthService,
-      {
-        getOrThrow: jest.fn().mockReturnValue('test-jwt-secret'),
-        get: jest.fn(),
-      } as unknown as ConfigService,
+      { getOrThrow: jest.fn().mockReturnValue('test-jwt-secret') } as unknown as ConfigService,
     );
 
     await expect(service.requestCode({ email: 'applicant@example.com' })).resolves.toBeUndefined();

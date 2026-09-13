@@ -60,7 +60,6 @@ export class EmailEventHandler {
       const title = '지원서 접수가 완료되었습니다';
       const { html, text } = buildEmail({
         title,
-        logoUrl: this.logoUrl(),
         blocks: [
           {
             type: 'lead',
@@ -136,10 +135,6 @@ export class EmailEventHandler {
     return cohort.name ? `DDD ${escapeHtml(cohort.name)}` : 'DDD';
   }
 
-  private logoUrl(): string | null {
-    return this.configService.get<string>('EMAIL_LOGO_URL') ?? null;
-  }
-
   private buildDocumentPassEmail(
     payload: ApplicationStatusChangedEventPayload,
   ): RenderedStatusEmailTemplate {
@@ -177,7 +172,7 @@ export class EmailEventHandler {
         ];
 
     const title = '서류 전형에 합격하셨습니다';
-    const { html, text } = buildEmail({ title, logoUrl: this.logoUrl(), blocks });
+    const { html, text } = buildEmail({ title, blocks });
     return { subject: toEmailSubject(title), html, text };
   }
 
@@ -187,7 +182,6 @@ export class EmailEventHandler {
     const title = '서류 전형 결과를 안내드립니다';
     const { html, text } = buildEmail({
       title,
-      logoUrl: this.logoUrl(),
       blocks: [
         {
           type: 'lead',
@@ -214,7 +208,6 @@ export class EmailEventHandler {
     const title = '면접 전형 결과를 안내드립니다';
     const { html, text } = buildEmail({
       title,
-      logoUrl: this.logoUrl(),
       blocks: [
         {
           type: 'lead',
@@ -268,7 +261,6 @@ export class EmailEventHandler {
     const title = `${this.cohortLabel(cohort)} 최종 합격을 축하드립니다`;
     const { html, text } = buildEmail({
       title,
-      logoUrl: this.logoUrl(),
       blocks: [
         {
           type: 'lead',

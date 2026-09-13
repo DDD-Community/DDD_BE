@@ -131,11 +131,6 @@ class EnvironmentVariables {
   @IsOptional()
   INTERVIEW_BOOKING_URL?: string;
 
-  /** 안내 메일 상단 로고. 메일 클라이언트가 불러올 수 있는 절대 URL 이어야 하며, 없으면 로고 줄을 생략한다 */
-  @IsString()
-  @IsOptional()
-  EMAIL_LOGO_URL?: string;
-
   /** 모집 시작 안내 메일의 지원하기 버튼 링크. 없으면 버튼을 생략한다 */
   @IsString()
   @IsOptional()

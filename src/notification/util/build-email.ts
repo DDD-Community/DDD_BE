@@ -38,8 +38,6 @@ export type BuildEmailInput = {
   /** 메일 상단 제목. escape 된 값 */
   title: SafeHtml;
   blocks: EmailBlock[];
-  /** 절대 URL 이어야 메일 클라이언트에서 보인다. 없으면 로고 줄을 생략한다 */
-  logoUrl?: string | null;
 };
 
 const FONT_FAMILY = `'Apple SD Gothic Neo','Malgun Gothic','맑은 고딕',Arial,sans-serif`;
@@ -54,6 +52,14 @@ const COLOR = {
 } as const;
 
 const FOOTER_TEXT_LINES = ['문의사항은 본 메일로 회신해 주세요.', '© DDD'];
+
+/**
+ * 메일 상단 로고. 시안의 ddd-logo.png 같은 상대경로는 메일 클라이언트가 불러오지 못하므로
+ * 이미 공개 호스팅 중인 어드민 FE 의 정적 파일(DDD_FE apps/admin/public/logo.png)을 쓴다.
+ * 흰 카드 위에서 보이는 검은 원형 로고라 이 파일을 골랐다 — 지원자 웹의 logo.png 는 흰색이라 안 보인다.
+ * 어드민 FE 에서 이 경로가 바뀌면 메일 로고가 조용히 깨지므로 함께 옮겨야 한다.
+ */
+const LOGO_URL = 'https://admin.dddstudy.kr/logo.png';
 
 export const escapeHtml = (input: string): string =>
   input
@@ -217,11 +223,7 @@ const renderBlockText = (block: EmailBlock): string | null => {
 const isRenderable = (block: EmailBlock): boolean =>
   !(block.type === 'info' && block.rows.length === 0);
 
-export const buildEmail = ({
-  title,
-  blocks,
-  logoUrl,
-}: BuildEmailInput): { html: string; text: string } => {
+export const buildEmail = ({ title, blocks }: BuildEmailInput): { html: string; text: string } => {
   const renderable = blocks.filter(isRenderable);
 
   let previous: EmailBlock['type'] | null = null;
@@ -232,16 +234,6 @@ export const buildEmail = ({
       return rendered;
     })
     .join('\n');
-
-  const logoHtml = logoUrl
-    ? `
-  <tr>
-    <td style="padding-bottom:22px;">
-      <img src="${escapeHtml(logoUrl)}" alt="DDD" width="30" height="30" style="display:block; width:30px; height:30px; border:0; outline:none;">
-    </td>
-  </tr>
-`
-    : '';
 
   const html = `<!DOCTYPE html>
 <html lang="ko">
@@ -257,7 +249,13 @@ export const buildEmail = ({
 <table role="presentation" width="520" cellpadding="0" cellspacing="0" border="0" style="width:520px; max-width:100%; background-color:${COLOR.card}; border-radius:16px;">
 <tr><td style="padding:36px 36px 28px 36px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-${logoHtml}
+
+  <tr>
+    <td style="padding-bottom:22px;">
+      <img src="${LOGO_URL}" alt="DDD" width="30" height="30" style="display:block; width:30px; height:30px; border:0; outline:none;">
+    </td>
+  </tr>
+
   <tr>
     <td style="font-family:${FONT_FAMILY}; font-size:21px; font-weight:700; line-height:1.4; color:${COLOR.title}; letter-spacing:-0.6px;">
       ${title}

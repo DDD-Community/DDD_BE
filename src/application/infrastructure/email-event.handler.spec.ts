@@ -13,7 +13,7 @@ import type {
 } from './email-event.type';
 
 const BOOKING_URL = 'https://apply.example.com/interview/booking';
-const LOGO_URL = 'https://cdn.example.com/ddd-logo.png';
+const LOGO_URL = 'https://admin.dddstudy.kr/logo.png';
 
 describe('EmailEventHandler', () => {
   let emailEventHandler: EmailEventHandler;
@@ -89,7 +89,7 @@ describe('EmailEventHandler', () => {
     emailEventHandler = module.get(EmailEventHandler);
     jest.clearAllMocks();
     bookingTokenService.issue.mockReturnValue('signed-token');
-    stubConfig({ INTERVIEW_BOOKING_URL: BOOKING_URL, EMAIL_LOGO_URL: LOGO_URL });
+    stubConfig({ INTERVIEW_BOOKING_URL: BOOKING_URL });
   });
 
   describe('공용 레이아웃', () => {
@@ -102,14 +102,6 @@ describe('EmailEventHandler', () => {
       expect(html).toContain('<title>서류 전형에 합격하셨습니다</title>');
       expect(html).toContain('문의사항은 본 메일로 회신해 주세요.');
       expect(text.endsWith('문의사항은 본 메일로 회신해 주세요.\n© DDD')).toBe(true);
-    });
-
-    it('EMAIL_LOGO_URL 이 없으면 로고 줄을 생략한다', async () => {
-      stubConfig({ INTERVIEW_BOOKING_URL: BOOKING_URL });
-
-      await emailEventHandler.handleApplicationStatusChangedEvent(makeStatusPayload());
-
-      expect(lastEmail().html).not.toContain('<img');
     });
   });
 
@@ -225,7 +217,7 @@ describe('EmailEventHandler', () => {
       });
 
       it('예약 링크를 만들지 못하면 버튼과 예약 안내를 넣지 않는다', async () => {
-        stubConfig({ EMAIL_LOGO_URL: LOGO_URL });
+        stubConfig({});
 
         await emailEventHandler.handleApplicationStatusChangedEvent(makeStatusPayload());
 

@@ -47,7 +47,7 @@ describe('ApplicationVerificationService', () => {
   const notificationService = { sendEmail: jest.fn() };
   const userService = { register: jest.fn() };
   const authService = { signApplicantToken: jest.fn() };
-  const configService = { getOrThrow: jest.fn().mockReturnValue(jwtSecret), get: jest.fn() };
+  const configService = { getOrThrow: jest.fn().mockReturnValue(jwtSecret) };
 
   beforeEach(() => {
     service = new ApplicationVerificationService(
