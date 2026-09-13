@@ -8,6 +8,7 @@ import { AuthService } from '../../auth/application/auth.service';
 import { AppException } from '../../common/exception/app.exception';
 import { maskEmail } from '../../common/util/mask-email';
 import { NotificationService } from '../../notification/application/notification.service';
+import { buildEmail, toEmailSubject } from '../../notification/util/build-email';
 import { UserService } from '../../user/application/user.service';
 import { ApplicationEmailVerification } from '../domain/application-email-verification.entity';
 import { ApplicationEmailVerificationRepository } from '../domain/application-email-verification.repository';
@@ -39,11 +40,26 @@ export class ApplicationVerificationService {
     const { code } = await this.createVerification({ email: normalizedEmail });
 
     try {
+      const title = '이메일 인증번호를 안내드립니다';
+      const { html, text } = buildEmail({
+        title,
+        blocks: [
+          { type: 'lead', html: '지원서 화면에 아래 인증번호를 입력해 주세요.' },
+          { type: 'code', value: code },
+          {
+            type: 'note',
+            lines: [
+              `인증번호는 발급 후 ${VERIFICATION_CODE_EXPIRES_IN_MS / 60_000}분간 유효합니다.`,
+              '본인이 요청하지 않았다면 이 메일을 무시해 주세요.',
+            ],
+          },
+        ],
+      });
       await this.notificationService.sendEmail({
         to: normalizedEmail,
-        subject: '[DDD] 지원자 이메일 인증번호',
-        html: `<p>지원자 인증번호는 <strong>${code}</strong>입니다.</p><p>인증번호는 10분 동안 유효합니다.</p>`,
-        text: `지원자 인증번호는 ${code}입니다. 인증번호는 10분 동안 유효합니다.`,
+        subject: toEmailSubject(title),
+        html,
+        text,
       });
     } catch {
       this.logger.error(`인증 메일 발송 실패: to=${maskEmail({ email: normalizedEmail })}`);

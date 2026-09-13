@@ -100,6 +100,9 @@ export const formatKoreanDeadline = (value: string): string => {
   return `${formatDatePart(parts)} ${formatTimePart(parts)}`;
 };
 
+/** 날짜 표기: 9월 19일(토) */
+export const formatKoreanDate = (date: Date): string => formatDatePart(toKstParts(date));
+
 /** 면접 일시 표기: 9월 19일(토) 오후 2:00 */
 export const formatKoreanDateTime = (date: Date): string => {
   const parts = toKstParts(date);

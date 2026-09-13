@@ -21,7 +21,10 @@ import type {
 } from '../domain/application.type';
 import { ApplicationDraft } from '../domain/application-draft.entity';
 import { ApplicationForm } from '../domain/application-form.entity';
-import type { ApplicationStatusChangedEventPayload } from '../infrastructure/email-event.type';
+import type {
+  ApplicationStatusChangedEventPayload,
+  ApplicationSubmittedEventPayload,
+} from '../infrastructure/email-event.type';
 import { ApplicationAnswerValidator } from './application-answer.validator';
 import { ApplicationAttachmentService } from './application-attachment.service';
 
@@ -133,11 +136,18 @@ export class ApplicationService {
 
     this.logger.log(`지원서 최종 제출: userId=${userId}, cohortPartId=${cohortPart.id}`);
 
+    const submittedEvent: ApplicationSubmittedEventPayload = {
+      email,
+      name: command.applicantName,
+      partName: cohortPart.partName,
+      submittedAt: new Date(),
+      cohort: toCohortAnnouncementInfo({
+        name: cohortPart.cohort.name,
+        process: cohortPart.cohort.process,
+      }),
+    };
     runOnTransactionCommit(() => {
-      this.eventEmitter.emit('application.submitted', {
-        email,
-        name: command.applicantName,
-      });
+      this.eventEmitter.emit('application.submitted', submittedEvent);
     });
   }
 

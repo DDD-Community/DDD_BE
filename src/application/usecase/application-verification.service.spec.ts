@@ -89,8 +89,19 @@ describe('ApplicationVerificationService', () => {
       });
       expect(repository.save).toHaveBeenCalledWith({ verification: expect.any(Object) });
       expect(notificationService.sendEmail).toHaveBeenCalledWith(
-        expect.objectContaining({ to: normalizedEmail, subject: '[DDD] 지원자 이메일 인증번호' }),
+        expect.objectContaining({
+          to: normalizedEmail,
+          subject: '[DDD] 이메일 인증번호를 안내드립니다',
+        }),
       );
+      const sent = notificationService.sendEmail.mock.calls.at(-1)[0] as {
+        html: string;
+        text: string;
+      };
+      const code = /인증번호를 입력해 주세요\.\n\n(\d{6})\n/.exec(sent.text)?.[1];
+      expect(code).toMatch(/^\d{6}$/);
+      expect(sent.html).toContain(code);
+      expect(sent.text).toContain('인증번호는 발급 후 10분간 유효합니다.');
       const saved = repository.save.mock.calls.at(-1)[0]
         .verification as ApplicationEmailVerification;
       expect(saved.codeHash).toHaveLength(64);

@@ -5,6 +5,7 @@ jest.mock('typeorm-transactional', () => ({
 }));
 
 import { HttpStatus } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 
 import { AuditLogService } from '../../audit/application/audit-log.service';
@@ -39,6 +40,10 @@ const mockAuditLogService = {
   recordStatusChange: jest.fn(),
 };
 
+const mockConfigService = {
+  get: jest.fn(),
+};
+
 describe('NotificationCampaignService', () => {
   let service: NotificationCampaignService;
 
@@ -53,6 +58,7 @@ describe('NotificationCampaignService', () => {
         { provide: CohortRepository, useValue: mockCohortRepository },
         { provide: EarlyNotificationService, useValue: mockEarlyNotificationService },
         { provide: AuditLogService, useValue: mockAuditLogService },
+        { provide: ConfigService, useValue: mockConfigService },
       ],
     }).compile();
 
@@ -526,34 +532,86 @@ describe('NotificationCampaignService', () => {
   });
 
   describe('registerDefaultForCohort', () => {
-    it('cohort 정보로 기본 본문 + recruitStartAt 기준 PAUSED 캠페인을 등록한다', async () => {
-      // Given
-      const cohort = {
-        id: 7,
-        name: '16기',
-        recruitStartAt: new Date('2026-09-01T00:00:00Z'),
-      };
-      const created = { id: 999, status: NotificationCampaignStatus.PAUSED };
-      mockNotificationCampaignRepository.registerDraft.mockResolvedValue(created);
-
-      // When
-      const result = await service.registerDefaultForCohort({ cohort: cohort as never });
-
-      // Then
-      expect(result).toBe(created);
-      expect(mockNotificationCampaignRepository.registerDraft).toHaveBeenCalledTimes(1);
-      const args = mockNotificationCampaignRepository.registerDraft.mock.calls[0][0] as {
+    const registeredDraft = () =>
+      mockNotificationCampaignRepository.registerDraft.mock.calls[0][0] as {
         cohortId: number;
         scheduledAt: Date;
         subject: string;
         html: string;
         text: string;
       };
+
+    const fullCohort = {
+      id: 7,
+      name: '16기',
+      recruitStartAt: new Date('2026-09-01T00:00:00Z'),
+      recruitEndAt: new Date('2026-09-13T14:59:00Z'),
+      activityEndAt: new Date('2027-01-30T00:00:00Z'),
+      parts: [{ partName: 'PM' }, { partName: 'FE' }],
+      curriculum: [
+        { date: '2026-10-24', description: '부스팅 데이' },
+        { date: '2026-10-10', description: '오리엔테이션' },
+      ],
+    };
+
+    it('cohort 정보로 모집 시작 안내 본문 + recruitStartAt 기준 PAUSED 캠페인을 등록한다', async () => {
+      // Given
+      const created = { id: 999, status: NotificationCampaignStatus.PAUSED };
+      mockNotificationCampaignRepository.registerDraft.mockResolvedValue(created);
+      mockConfigService.get.mockImplementation((key: string) =>
+        key === 'APPLY_URL' ? 'https://dddsite.co.kr/apply' : undefined,
+      );
+
+      // When
+      const result = await service.registerDefaultForCohort({ cohort: fullCohort as never });
+
+      // Then
+      expect(result).toBe(created);
+      expect(mockNotificationCampaignRepository.registerDraft).toHaveBeenCalledTimes(1);
+      const args = registeredDraft();
       expect(args.cohortId).toBe(7);
-      expect(args.scheduledAt).toEqual(cohort.recruitStartAt);
-      expect(args.subject).toContain('16기');
-      expect(args.html).toContain('16기');
-      expect(args.text).toContain('16기');
+      expect(args.scheduledAt).toEqual(fullCohort.recruitStartAt);
+      expect(args.subject).toBe('[DDD] 16기 지원이 시작되었습니다');
+      expect(args.html).toContain('DDD 16기 지원이 시작되었습니다');
+      expect(args.text).toContain('- 모집 기간: 9월 1일(화) ~ 9월 13일(일) 오후 11:59');
+      expect(args.text).toContain('- 모집 파트: PM, FE');
+      // 커리큘럼 순서와 무관하게 가장 이른 일정을 활동 시작일로 본다.
+      expect(args.text).toContain('- 활동 기간: 10월 10일(토) ~ 1월 30일(토)');
+      expect(args.html).toContain('href="https://dddsite.co.kr/apply"');
+      expect(args.text).toContain('9월 13일(일) 오후 11:59 이후에는 제출할 수 없습니다.');
+    });
+
+    it('APPLY_URL·활동 기간 정보가 없으면 버튼과 활동 기간 줄을 생략한다', async () => {
+      // Given
+      mockNotificationCampaignRepository.registerDraft.mockResolvedValue({ id: 1 });
+      mockConfigService.get.mockReturnValue(undefined);
+      const cohort = { ...fullCohort, activityEndAt: undefined, curriculum: undefined };
+
+      // When
+      await service.registerDefaultForCohort({ cohort: cohort as never });
+
+      // Then
+      const args = registeredDraft();
+      expect(args.text).not.toContain('활동 기간');
+      expect(args.text).not.toContain('지원하기');
+      expect(args.html).not.toContain('<a href');
+    });
+
+    it('기수명은 운영진 입력값이라 본문에서 escape 한다', async () => {
+      // Given
+      mockNotificationCampaignRepository.registerDraft.mockResolvedValue({ id: 1 });
+      mockConfigService.get.mockReturnValue(undefined);
+
+      // When
+      await service.registerDefaultForCohort({
+        cohort: { ...fullCohort, name: '<b>16기</b>' } as never,
+      });
+
+      // Then
+      const args = registeredDraft();
+      expect(args.html).toContain('&lt;b&gt;16기&lt;/b&gt;');
+      expect(args.html).not.toContain('<b>16기</b>');
+      expect(args.subject).toBe('[DDD] <b>16기</b> 지원이 시작되었습니다');
     });
   });
 

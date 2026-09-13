@@ -11,8 +11,8 @@ import { AppException } from '../../common/exception/app.exception';
 import { hasDefinedValues } from '../../common/util/object-utils';
 import { isPostgresUniqueViolation } from '../../common/util/postgres-error';
 import { NotificationService } from '../../notification/application/notification.service';
-import type { EmailBullet } from '../../notification/util/build-email';
-import { buildEmail } from '../../notification/util/build-email';
+import type { EmailBlock, EmailInfoRow } from '../../notification/util/build-email';
+import { buildEmail, escapeHtml, toEmailSubject } from '../../notification/util/build-email';
 import { buildIcsFile } from '../../notification/util/build-ics';
 import {
   diffMinutes,
@@ -30,7 +30,7 @@ import { InterviewReservation } from '../domain/interview-reservation.entity';
 import { InterviewSlot } from '../domain/interview-slot.entity';
 import { GoogleCalendarClient } from '../infrastructure/google-calendar.client';
 
-const ONLINE_INTERVIEW = '온라인 인터뷰(Google Meet)';
+const ONLINE_INTERVIEW = '온라인 (Google Meet)';
 
 type CalendarFailureContext = {
   operation: 'create' | 'update' | 'delete';
@@ -359,7 +359,13 @@ export class InterviewService {
       process: slotWithCohort?.cohort?.process,
     });
 
-    await this.sendInterviewInviteEmail({ applicantName, applicantEmail, slot, cohort });
+    await this.sendInterviewInviteEmail({
+      applicantName,
+      applicantEmail,
+      slot,
+      cohort,
+      partName: slotWithCohort?.cohortPart?.partName ?? null,
+    });
   }
 
   private async afterCancelReservation({
@@ -465,7 +471,7 @@ export class InterviewService {
         to: opsEmail,
         subject,
         html: `<pre style="font-family:'Apple SD Gothic Neo','Malgun Gothic',monospace;font-size:13px;line-height:1.6;color:#111;">${detailLines
-          .map((line) => this.escapeHtml(line))
+          .map((line) => escapeHtml(line))
           .join('\n')}</pre>`,
         text: detailLines.join('\n'),
       });
@@ -507,11 +513,13 @@ export class InterviewService {
     applicantEmail,
     slot,
     cohort,
+    partName,
   }: {
     applicantName: string;
     applicantEmail: string;
     slot: InterviewSlot;
     cohort: CohortAnnouncementInfo;
+    partName: string | null;
   }): Promise<void> {
     try {
       const summary = `[DDD] 면접 일정 안내`;
@@ -524,67 +532,63 @@ export class InterviewService {
         description: slot.description,
       });
 
-      // 기수명은 운영진 입력값이라 escape 한다(buildEmail 은 escape 된 값을 받는 계약).
-      const label = cohort.name ? `DDD ${this.escapeHtml(cohort.name)}` : 'DDD';
       const scheduledAt = formatKoreanDateTime(slot.startAt);
       // 기수에 지정한 값이 있으면 그쪽을 쓴다. 없으면 슬롯 길이가 곧 답이다.
-      // (서류합격 메일이 안내한 소요 시간과 어긋나지 않게 하기 위함)
       const durationMinutes =
         cohort.interviewDurationMinutes ??
         diffMinutes({ startAt: slot.startAt, endAt: slot.endAt });
-      const hasName = applicantName.trim().length > 0;
-      const safeName = this.escapeHtml(applicantName.trim());
+      // 이름이 비어 있으면 "님, 인터뷰가..." 가 나가므로 호칭을 일반화한다.
+      const trimmedName = applicantName.trim();
+      const safeName = trimmedName.length > 0 ? escapeHtml(trimmedName) : '지원자';
 
-      const bullets: EmailBullet[] = [
-        {
-          label: '인터뷰 일시',
-          valueHtml: this.escapeHtml(scheduledAt),
-          valueText: scheduledAt,
-        },
+      const rows: EmailInfoRow[] = [
+        { label: '일시', valueHtml: escapeHtml(scheduledAt), valueText: scheduledAt },
       ];
       if (durationMinutes > 0) {
         const duration = `약 ${durationMinutes}분`;
-        bullets.push({ label: '예상 소요 시간', valueHtml: duration, valueText: duration });
+        rows.push({ label: '소요 시간', valueHtml: duration, valueText: duration });
       }
-      bullets.push(
+      rows.push({ label: '진행 방식', valueHtml: ONLINE_INTERVIEW, valueText: ONLINE_INTERVIEW });
+      if (partName) {
+        rows.push({ label: '지원 파트', valueHtml: escapeHtml(partName), valueText: partName });
+      }
+
+      // 장소가 미팅 링크일 때만 버튼으로 보낸다. "추후 안내" 같은 문구를 href 에 넣으면
+      // 눌러도 아무 데도 가지 않는 버튼이 되므로, 그때는 장소 줄로 그대로 보여준다.
+      const location = slot.location.trim();
+      const meetingLink = /^https?:\/\/\S+$/.test(location) ? location : null;
+      if (!meetingLink) {
+        rows.push({ label: '장소', valueHtml: escapeHtml(location), valueText: location });
+      }
+
+      const rescheduleDeadline = cohort.interviewRescheduleDeadline
+        ? escapeHtml(formatKoreanDeadline(cohort.interviewRescheduleDeadline))
+        : '인터뷰 전날';
+
+      const blocks: EmailBlock[] = [
+        { type: 'lead', html: `${safeName}님, 인터뷰가 아래 일정으로 확정되었습니다.` },
+        { type: 'info', rows },
+      ];
+      if (meetingLink) {
+        blocks.push({ type: 'button', label: '인터뷰 참여하기', href: meetingLink });
+      }
+      blocks.push(
+        { type: 'note', lines: ['시작 5분 전까지 접속 환경과 마이크를 확인해 주세요.'] },
         {
-          label: '진행 방식',
-          valueHtml: ONLINE_INTERVIEW,
-          valueText: ONLINE_INTERVIEW,
-        },
-        {
-          label: '참여 링크',
-          valueHtml: this.renderLocationHtml(slot.location),
-          valueText: slot.location.trim(),
+          type: 'note',
+          lines: [`일정 조정이 필요하면 ${rescheduleDeadline}까지 본 메일로 회신해 주세요.`],
         },
       );
 
-      const rescheduleSentence = cohort.interviewRescheduleDeadline
-        ? `부득이하게 참석이 어렵거나 일정 조정이 필요한 경우에는 ${formatKoreanDeadline(cohort.interviewRescheduleDeadline)}까지 본 메일로 회신 부탁드립니다.`
-        : '부득이하게 참석이 어렵거나 일정 조정이 필요한 경우에는 본 메일로 회신 부탁드립니다.';
-
+      const title = '면접 일정이 확정되었습니다';
       const { html, text } = buildEmail({
-        title: '면접 일정 확정 안내',
-        // 이름이 비어 있으면 "안녕하세요, 님." 이 나가므로 호칭을 일반화한다.
-        greetingHtml: hasName
-          ? `안녕하세요, ${safeName}님. DDD 운영진입니다.`
-          : '안녕하세요, 지원자님. DDD 운영진입니다.',
-        greetingText: hasName
-          ? `안녕하세요, ${applicantName.trim()}님. DDD 운영진입니다.`
-          : '안녕하세요, 지원자님. DDD 운영진입니다.',
-        introParagraphs: [`${label} 인터뷰 일정이 아래와 같이 확정되어 안내드립니다.`],
-        bullets,
-        outroParagraphs: [
-          '원활한 진행을 위해 인터뷰 시작 5분 전까지 접속 환경과 마이크를 확인해 주세요.',
-          rescheduleSentence,
-          '첨부된 interview.ics 파일을 열면 본인 캘린더에 일정을 바로 추가할 수 있습니다.',
-          '인터뷰에서 뵙겠습니다.',
-        ],
+        title,
+        blocks,
       });
 
       await this.notificationService.sendEmail({
         to: applicantEmail,
-        subject: '[DDD] 면접 일정 확정 안내',
+        subject: toEmailSubject(title),
         html,
         text,
         attachments: [
@@ -601,28 +605,5 @@ export class InterviewService {
         error instanceof Error ? error.stack : String(error),
       );
     }
-  }
-
-  /**
-   * 온라인 면접이면 장소 자리에 미팅 링크가 들어온다. 그대로 두면 메일에서 클릭이 안 되므로
-   * http(s) 로 시작할 때만 앵커로 감싼다. 그 외에는 기존처럼 escape 한 텍스트로 둔다.
-   */
-  private renderLocationHtml(location: string): string {
-    // 판정과 출력이 같은 값을 봐야 한다. 원본으로 출력하면 href 에 앞뒤 공백이 섞인다.
-    const trimmed = location.trim();
-    const escaped = this.escapeHtml(trimmed);
-    if (!/^https?:\/\/\S+$/.test(trimmed)) {
-      return escaped;
-    }
-    return `<a href="${escaped}" style="color:#1a56db;text-decoration:underline;word-break:break-all;">${escaped}</a>`;
-  }
-
-  private escapeHtml(input: string): string {
-    return input
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;')
-      .replaceAll("'", '&#39;');
   }
 }

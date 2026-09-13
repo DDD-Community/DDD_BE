@@ -131,6 +131,11 @@ class EnvironmentVariables {
   @IsOptional()
   INTERVIEW_BOOKING_URL?: string;
 
+  /** 모집 시작 안내 메일의 지원하기 버튼 링크. 없으면 버튼을 생략한다 */
+  @IsString()
+  @IsOptional()
+  APPLY_URL?: string;
+
   @IsString()
   @IsOptional()
   DISCORD_INVITE_URL?: string;

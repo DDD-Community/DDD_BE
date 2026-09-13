@@ -1,4 +1,5 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Transactional } from 'typeorm-transactional';
 
 import { AuditLogService } from '../../audit/application/audit-log.service';
@@ -11,6 +12,13 @@ import {
 } from '../domain/notification-campaign.entity';
 import { NotificationCampaignRepository } from '../domain/notification-campaign.repository';
 import { NotificationCampaignStatus } from '../domain/notification-campaign.status';
+import type { EmailBlock, EmailInfoRow } from '../util/build-email';
+import { buildEmail, escapeHtml, toEmailSubject } from '../util/build-email';
+import {
+  formatKoreanDate,
+  formatKoreanDateTime,
+  formatKoreanDeadline,
+} from '../util/format-korean-date';
 import { EarlyNotificationService } from './early-notification.service';
 
 const AUDIT_ENTITY_TYPE = 'notification_campaign';
@@ -43,6 +51,7 @@ export class NotificationCampaignService {
   private readonly logger = new Logger(NotificationCampaignService.name);
 
   constructor(
+    private readonly configService: ConfigService,
     private readonly notificationCampaignRepository: NotificationCampaignRepository,
     private readonly cohortRepository: CohortRepository,
     private readonly earlyNotificationService: EarlyNotificationService,
@@ -65,17 +74,85 @@ export class NotificationCampaignService {
   }
 
   async registerDefaultForCohort({ cohort }: { cohort: Cohort }) {
+    const { subject, html, text } = this.buildRecruitOpenEmail({ cohort });
     return this.notificationCampaignRepository.registerDraft({
       cohortId: cohort.id,
       scheduledAt: cohort.recruitStartAt,
-      subject: `[DDD] ${cohort.name} 모집 시작 안내`,
-      html:
-        `<p>안녕하세요.</p>` +
-        `<p>DDD ${cohort.name} 모집이 시작되었습니다. 자세한 내용은 홈페이지에서 확인해주세요.</p>`,
-      text:
-        `안녕하세요.\n\n` +
-        `DDD ${cohort.name} 모집이 시작되었습니다. 자세한 내용은 홈페이지에서 확인해주세요.`,
+      subject,
+      html,
+      text,
     });
+  }
+
+  /**
+   * 사전 알림 신청자에게 나가는 모집 시작 안내의 기본 초안.
+   *
+   * 기수 생성 시점의 값으로 한 번 만들어 캠페인에 저장되고, 운영진이 발송 전에 고칠 수 있다.
+   * 그래서 이후 기수 정보가 바뀌어도 저장된 본문은 따라가지 않는다.
+   */
+  private buildRecruitOpenEmail({ cohort }: { cohort: Cohort }) {
+    const recruitEnd = formatKoreanDateTime(cohort.recruitEndAt);
+    const rows: EmailInfoRow[] = [
+      {
+        label: '모집 기간',
+        valueHtml: `${formatKoreanDate(cohort.recruitStartAt)} ~ ${recruitEnd}`,
+        valueText: `${formatKoreanDate(cohort.recruitStartAt)} ~ ${recruitEnd}`,
+      },
+    ];
+    const partNames = (cohort.parts ?? []).map((part) => part.partName).join(', ');
+    if (partNames) {
+      rows.push({ label: '모집 파트', valueHtml: escapeHtml(partNames), valueText: partNames });
+    }
+    const activityPeriod = this.formatActivityPeriod({ cohort });
+    if (activityPeriod) {
+      rows.push({
+        label: '활동 기간',
+        valueHtml: escapeHtml(activityPeriod),
+        valueText: activityPeriod,
+      });
+    }
+
+    const blocks: EmailBlock[] = [
+      {
+        type: 'lead',
+        html: '신청해 주신 사전 알림 안내입니다. 모집 인원이 한정되어 있으니 마감 전에 지원해 주세요.',
+      },
+      { type: 'info', rows },
+    ];
+    const applyUrl = this.configService.get<string>('APPLY_URL');
+    if (applyUrl) {
+      blocks.push({ type: 'button', label: '지원하기', href: applyUrl });
+    }
+    blocks.push({ type: 'note', lines: [`${recruitEnd} 이후에는 제출할 수 없습니다.`] });
+
+    const title = `DDD ${escapeHtml(cohort.name)} 지원이 시작되었습니다`;
+    const { html, text } = buildEmail({
+      title,
+      blocks,
+    });
+    return { subject: toEmailSubject(`DDD ${cohort.name} 지원이 시작되었습니다`), html, text };
+  }
+
+  /**
+   * 기수에는 활동 시작일 컬럼이 없다. 커리큘럼의 가장 이른 일정(오리엔테이션)을 시작일로 보고,
+   * 시작·종료 중 하나라도 없으면 줄째 생략한다 — 반쪽짜리 기간을 안내하는 것보다 낫다.
+   */
+  private formatActivityPeriod({ cohort }: { cohort: Cohort }): string | null {
+    const curriculumDates = (cohort.curriculum ?? [])
+      .map((item) =>
+        item && typeof item === 'object' && 'date' in item
+          ? (item as { date: unknown }).date
+          : null,
+      )
+      .filter(
+        (date): date is string => typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date),
+      )
+      .sort();
+    const startDate = curriculumDates[0];
+    if (!startDate || !cohort.activityEndAt) {
+      return null;
+    }
+    return `${formatKoreanDeadline(startDate)} ~ ${formatKoreanDate(cohort.activityEndAt)}`;
   }
 
   async listByCohort({ cohortId, status }: ListByCohortPayload) {
