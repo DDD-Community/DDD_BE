@@ -4,6 +4,11 @@ import type { ApplicationStatus } from '../domain/application.status';
 export type ApplicationSubmittedEventPayload = {
   email: string;
   name: string;
+  /** 지원 파트명. 파트 조인이 비면 null — 해당 줄을 생략한다 */
+  partName: string | null;
+  submittedAt: Date;
+  /** 메일 본문에 들어가는 기수 정보 (기수명·서류 발표일) */
+  cohort: CohortAnnouncementInfo;
 };
 
 export type ApplicationStatusChangedEventPayload = {

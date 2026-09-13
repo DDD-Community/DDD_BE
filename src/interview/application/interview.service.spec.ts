@@ -239,6 +239,78 @@ describe('InterviewService', () => {
       );
     });
 
+    describe('면접 일정 확정 메일', () => {
+      const reserveAndGetEmail = async ({
+        location,
+        slotWithCohort = {},
+      }: {
+        location: string;
+        slotWithCohort?: Record<string, unknown>;
+      }) => {
+        const slot = buildSlot({ location });
+        const saved = buildReservation();
+        mockInterviewRepository.findSlotByIdForUpdate.mockResolvedValue(slot);
+        mockInterviewRepository.countActiveReservationsBySlotId.mockResolvedValue(0);
+        mockInterviewRepository.findReservationByApplicationFormId.mockResolvedValue(null);
+        mockInterviewRepository.saveReservation.mockResolvedValue(saved);
+        mockInterviewRepository.findReservationById.mockResolvedValue(saved);
+        mockGoogleCalendarClient.createEvent.mockResolvedValue('event-123');
+        mockInterviewRepository.findSlotById.mockResolvedValue({
+          ...slot,
+          cohortPart: { partName: 'BE' },
+          cohort: { name: '14기', process: {} },
+          ...slotWithCohort,
+        });
+
+        await service.createReservation({ input });
+        await flushPostCommitTasks(service);
+
+        return mockNotificationService.sendEmail.mock.calls[0][0] as {
+          subject: string;
+          html: string;
+          text: string;
+        };
+      };
+
+      it('일시·소요 시간·진행 방식·파트를 안내하고 미팅 링크는 버튼으로 보낸다', async () => {
+        const meetLink = 'https://meet.google.com/abc-defg-hij';
+
+        const { subject, html, text } = await reserveAndGetEmail({ location: meetLink });
+
+        expect(subject).toBe('[DDD] 면접 일정이 확정되었습니다');
+        expect(text).toContain('홍길동님, 인터뷰가 아래 일정으로 확정되었습니다.');
+        // 슬롯 2026-05-01T10:00Z 는 KST 19:00
+        expect(text).toContain('- 일시: 5월 1일(금) 오후 7:00');
+        expect(text).toContain('- 소요 시간: 약 30분');
+        expect(text).toContain('- 진행 방식: 온라인 (Google Meet)');
+        expect(text).toContain('- 지원 파트: BE');
+        expect(html).toContain(`href="${meetLink}"`);
+        expect(text).toContain(`인터뷰 참여하기: ${meetLink}`);
+        expect(text).not.toContain('- 장소:');
+        expect(text).toContain('시작 5분 전까지 접속 환경과 마이크를 확인해 주세요.');
+        // 기수에 조정 기한이 없으면 시안 문구대로 "인터뷰 전날" 로 안내한다.
+        expect(text).toContain('일정 조정이 필요하면 인터뷰 전날까지 본 메일로 회신해 주세요.');
+      });
+
+      it('장소가 링크가 아니면 버튼 대신 장소 줄로 안내한다', async () => {
+        const { html, text } = await reserveAndGetEmail({ location: '추후 안내' });
+
+        expect(html).not.toContain('인터뷰 참여하기');
+        expect(text).toContain('- 장소: 추후 안내');
+      });
+
+      it('기수에 조정 기한이 있으면 그 날짜까지로 안내한다', async () => {
+        const { text } = await reserveAndGetEmail({
+          location: 'https://meet.google.com/abc-defg-hij',
+          slotWithCohort: {
+            cohort: { name: '14기', process: { interviewRescheduleDeadline: '2026-04-30' } },
+          },
+        });
+
+        expect(text).toContain('일정 조정이 필요하면 4월 30일(목)까지 본 메일로 회신해 주세요.');
+      });
+    });
+
     it('캘린더 실패 + OPS_ALERT_EMAIL 설정 시 운영 알림 메일을 발송한다', async () => {
       // Given
       mockConfigService.get.mockImplementation((key: string) =>

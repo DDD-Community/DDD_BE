@@ -16,10 +16,14 @@ export type CohortAnnouncementInfo = {
   interviewRescheduleDeadline: string | null;
   /** 참가비(원) */
   participationFee: number | null;
-  /** 입금 계좌 (은행명 / 계좌번호 / 예금주) */
+  /** 입금 계좌 (은행명 계좌번호) */
   bankAccount: string | null;
+  /** 예금주. 없으면 메일에서 예금주 줄을 생략한다 */
+  accountHolder: string | null;
   /** 참가비 입금·참여 의사 회신 기한 */
   participationConfirmDeadline: string | null;
+  /** 서류 전형 결과 발표일. 지원서 접수 메일에 쓰인다 */
+  documentResultDate: string | null;
 };
 
 export const EMPTY_COHORT_ANNOUNCEMENT_INFO: CohortAnnouncementInfo = {
@@ -29,7 +33,9 @@ export const EMPTY_COHORT_ANNOUNCEMENT_INFO: CohortAnnouncementInfo = {
   interviewRescheduleDeadline: null,
   participationFee: null,
   bankAccount: null,
+  accountHolder: null,
   participationConfirmDeadline: null,
+  documentResultDate: null,
 };
 
 const readString = (source: Record<string, unknown>, key: string): string | null => {
@@ -69,6 +75,8 @@ export const toCohortAnnouncementInfo = ({
     interviewRescheduleDeadline: readString(source, 'interviewRescheduleDeadline'),
     participationFee: readPositiveNumber(source, 'participationFee'),
     bankAccount: readString(source, 'bankAccount'),
+    accountHolder: readString(source, 'accountHolder'),
     participationConfirmDeadline: readString(source, 'participationConfirmDeadline'),
+    documentResultDate: readString(source, 'documentResultDate'),
   };
 };

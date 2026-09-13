@@ -236,8 +236,13 @@ describe('ApplicationService', () => {
     it('정상 제출 시 저장, 드래프트 삭제, 이벤트 발행을 수행한다', async () => {
       mockCohortRepository.findPartById.mockResolvedValue({
         id: 1,
+        partName: 'FE',
         isOpen: true,
-        cohort: createCohortWindow(),
+        cohort: {
+          ...createCohortWindow(),
+          name: '14기',
+          process: { documentResultDate: '2026-09-14' },
+        },
         applicationSchema: {
           questions: [{ key: 'motivation', required: true }],
         },
@@ -253,10 +258,17 @@ describe('ApplicationService', () => {
         userId: 1,
         cohortPartId: 1,
       });
-      expect(mockEventEmitter.emit).toHaveBeenCalledWith('application.submitted', {
-        email: 'user@example.com',
-        name: '홍길동',
-      });
+      // 접수 완료 메일에 기수·파트·발표일이 들어가므로 이벤트에 함께 싣는다.
+      expect(mockEventEmitter.emit).toHaveBeenCalledWith(
+        'application.submitted',
+        expect.objectContaining({
+          email: 'user@example.com',
+          name: '홍길동',
+          partName: 'FE',
+          submittedAt: expect.any(Date),
+          cohort: expect.objectContaining({ name: '14기', documentResultDate: '2026-09-14' }),
+        }),
+      );
     });
 
     it('모집 시작 전이면 파트가 열려 있어도 제출을 거부한다', async () => {

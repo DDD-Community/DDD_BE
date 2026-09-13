@@ -99,6 +99,23 @@ describe('GmailEmailClient', () => {
     );
   });
 
+  it('html 조각은 문서로 감싸고, 이미 완성된 문서는 다시 감싸지 않는다', async () => {
+    const client = await createClient(gmailEnv);
+    const fullDocument = '<!DOCTYPE html>\n<html lang="ko"><body>본문</body></html>';
+
+    await client.sendEmail(emailPayload);
+    await client.sendEmail({ ...emailPayload, html: fullDocument });
+
+    const [fragmentCall, documentCall] = sendMail.mock.calls.map(
+      ([options]) => (options as { html: string }).html,
+    );
+    expect(fragmentCall).toBe(
+      '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body><p>모집이 시작되었습니다.</p></body></html>',
+    );
+    // 공용 레이아웃이 <!DOCTYPE html> 로 시작하므로 감싸면 html 이 중첩된다.
+    expect(documentCall).toBe(fullDocument);
+  });
+
   it('발송이 실패하면 예외를 그대로 전파한다', async () => {
     sendMail.mockRejectedValue(new Error('Invalid login'));
     const client = await createClient(gmailEnv);

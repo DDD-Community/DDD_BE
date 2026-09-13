@@ -6,9 +6,12 @@ import { match } from 'ts-pattern';
 import type { CohortAnnouncementInfo } from '../../cohort/domain/cohort-announcement-info';
 import { InterviewBookingTokenService } from '../../interview/application/interview-booking-token.service';
 import { NotificationService } from '../../notification/application/notification.service';
-import type { EmailBullet } from '../../notification/util/build-email';
-import { buildEmail } from '../../notification/util/build-email';
-import { formatKoreanDeadline } from '../../notification/util/format-korean-date';
+import type { EmailBlock, EmailInfoRow } from '../../notification/util/build-email';
+import { buildEmail, escapeHtml, toEmailSubject } from '../../notification/util/build-email';
+import {
+  formatKoreanDateTime,
+  formatKoreanDeadline,
+} from '../../notification/util/format-korean-date';
 import type { AnnouncementStatus } from '../domain/application.status';
 import { ApplicationStatus, isAnnouncementStatus } from '../domain/application.status';
 import type {
@@ -17,7 +20,8 @@ import type {
   RenderedStatusEmailTemplate,
 } from './email-event.type';
 
-const ONLINE_INTERVIEW = '온라인 인터뷰(Google Meet)';
+const ONLINE_INTERVIEW = '온라인 (Google Meet)';
+const NEXT_COHORT_NOTICE = '다음 기수 소식은 DDD 홈페이지와 인스타그램에서 안내드립니다.';
 
 @Injectable()
 export class EmailEventHandler {
@@ -32,20 +36,44 @@ export class EmailEventHandler {
   async handleApplicationSubmittedEvent(payload: ApplicationSubmittedEventPayload): Promise<void> {
     this.logger.log(`[이메일 이벤트] 지원서 최종 제출 완료 안내 메일 발송`);
     try {
+      const { cohort } = payload;
+      const submittedAt = formatKoreanDateTime(payload.submittedAt);
+      const rows: EmailInfoRow[] = [];
+      if (cohort.name) {
+        const cohortName = `DDD ${escapeHtml(cohort.name)}`;
+        rows.push({ label: '지원 기수', valueHtml: cohortName, valueText: `DDD ${cohort.name}` });
+      }
+      if (payload.partName) {
+        rows.push({
+          label: '지원 파트',
+          valueHtml: escapeHtml(payload.partName),
+          valueText: payload.partName,
+        });
+      }
+      rows.push({ label: '접수 일시', valueHtml: submittedAt, valueText: submittedAt });
+
+      // 발표일이 비어 있으면 "undefined부터" 가 나가지 않도록 날짜 없는 문장으로 바꾼다.
+      const resultNotice = cohort.documentResultDate
+        ? `서류 전형 결과는 ${escapeHtml(formatKoreanDeadline(cohort.documentResultDate))}부터 순차적으로 안내드립니다.`
+        : '서류 전형 결과는 추후 이메일로 안내드립니다.';
+
+      const title = '지원서 접수가 완료되었습니다';
       const { html, text } = buildEmail({
-        title: '지원서 접수가 완료되었습니다',
-        greetingHtml: `안녕하세요, ${this.escapeHtml(payload.name)}님. DDD 운영진입니다.`,
-        greetingText: `안녕하세요, ${payload.name}님. DDD 운영진입니다.`,
-        introParagraphs: [
-          '지원서가 정상적으로 접수되었습니다.',
-          '심사 결과는 추후 이메일로 안내드리겠습니다.',
+        title,
+        logoUrl: this.logoUrl(),
+        blocks: [
+          {
+            type: 'lead',
+            html: `${escapeHtml(payload.name)}님, 지원서가 정상적으로 접수되었습니다.`,
+          },
+          { type: 'info', rows },
+          { type: 'note', lines: [resultNotice, '지원해 주셔서 감사합니다.'] },
         ],
-        outroParagraphs: ['지원해 주셔서 감사합니다.'],
       });
 
       return await this.notificationService.sendEmail({
         to: payload.email,
-        subject: '[DDD] 지원서 접수가 완료되었습니다.',
+        subject: toEmailSubject(title),
         html,
         text,
       });
@@ -105,166 +133,173 @@ export class EmailEventHandler {
    * text 버전은 stripHtml 이 되돌리므로 escape 해야 html/text 본문이 같아진다.
    */
   private cohortLabel(cohort: CohortAnnouncementInfo): string {
-    return cohort.name ? `DDD ${this.escapeHtml(cohort.name)}` : 'DDD';
+    return cohort.name ? `DDD ${escapeHtml(cohort.name)}` : 'DDD';
+  }
+
+  private logoUrl(): string | null {
+    return this.configService.get<string>('EMAIL_LOGO_URL') ?? null;
   }
 
   private buildDocumentPassEmail(
     payload: ApplicationStatusChangedEventPayload,
   ): RenderedStatusEmailTemplate {
-    const { cohort } = payload;
     const bookingLink = this.buildBookingLink(payload);
-    const label = this.cohortLabel(cohort);
+    const safeName = escapeHtml(payload.name);
 
-    const bullets: EmailBullet[] = [];
-    if (bookingLink) {
-      bullets.push({
-        label: '인터뷰 일정 선택 링크',
-        valueHtml: `<a href="${this.escapeHtml(bookingLink)}" style="color:#1a56db;text-decoration:underline;word-break:break-all;">일정 선택하기</a>`,
-        valueText: bookingLink,
+    const rows: EmailInfoRow[] = [];
+    if (payload.partName) {
+      rows.push({
+        label: '지원 파트',
+        valueHtml: escapeHtml(payload.partName),
+        valueText: payload.partName,
       });
     }
-    if (cohort.slotSelectionDeadline) {
-      const deadline = formatKoreanDeadline(cohort.slotSelectionDeadline);
-      bullets.push({
-        label: '선택 기한',
-        valueHtml: `${this.escapeHtml(deadline)}까지`,
-        valueText: `${deadline}까지`,
-      });
-    }
-    bullets.push({
-      label: '진행 방식',
-      valueHtml: ONLINE_INTERVIEW,
-      valueText: ONLINE_INTERVIEW,
-    });
-    if (cohort.interviewDurationMinutes) {
-      const duration = `약 ${cohort.interviewDurationMinutes}분`;
-      bullets.push({ label: '예상 소요 시간', valueHtml: duration, valueText: duration });
-    }
+    rows.push({ label: '면접 방식', valueHtml: ONLINE_INTERVIEW, valueText: ONLINE_INTERVIEW });
 
-    const safeName = this.escapeHtml(payload.name);
-    const outroParagraphs = [
-      '인터뷰 일정은 선착순으로 마감되므로, 가능한 시간대를 확인하신 후 기한 내 선택해 주시기 바랍니다.',
-      '일정 선택이 완료되면 확정된 시간과 Google Meet 링크를 별도 메일로 안내드리겠습니다.',
-    ];
-    if (!bookingLink) {
-      // 링크를 만들지 못했으면 "아래 링크에서 선택하라"는 안내가 거짓말이 된다.
-      outroParagraphs.splice(0, 2, '인터뷰 일정 안내는 운영진이 별도로 드릴 예정입니다.');
-    }
+    // 링크를 만들지 못했으면 "아래에서 예약하라"는 안내와 버튼이 거짓말이 된다.
+    const blocks: EmailBlock[] = bookingLink
+      ? [
+          {
+            type: 'lead',
+            html: `${safeName}님, 축하드립니다. 아래에서 면접 시간을 예약해 주세요.`,
+          },
+          { type: 'info', rows },
+          { type: 'button', label: '면접 시간 예약하기', href: bookingLink },
+          { type: 'note', lines: ['예약 후에는 시간을 변경할 수 없습니다.'] },
+          { type: 'linkFallback', href: bookingLink },
+        ]
+      : [
+          {
+            type: 'lead',
+            html: `${safeName}님, 축하드립니다. 면접 일정은 운영진이 별도로 안내드립니다.`,
+          },
+          { type: 'info', rows },
+        ];
 
-    const { html, text } = buildEmail({
-      title: '서류 합격 및 면접 일정 선택 안내',
-      greetingHtml: `안녕하세요, ${safeName}님. DDD 운영진입니다.`,
-      greetingText: `안녕하세요, ${payload.name}님. DDD 운영진입니다.`,
-      introParagraphs: [
-        `${label}에 지원해 주셔서 감사드리며, 서류 전형 합격을 진심으로 축하드립니다.`,
-        bookingLink
-          ? '다음 전형인 온라인 인터뷰 진행을 위해 아래 링크에서 가능한 일정을 선택해 주세요.'
-          : '다음 전형은 온라인 인터뷰로 진행됩니다.',
-      ],
-      bullets,
-      outroParagraphs: [
-        ...outroParagraphs,
-        `인터뷰를 통해 ${safeName}님의 경험과 생각을 더 자세히 들을 수 있기를 기대하겠습니다.`,
-      ],
-    });
-
-    return { subject: '[DDD] 서류 합격 및 면접 일정 선택 안내', html, text };
+    const title = '서류 전형에 합격하셨습니다';
+    const { html, text } = buildEmail({ title, logoUrl: this.logoUrl(), blocks });
+    return { subject: toEmailSubject(title), html, text };
   }
 
   private buildDocumentFailEmail(
     payload: ApplicationStatusChangedEventPayload,
   ): RenderedStatusEmailTemplate {
+    const title = '서류 전형 결과를 안내드립니다';
     const { html, text } = buildEmail({
-      title: '서류 전형 결과 안내',
-      greetingHtml: '안녕하세요, DDD 운영진입니다.',
-      greetingText: '안녕하세요, DDD 운영진입니다.',
-      introParagraphs: [
-        `${this.cohortLabel(payload.cohort)}에 지원해 주셔서 감사합니다.`,
-        '제한된 모집 인원으로 인해 모든 지원자분과 함께하지 못하게 되어, 아쉽게도 이번 서류 전형에서는 모시지 못하게 되었습니다.',
-      ],
-      outroParagraphs: [
-        '소중한 시간 내어 지원해 주신 점 감사드리며, 앞으로의 활동을 응원하겠습니다.',
+      title,
+      logoUrl: this.logoUrl(),
+      blocks: [
+        {
+          type: 'lead',
+          html: `${escapeHtml(payload.name)}님, ${this.cohortLabel(payload.cohort)}에 지원해 주셔서 감사합니다.`,
+        },
+        {
+          type: 'lead',
+          html: '제한된 모집 인원으로 인해 아쉽게도 이번 서류 전형에서는 함께하지 못하게 되었습니다.',
+        },
+        {
+          type: 'lead',
+          html: '소중한 시간 내어 주신 점 감사드리며, 앞으로의 활동을 응원하겠습니다.',
+        },
+        { type: 'note', lines: [NEXT_COHORT_NOTICE] },
       ],
     });
 
-    return { subject: '[DDD] 서류 전형 결과 안내', html, text };
+    return { subject: toEmailSubject(title), html, text };
   }
 
   private buildInterviewFailEmail(
     payload: ApplicationStatusChangedEventPayload,
   ): RenderedStatusEmailTemplate {
+    const title = '면접 전형 결과를 안내드립니다';
     const { html, text } = buildEmail({
-      title: '면접 전형 결과 안내',
-      greetingHtml: '안녕하세요, DDD 운영진입니다.',
-      greetingText: '안녕하세요, DDD 운영진입니다.',
-      introParagraphs: [
-        `${this.cohortLabel(payload.cohort)} 면접에 참여해 주셔서 감사합니다.`,
-        '제한된 모집 인원 안에서 신중하게 논의한 결과, 아쉽게도 이번 기수에서는 함께하지 못하게 되었습니다.',
-      ],
-      outroParagraphs: [
-        '귀한 시간 내어 지원과 면접에 참여해 주신 점 감사드리며, 앞으로의 활동을 응원하겠습니다.',
+      title,
+      logoUrl: this.logoUrl(),
+      blocks: [
+        {
+          type: 'lead',
+          html: `${escapeHtml(payload.name)}님, ${this.cohortLabel(payload.cohort)} 면접에 참여해 주셔서 감사합니다.`,
+        },
+        {
+          type: 'lead',
+          html: '신중하게 논의한 결과, 아쉽게도 이번 기수에서는 함께하지 못하게 되었습니다.',
+        },
+        {
+          type: 'lead',
+          html: '귀한 시간 내어 주신 점 감사드리며, 앞으로의 활동을 응원하겠습니다.',
+        },
+        { type: 'note', lines: [NEXT_COHORT_NOTICE] },
       ],
     });
 
-    return { subject: '[DDD] 면접 전형 결과 안내', html, text };
+    return { subject: toEmailSubject(title), html, text };
   }
 
   private buildFinalPassEmail(
     payload: ApplicationStatusChangedEventPayload,
   ): RenderedStatusEmailTemplate {
     const { cohort } = payload;
-    const safeName = this.escapeHtml(payload.name);
-    const label = this.cohortLabel(cohort);
-    const depositorName = payload.partName ? `${payload.name}_${payload.partName}` : payload.name;
 
-    const bullets: EmailBullet[] = [];
+    // 기수 process 에 없는 항목은 줄째 생략한다. 잘못된 계좌나 "undefined" 가 나가는 것보다 낫다.
+    const rows: EmailInfoRow[] = [];
     if (cohort.participationFee !== null) {
       const fee = `${cohort.participationFee.toLocaleString('ko-KR')}원`;
-      bullets.push({ label: '참가비', valueHtml: fee, valueText: fee });
+      rows.push({ label: '참가비', valueHtml: fee, valueText: fee });
     }
     if (cohort.bankAccount) {
-      bullets.push({
+      rows.push({
         label: '입금 계좌',
-        valueHtml: this.escapeHtml(cohort.bankAccount),
+        valueHtml: escapeHtml(cohort.bankAccount),
         valueText: cohort.bankAccount,
       });
     }
-    bullets.push({
-      label: '입금자명',
-      valueHtml: this.escapeHtml(depositorName),
-      valueText: depositorName,
-    });
-    if (cohort.participationConfirmDeadline) {
-      const deadline = formatKoreanDeadline(cohort.participationConfirmDeadline);
-      bullets.push({
-        label: '입금 및 회신 기한',
-        valueHtml: `${this.escapeHtml(deadline)}까지`,
-        valueText: `${deadline}까지`,
+    if (cohort.accountHolder) {
+      rows.push({
+        label: '예금주',
+        valueHtml: escapeHtml(cohort.accountHolder),
+        valueText: cohort.accountHolder,
       });
     }
+    if (cohort.participationConfirmDeadline) {
+      const deadline = formatKoreanDeadline(cohort.participationConfirmDeadline);
+      rows.push({ label: '회신 기한', valueHtml: escapeHtml(deadline), valueText: deadline });
+    }
 
-    const replyFormat = [
-      '참가비 입금 후, 아래 양식에 맞춰 본 메일로 회신 부탁드립니다.',
-      '1. 이름:<br/>2. 지원 파트:<br/>3. 참가 여부: 참여합니다.<br/>4. 입금자명:<br/>5. 입금 완료 여부: 완료',
-    ];
-
+    const title = `${this.cohortLabel(cohort)} 최종 합격을 축하드립니다`;
     const { html, text } = buildEmail({
-      title: '최종 합격 및 참가 안내',
-      greetingHtml: `안녕하세요, ${safeName}님. DDD 운영진입니다.`,
-      greetingText: `안녕하세요, ${payload.name}님. DDD 운영진입니다.`,
-      introParagraphs: [
-        `${label}에 최종 합격하신 것을 진심으로 축하드립니다!`,
-        'DDD와 함께할 의사가 있으신 경우, 아래 내용을 확인하신 후 기한 내 참가비 입금 및 참여 의사를 회신해 주세요.',
-      ],
-      bullets,
-      outroParagraphs: [
-        ...replyFormat,
-        '기한 내 입금 및 회신이 확인되지 않을 경우 참여 의사가 없는 것으로 간주되어, 합격이 취소될 수 있습니다. 부득이한 사정이 있다면 반드시 기한 전에 회신해 주세요.',
-        `앞으로 ${label}에서 함께 좋은 경험을 만들어가기를 기대하겠습니다. 다시 한번 최종 합격을 축하드립니다.`,
+      title,
+      logoUrl: this.logoUrl(),
+      blocks: [
+        {
+          type: 'lead',
+          html: `${escapeHtml(payload.name)}님, 함께하실 의사가 있다면 기한 내 참가비 입금과 회신을 완료해 주세요.`,
+        },
+        { type: 'info', rows },
+        {
+          type: 'box',
+          heading: '회신 양식',
+          lines: ['이름 / 지원 파트 / 입금자명', '참가 여부 : 참여합니다', '입금 완료 여부 : 완료'],
+        },
+        {
+          type: 'note',
+          lines: [
+            '입금 후 위 양식대로 <strong>본 메일에 회신</strong>해 주세요.',
+            '기한 내 입금과 회신이 확인되지 않으면 합격이 취소될 수 있습니다.',
+          ],
+        },
       ],
     });
 
-    return { subject: '[DDD] 최종 합격 및 참가 안내', html, text };
+    // 제목에 들어간 기수명은 escape 된 값이라 제목줄에는 원문을 쓴다.
+    return {
+      subject: toEmailSubject(`${this.cohortLabelText(cohort)} 최종 합격을 축하드립니다`),
+      html,
+      text,
+    };
+  }
+
+  private cohortLabelText(cohort: CohortAnnouncementInfo): string {
+    return cohort.name ? `DDD ${cohort.name}` : 'DDD';
   }
 
   private buildBookingLink(payload: ApplicationStatusChangedEventPayload): string | null {
@@ -292,13 +327,5 @@ export class EmailEventHandler {
       interviewEndDate: payload.interviewEndDate,
     });
     return `${baseUrl}?token=${token}`;
-  }
-
-  private escapeHtml(input: string): string {
-    const escapedAmpersand = input.replaceAll('&', '&amp;');
-    const escapedLessThan = escapedAmpersand.replaceAll('<', '&lt;');
-    const escapedGreaterThan = escapedLessThan.replaceAll('>', '&gt;');
-    const escapedDoubleQuote = escapedGreaterThan.replaceAll('"', '&quot;');
-    return escapedDoubleQuote.replaceAll("'", '&#39;');
   }
 }

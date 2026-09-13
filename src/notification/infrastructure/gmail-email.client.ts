@@ -58,7 +58,8 @@ export class GmailEmailClient {
       auth: { user, pass },
     });
 
-    const normalizedHtml = html.trimStart().toLowerCase().startsWith('<html')
+    // 공용 레이아웃은 <!DOCTYPE html> 로 시작하는 완성 문서다. 한 번 더 감싸면 html 이 중첩된다.
+    const normalizedHtml = /^<(!doctype|html)/i.test(html.trimStart())
       ? html
       : `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>${html}</body></html>`;
 

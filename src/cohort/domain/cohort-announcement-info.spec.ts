@@ -9,8 +9,10 @@ describe('toCohortAnnouncementInfo', () => {
         interviewDurationMinutes: 30,
         interviewRescheduleDeadline: '2026-09-18',
         participationFee: 50000,
-        bankAccount: '국민은행 / 123-456-789 / 홍길동',
+        bankAccount: '국민은행 123-456-789',
+        accountHolder: '홍길동',
         participationConfirmDeadline: '2026-09-28',
+        documentResultDate: '2026-09-14',
       },
     });
 
@@ -20,8 +22,10 @@ describe('toCohortAnnouncementInfo', () => {
       interviewDurationMinutes: 30,
       interviewRescheduleDeadline: '2026-09-18',
       participationFee: 50000,
-      bankAccount: '국민은행 / 123-456-789 / 홍길동',
+      bankAccount: '국민은행 123-456-789',
+      accountHolder: '홍길동',
       participationConfirmDeadline: '2026-09-28',
+      documentResultDate: '2026-09-14',
     });
   });
 
