@@ -119,20 +119,27 @@ describe('ApplicationVerificationService', () => {
 
     // 발송 실패는 204 로 넘어가므로(review-fixes.spec 의 계약) 화면에는 성공으로 보인다.
     // 원인이 로그에 남지 않으면 "메일이 안 온다" 는 제보를 받고도 추적할 방법이 없다.
-    it('Given 메일 발송이 실패하면 When 인증번호를 요청할 때 Then 실패 원인을 로그에 남긴다', async () => {
-      const loggerError = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
-      notificationService.sendEmail.mockRejectedValue(
-        new Error('Daily user sending limit exceeded'),
-      );
+    it.each([
+      ['Error 로', new Error('Daily user sending limit exceeded')],
+      // nodemailer 는 Error 를 던지지만, 그렇지 않은 값이 와도 원인이 사라지면 안 된다.
+      ['Error 가 아닌 값으로', 'Daily user sending limit exceeded'],
+    ])(
+      'Given 메일 발송이 %s 실패하면 When 인증번호를 요청할 때 Then 실패 원인을 로그에 남긴다',
+      async (_case, rejected) => {
+        const loggerError = jest
+          .spyOn(Logger.prototype, 'error')
+          .mockImplementation(() => undefined);
+        notificationService.sendEmail.mockRejectedValue(rejected);
 
-      await service.requestCode({ email });
+        await service.requestCode({ email });
 
-      expect(loggerError).toHaveBeenCalledWith(
-        expect.stringContaining('인증 메일 발송 실패'),
-        expect.stringContaining('Daily user sending limit exceeded'),
-      );
-      loggerError.mockRestore();
-    });
+        expect(loggerError).toHaveBeenCalledWith(
+          expect.stringContaining('인증 메일 발송 실패'),
+          expect.stringContaining('Daily user sending limit exceeded'),
+        );
+        loggerError.mockRestore();
+      },
+    );
   });
 
   describe('confirmCode', () => {
