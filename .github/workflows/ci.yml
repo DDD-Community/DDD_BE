@@ -221,8 +221,11 @@ jobs:
           fi
           echo "롤백 차단 확인: 테이블 ${AFTER}개 유지, 기록도 그대로."
 
-  # 슬롯 행 잠금(pessimistic_write)이 동시 예약을 실제로 직렬화하는지는 실 DB 없이 검증할 수 없다.
-  # 잠금이 빠지면 정원 초과 예약이 조용히 통과하는데, mock 기반 단위 테스트는 이를 잡지 못한다.
+  # 실 DB 없이는 확인할 수 없는 것들을 모아 돌린다.
+  # 슬롯 행 잠금(pessimistic_write)이 동시 예약을 실제로 직렬화하는지 - 잠금이 빠지면 정원 초과
+  # 예약이 조용히 통과하는데, mock 기반 단위 테스트는 이를 잡지 못한다.
+  # 프로젝트 목록의 기수 순 정렬도 마찬가지다. 정렬 키가 조인 대상이라 TypeORM 이 페이지네이션을
+  # 서브쿼리로 감싸는 방식과 맞물리고, 페이지 경계의 누락·중복은 생성 SQL 을 실제로 돌려야 드러난다.
   integration-test:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -263,5 +266,5 @@ jobs:
         run: yarn install --frozen-lockfile
 
       # 스펙이 전용 스키마를 synchronize() 로 직접 만든다. 마이그레이션 상태와 무관하게 돈다.
-      - name: 동시성 통합 테스트
+      - name: 실 DB 통합 테스트
         run: yarn test:integration
