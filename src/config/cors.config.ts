@@ -14,6 +14,9 @@ export const ALLOWED_ORIGINS = [
   'http://localhost:3000',
   'http://localhost:5173',
   'https://admin.dddstudy.kr',
+  'https://dddstudy.kr',
+  // 도메인(dddstudy.kr) 연결 전의 배포 주소다. 이 주소로 접속하는 경로가 완전히 사라졌다고
+  // 확인되면 지운다.
   'https://ddd-fe-web.vercel.app',
 ] as const;
 

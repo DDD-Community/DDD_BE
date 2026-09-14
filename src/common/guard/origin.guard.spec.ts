@@ -13,11 +13,12 @@ const createContext = ({ method, origin }: { method: string; origin?: string }) 
 describe('OriginGuard', () => {
   const guard = new OriginGuard();
 
-  it('허용된 오리진의 상태 변경 요청은 통과시킨다', () => {
-    const context = createContext({ method: 'POST', origin: 'https://ddd-fe-web.vercel.app' });
-
-    expect(guard.canActivate(context)).toBe(true);
-  });
+  it.each(['https://dddstudy.kr', 'https://ddd-fe-web.vercel.app'])(
+    '허용된 오리진(%s)의 상태 변경 요청은 통과시킨다',
+    (origin) => {
+      expect(guard.canActivate(createContext({ method: 'POST', origin }))).toBe(true);
+    },
+  );
 
   it('허용되지 않은 오리진의 인증된 simple request 는 거부한다', () => {
     // multipart/form-data 는 preflight 가 없어 CORS 로는 전송을 막을 수 없다. SameSite=None 이라
