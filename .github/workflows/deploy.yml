@@ -363,6 +363,10 @@ jobs:
             printf 'GMAIL_APP_PASSWORD=%s\n' "$GMAIL_APP_PASSWORD"     >> "$ENV_TMP"
             printf 'EMAIL_FROM=%s\n'         "$EMAIL_FROM"             >> "$ENV_TMP"
             printf 'EMAIL_FROM_NAME=%s\n'    "${EMAIL_FROM_NAME:-DDD}" >> "$ENV_TMP"
+            # 지원 시작 안내 메일의 '지원하기' 버튼 링크. 이 파일은 배포마다 .env 를 통째로
+            # 새로 쓰므로, 서버에 손으로 넣어둔 값은 다음 배포에서 사라진다. 값이 비면 앱은
+            # 버튼을 줄째 생략해 메일이 멀쩡해 보이니, 빠져도 아무도 눈치채지 못한다.
+            printf 'APPLY_URL=%s\n' "https://dddstudy.kr/recruit/apply" >> "$ENV_TMP"
 
             # Interview & Calendar
             printf 'INTERVIEW_BOOKING_URL=%s\n' "https://admin.dddstudy.kr/interview" >> "$ENV_TMP"
@@ -422,6 +426,17 @@ jobs:
             if grep -q '^APP_VERSION=' "$ENV_TMP"; then
               echo "ERROR: .env.production 에 APP_VERSION 이 있으면 버전 검증이 무력화됩니다."
               echo "       이 값은 이미지의 ENV 에서만 와야 합니다."
+              rm -f "$ENV_TMP"
+              exit 1
+            fi
+            # 값이 비면 앱은 지원 시작 안내 메일의 '지원하기' 버튼을 줄째 생략한다. 메일은
+            # 멀쩡해 보이고 발송 로그도 성공이라, 버튼이 사라진 것을 아무도 눈치채지 못한다.
+            # DB_SYNCHRONIZE 와 같은 종류의 조용한 실패다. 정확히 한 줄인지까지 보면 누락과
+            # 중복 기록(.env 는 뒷줄이 이긴다), 값 변경을 한 번에 잡는다.
+            if [ "$(grep -c '^APPLY_URL=https://dddstudy\.kr/recruit/apply$' "$ENV_TMP")" != "1" ]; then
+              echo "ERROR: .env.production 의 APPLY_URL 이 없거나, 값이 다르거나, 두 번 기록됐습니다."
+              echo "       기대값: https://dddstudy.kr/recruit/apply"
+              echo "       도메인을 옮겼다면 기록부와 이 검사, 두 곳을 함께 고쳐야 합니다."
               rm -f "$ENV_TMP"
               exit 1
             fi
