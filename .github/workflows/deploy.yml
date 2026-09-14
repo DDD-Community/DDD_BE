@@ -429,6 +429,17 @@ jobs:
               rm -f "$ENV_TMP"
               exit 1
             fi
+            # 값이 비면 앱은 지원 시작 안내 메일의 '지원하기' 버튼을 줄째 생략한다. 메일은
+            # 멀쩡해 보이고 발송 로그도 성공이라, 버튼이 사라진 것을 아무도 눈치채지 못한다.
+            # DB_SYNCHRONIZE 와 같은 종류의 조용한 실패다. 정확히 한 줄인지까지 보면 누락과
+            # 중복 기록(.env 는 뒷줄이 이긴다), 값 변경을 한 번에 잡는다.
+            if [ "$(grep -c '^APPLY_URL=https://dddstudy\.kr/recruit/apply$' "$ENV_TMP")" != "1" ]; then
+              echo "ERROR: .env.production 의 APPLY_URL 이 없거나, 값이 다르거나, 두 번 기록됐습니다."
+              echo "       기대값: https://dddstudy.kr/recruit/apply"
+              echo "       도메인을 옮겼다면 기록부와 이 검사, 두 곳을 함께 고쳐야 합니다."
+              rm -f "$ENV_TMP"
+              exit 1
+            fi
             mv "$ENV_TMP" .env.production
             echo "설정 파일 정상 ($(wc -l < .env.production)줄, 센티널 확인)"
 
