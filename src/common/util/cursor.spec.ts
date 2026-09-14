@@ -14,6 +14,19 @@ describe('cursor util', () => {
       expect(decodeCursor(encoded)).toEqual(claim);
     });
 
+    it('기수 정렬 키가 붙은 claim도 그대로 복원한다', () => {
+      const claim = { createdAt: 1700000000000, id: 42, cohortStartAt: 1690000000000 };
+      expect(decodeCursor(encodeCursor(claim))).toEqual(claim);
+    });
+
+    it('기수 정렬 키가 숫자가 아니면 null을 반환한다', () => {
+      const junk = Buffer.from(
+        JSON.stringify({ createdAt: 1, id: 2, cohortStartAt: '2024-01-01' }),
+        'utf8',
+      ).toString('base64url');
+      expect(decodeCursor(junk)).toBeNull();
+    });
+
     it('형식 불일치 토큰은 null을 반환한다', () => {
       expect(decodeCursor('invalid-base64')).toBeNull();
     });

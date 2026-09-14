@@ -40,7 +40,15 @@ export class ProjectService {
   }): Promise<{ items: Project[]; nextCursor: string | null; hasNext: boolean }> {
     const resolvedLimit = resolveLimit(limit);
     const claim = cursor ? decodeCursor(cursor) : null;
-    const after = claim ? { createdAt: new Date(claim.createdAt), id: claim.id } : undefined;
+    // 기수 순 정렬 도입 전에 발급된 커서에는 cohortStartAt 이 없다. 이어받을 위치를 알 수 없으니 첫 페이지로 되돌린다.
+    const after =
+      claim && claim.cohortStartAt !== undefined
+        ? {
+            cohortStartAt: new Date(claim.cohortStartAt),
+            createdAt: new Date(claim.createdAt),
+            id: claim.id,
+          }
+        : undefined;
     const where = platform ? { platform } : undefined;
 
     const fetched = await this.projectRepository.findPageByCursor({
@@ -53,7 +61,13 @@ export class ProjectService {
     const items = hasNext ? fetched.slice(0, resolvedLimit) : fetched;
     const last = items[items.length - 1];
     const nextCursor =
-      hasNext && last ? encodeCursor({ createdAt: last.createdAt.getTime(), id: last.id }) : null;
+      hasNext && last
+        ? encodeCursor({
+            cohortStartAt: last.cohort.recruitStartAt.getTime(),
+            createdAt: last.createdAt.getTime(),
+            id: last.id,
+          })
+        : null;
 
     return { items, nextCursor, hasNext };
   }

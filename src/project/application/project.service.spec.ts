@@ -2,6 +2,7 @@ import { HttpStatus } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 
 import { AppException } from '../../common/exception/app.exception';
+import { decodeCursor, encodeCursor } from '../../common/util/cursor';
 import { Project } from '../domain/project.entity';
 import { ProjectRepository } from '../domain/project.repository';
 import { ProjectPlatform } from '../domain/project-platform';
@@ -17,6 +18,7 @@ const mockProjectRepository = {
   save: jest.fn(),
   findById: jest.fn(),
   findAll: jest.fn(),
+  findPageByCursor: jest.fn(),
   update: jest.fn(),
   replaceMembers: jest.fn(),
   deleteById: jest.fn(),
@@ -225,6 +227,85 @@ describe('ProjectService', () => {
         new AppException('PROJECT_NOT_FOUND', HttpStatus.NOT_FOUND),
       );
       expect(mockProjectRepository.deleteById).not.toHaveBeenCalled();
+    });
+  });
+  describe('findProjectsByCursor', () => {
+    const projectOf = ({
+      id,
+      cohortStartAt,
+      createdAt,
+    }: {
+      id: number;
+      cohortStartAt: string;
+      createdAt: string;
+    }) =>
+      ({
+        id,
+        cohort: { id, name: `${id}기`, recruitStartAt: new Date(cohortStartAt) },
+        createdAt: new Date(createdAt),
+      }) as unknown as Project;
+
+    it('다음 페이지가 있으면 마지막 항목의 기수 모집 시작일까지 커서에 담는다', async () => {
+      // Given — limit 1 요청에 2건이 내려오면 다음 페이지가 있다는 뜻
+      const last = projectOf({ id: 7, cohortStartAt: '2025-01-01', createdAt: '2026-04-01' });
+      mockProjectRepository.findPageByCursor.mockResolvedValue([
+        last,
+        projectOf({ id: 8, cohortStartAt: '2024-01-01', createdAt: '2026-03-01' }),
+      ]);
+
+      // When
+      const { items, hasNext, nextCursor } = await projectService.findProjectsByCursor({
+        limit: 1,
+      });
+
+      // Then
+      expect(hasNext).toBe(true);
+      expect(items).toEqual([last]);
+      expect(decodeCursor(nextCursor as string)).toEqual({
+        cohortStartAt: new Date('2025-01-01').getTime(),
+        createdAt: new Date('2026-04-01').getTime(),
+        id: 7,
+      });
+    });
+
+    it('커서를 받으면 기수 모집 시작일부터 이어받을 위치로 넘긴다', async () => {
+      // Given
+      mockProjectRepository.findPageByCursor.mockResolvedValue([]);
+      const cursor = encodeCursor({
+        cohortStartAt: new Date('2025-01-01').getTime(),
+        createdAt: new Date('2026-04-01').getTime(),
+        id: 7,
+      });
+
+      // When
+      await projectService.findProjectsByCursor({ cursor, limit: 10 });
+
+      // Then
+      expect(mockProjectRepository.findPageByCursor).toHaveBeenCalledWith({
+        where: undefined,
+        limit: 10,
+        after: {
+          cohortStartAt: new Date('2025-01-01'),
+          createdAt: new Date('2026-04-01'),
+          id: 7,
+        },
+      });
+    });
+
+    it('기수 정렬 키가 없는 옛 커서는 무시하고 첫 페이지를 준다', async () => {
+      // Given — 기수 순 정렬 이전에 발급된 커서
+      mockProjectRepository.findPageByCursor.mockResolvedValue([]);
+      const legacyCursor = encodeCursor({ createdAt: new Date('2026-04-01').getTime(), id: 7 });
+
+      // When
+      await projectService.findProjectsByCursor({ cursor: legacyCursor, limit: 10 });
+
+      // Then
+      expect(mockProjectRepository.findPageByCursor).toHaveBeenCalledWith({
+        where: undefined,
+        limit: 10,
+        after: undefined,
+      });
     });
   });
 });
