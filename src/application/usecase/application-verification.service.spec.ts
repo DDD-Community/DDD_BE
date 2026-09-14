@@ -1,5 +1,6 @@
 import { createHash, createHmac } from 'node:crypto';
 
+import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { addTransactionalDataSource, initializeTransactionalContext } from 'typeorm-transactional';
 
@@ -114,6 +115,23 @@ describe('ApplicationVerificationService', () => {
         errorCode: 'VERIFICATION_COOLDOWN',
       } satisfies Partial<AppException>);
       expect(notificationService.sendEmail).not.toHaveBeenCalled();
+    });
+
+    // 발송 실패는 204 로 넘어가므로(review-fixes.spec 의 계약) 화면에는 성공으로 보인다.
+    // 원인이 로그에 남지 않으면 "메일이 안 온다" 는 제보를 받고도 추적할 방법이 없다.
+    it('Given 메일 발송이 실패하면 When 인증번호를 요청할 때 Then 실패 원인을 로그에 남긴다', async () => {
+      const loggerError = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+      notificationService.sendEmail.mockRejectedValue(
+        new Error('Daily user sending limit exceeded'),
+      );
+
+      await service.requestCode({ email });
+
+      expect(loggerError).toHaveBeenCalledWith(
+        expect.stringContaining('인증 메일 발송 실패'),
+        expect.stringContaining('Daily user sending limit exceeded'),
+      );
+      loggerError.mockRestore();
     });
   });
 

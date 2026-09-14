@@ -61,8 +61,13 @@ export class ApplicationVerificationService {
         html,
         text,
       });
-    } catch {
-      this.logger.error(`인증 메일 발송 실패: to=${maskEmail({ email: normalizedEmail })}`);
+    } catch (error) {
+      // 발송 실패는 204 로 넘긴다(review-fixes.spec 의 계약). 그러면 화면에는 "보냈습니다" 가
+      // 뜨므로, 원인은 로그에만 남는다. 원인 없이 실패 사실만 남기면 추적이 불가능하다.
+      this.logger.error(
+        `인증 메일 발송 실패: to=${maskEmail({ email: normalizedEmail })}`,
+        error instanceof Error ? error.stack : String(error),
+      );
     }
   }
 
