@@ -363,6 +363,10 @@ jobs:
             printf 'GMAIL_APP_PASSWORD=%s\n' "$GMAIL_APP_PASSWORD"     >> "$ENV_TMP"
             printf 'EMAIL_FROM=%s\n'         "$EMAIL_FROM"             >> "$ENV_TMP"
             printf 'EMAIL_FROM_NAME=%s\n'    "${EMAIL_FROM_NAME:-DDD}" >> "$ENV_TMP"
+            # 지원 시작 안내 메일의 '지원하기' 버튼 링크. 이 파일은 배포마다 .env 를 통째로
+            # 새로 쓰므로, 서버에 손으로 넣어둔 값은 다음 배포에서 사라진다. 값이 비면 앱은
+            # 버튼을 줄째 생략해 메일이 멀쩡해 보이니, 빠져도 아무도 눈치채지 못한다.
+            printf 'APPLY_URL=%s\n' "https://dddstudy.kr/recruit/apply" >> "$ENV_TMP"
 
             # Interview & Calendar
             printf 'INTERVIEW_BOOKING_URL=%s\n' "https://admin.dddstudy.kr/interview" >> "$ENV_TMP"
