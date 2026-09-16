@@ -41,9 +41,12 @@ export class Project extends BaseEntity {
    *
    * WriteRepository 의 COHORT_ORDER 정렬식과 규칙이 같아야 한다.
    * 어긋나면 커서가 가리키는 위치와 실제 정렬 위치가 달라져 페이지가 겹치거나 샌다.
+   *
+   * 그래서 /\d/ 가 아니라 [0-9]{1,9} 다. /\d/ 는 ASCII 만 잡지만 Postgres 의 \d 는 전각
+   * 숫자까지 잡아 규칙이 갈리고, 자릿수를 안 묶으면 SQL 쪽 ::int(int4) 가 범위를 넘긴다.
    */
   get cohortOrder(): number {
-    const matched = this.cohort?.name?.match(/\d+/);
+    const matched = this.cohort?.name?.match(/[0-9]{1,9}/);
     return matched ? Number(matched[0]) : this.cohortId;
   }
 

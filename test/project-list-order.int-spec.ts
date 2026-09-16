@@ -222,4 +222,45 @@ describe('프로젝트 목록 기수 순 정렬 (실 DB 통합)', () => {
       expect(new Set(순회결과)).toEqual(new Set(기대_순서));
     });
   });
+
+  // 기수 이름은 자유 입력이다(@IsString 뿐). 정렬식이 이름에서 숫자를 뽑아 ::int 로 캐스팅하니,
+  // 캐스팅이 터지는 이름이 하나만 들어와도 쿼리가 통째로 실패해 목록 전체가 500 이 된다.
+  // limit 1 로 훑어 페이지마다 커서를 만들게 한다 - SQL 정렬식과 TS cohortOrder 가 어긋나면
+  // 여기서 항목이 겹치거나 샌다.
+  describe('기수 이름에 캐스팅을 깨뜨리는 숫자가 들어와도', () => {
+    it('전각 숫자가 섞여도 목록이 선다', async () => {
+      // Given - 한글 IME 전각 모드로 충분히 들어온다.
+      // Postgres 의 \d 는 전각 '１３' 을 잡지만 ::int 는 그걸 못 읽는다.
+      const 전각기수 = await saveCohort('１３기');
+      await saveProject({
+        name: '전각기수-프로젝트',
+        cohortId: 전각기수.id,
+        createdAt: '2026-07-01',
+      });
+
+      // When
+      const 순회결과 = await 전체_순회(1);
+
+      // Then - 이름에서 숫자를 못 뽑으면 cohortId 로 물러서고, 목록은 그대로 선다
+      expect(순회결과).toContain('전각기수-프로젝트');
+      expect(순회결과).toHaveLength(기대_순서.length + 1);
+    });
+
+    it('int 범위를 넘는 숫자가 들어와도 목록이 선다', async () => {
+      // Given - ::int 는 int4 라 열 자리부터 범위를 넘는다
+      const 큰번호기수 = await saveCohort('9999999999기');
+      await saveProject({
+        name: '큰번호-프로젝트',
+        cohortId: 큰번호기수.id,
+        createdAt: '2026-07-01',
+      });
+
+      // When
+      const 순회결과 = await 전체_순회(1);
+
+      // Then
+      expect(순회결과).toContain('큰번호-프로젝트');
+      expect(순회결과).toHaveLength(기대_순서.length + 1);
+    });
+  });
 });

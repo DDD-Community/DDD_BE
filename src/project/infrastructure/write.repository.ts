@@ -20,8 +20,15 @@ import type { ProjectFilter, ProjectUpdatePatch } from './write.repository.type'
  * 그때는 cohortId 로 물러서서 최소한 기수별로는 묶이게 한다.
  *
  * Project.cohortOrder 가 같은 규칙을 TypeScript 로 구현한다. 둘이 어긋나면 커서가 어긋난다.
+ *
+ * 숫자 패턴은 \d 가 아니라 [0-9]{1,9} 다. 둘 다 이유가 있고, 어기면 목록 전체가 500 이 난다.
+ * - \d 는 Postgres 정규식에서 유니코드 숫자까지 잡는다. 기수 이름에 전각 '１３' 이 들어가면
+ *   substring 이 '１３' 을 돌려주고 ::int 가 거기서 터진다. JS 의 /\d/ 는 ASCII 전용이라
+ *   같은 이름에서 폴백으로 빠지므로, 규칙이 갈리는 것 자체가 커서를 어긋나게도 한다.
+ * - ::int 는 int4 다. 자릿수를 안 묶으면 '9999999999기' 같은 이름에서 범위를 넘겨 터진다.
+ * 기수 이름은 자유 입력이라(@IsString 뿐) 두 경우 모두 실제로 들어올 수 있다.
  */
-const COHORT_ORDER = `COALESCE(NULLIF(substring(cohort.name from '\\d+'), '')::int, project."cohortId")`;
+const COHORT_ORDER = `COALESCE(NULLIF(substring(cohort.name from '[0-9]{1,9}'), '')::int, project."cohortId")`;
 
 /**
  * 프로젝트 목록 정렬 규칙: 기수 순(최신 기수 우선) → 같은 기수 안에서는 등록일 역순.
