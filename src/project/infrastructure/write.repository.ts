@@ -39,6 +39,10 @@ export class WriteRepository {
     });
   }
 
+  async exists({ where }: { where: ProjectFilter }) {
+    return this.repository.exists({ where: this.buildWhere(where) });
+  }
+
   async findManyByCursor({
     where = {},
     relations,

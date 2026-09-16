@@ -6,6 +6,7 @@ import { AuditLogService } from '../../audit/application/audit-log.service';
 import { AppException } from '../../common/exception/app.exception';
 import { GeneralEarlyNotificationService } from '../../notification/application/general-early-notification.service';
 import { NotificationCampaignService } from '../../notification/application/notification-campaign.service';
+import { ProjectService } from '../../project/application/project.service';
 import { CohortRepository } from '../domain/cohort.repository';
 import { CohortStatus } from '../domain/cohort.status';
 import { CohortService } from './cohort.service';
@@ -26,6 +27,7 @@ const mockCohortRepository = {
   findEndedActive: jest.fn(),
   update: jest.fn(),
   updateStatusFrom: jest.fn(),
+  deleteById: jest.fn(),
 };
 
 const mockApplicationService = {
@@ -43,6 +45,10 @@ const mockGeneralEarlyNotificationService = {
 
 const mockNotificationCampaignService = {
   registerDefaultForCohort: jest.fn(),
+};
+
+const mockProjectService = {
+  hasProjectsInCohort: jest.fn(),
 };
 
 const daysFromNow = (days: number) => new Date(Date.now() + days * 24 * 60 * 60 * 1000);
@@ -74,6 +80,7 @@ describe('CohortService', () => {
           provide: NotificationCampaignService,
           useValue: mockNotificationCampaignService,
         },
+        { provide: ProjectService, useValue: mockProjectService },
       ],
     }).compile();
 
@@ -662,6 +669,35 @@ describe('CohortService', () => {
 
       // Then
       expect(mockApplicationService.completeActivitiesForCohort).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('deleteCohort', () => {
+    // 운영 사고 재현. 기수 삭제는 soft delete 라 projects.cohortId 의 FK RESTRICT 가 발동하지 않는다.
+    // 막지 않으면 프로젝트는 살아남은 채 cohort 관계만 null 이 되어 목록이 기수 없이 선다.
+    it('프로젝트가 딸린 기수는 지우지 않는다', async () => {
+      // Given
+      mockCohortRepository.findById.mockResolvedValue({ id: 1 });
+      mockProjectService.hasProjectsInCohort.mockResolvedValue(true);
+
+      // When & Then
+      await expect(cohortService.deleteCohort({ id: 1 })).rejects.toThrow(
+        new AppException('COHORT_HAS_PROJECTS', HttpStatus.CONFLICT),
+      );
+      expect(mockCohortRepository.deleteById).not.toHaveBeenCalled();
+    });
+
+    it('딸린 프로젝트가 없으면 지운다', async () => {
+      // Given
+      mockCohortRepository.findById.mockResolvedValue({ id: 1 });
+      mockProjectService.hasProjectsInCohort.mockResolvedValue(false);
+
+      // When
+      await cohortService.deleteCohort({ id: 1 });
+
+      // Then
+      expect(mockProjectService.hasProjectsInCohort).toHaveBeenCalledWith({ cohortId: 1 });
+      expect(mockCohortRepository.deleteById).toHaveBeenCalledWith({ id: 1 });
     });
   });
 });

@@ -29,6 +29,11 @@ export class ProjectService {
     return this.projectRepository.findAll({ where });
   }
 
+  /** 기수 삭제 가드용. 그 기수에 딸린 프로젝트가 남아 있는지만 본다. */
+  async hasProjectsInCohort({ cohortId }: { cohortId: number }) {
+    return this.projectRepository.existsByCohortId({ cohortId });
+  }
+
   async findProjectsByCursor({
     platform,
     cursor,

@@ -16,6 +16,7 @@ export const ErrorMessage = {
 
   COHORT_NOT_FOUND: '기수를 찾을 수 없습니다.',
   COHORT_ALREADY_EXISTS: '이미 진행 중인 기수가 존재합니다.',
+  COHORT_HAS_PROJECTS: '프로젝트가 등록된 기수는 삭제할 수 없습니다. 프로젝트를 먼저 정리해주세요.',
   INVALID_RECRUIT_PERIOD: '모집 시작일은 종료일보다 늦을 수 없습니다.',
   INVALID_ACTIVITY_END_DATE: '활동 종료일은 모집 종료일보다 빠를 수 없습니다.',
   ACTIVITY_END_DATE_IN_PAST:

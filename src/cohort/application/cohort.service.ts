@@ -7,6 +7,7 @@ import { AppException } from '../../common/exception/app.exception';
 import { hasDefinedValues } from '../../common/util/object-utils';
 import { GeneralEarlyNotificationService } from '../../notification/application/general-early-notification.service';
 import { NotificationCampaignService } from '../../notification/application/notification-campaign.service';
+import { ProjectService } from '../../project/application/project.service';
 import { CohortRepository } from '../domain/cohort.repository';
 import { CohortStatus } from '../domain/cohort.status';
 import type {
@@ -32,6 +33,7 @@ export class CohortService {
     private readonly notificationCampaignService: NotificationCampaignService,
     @Inject(forwardRef(() => ApplicationService))
     private readonly applicationService: ApplicationService,
+    private readonly projectService: ProjectService,
   ) {}
 
   /**
@@ -234,6 +236,17 @@ export class CohortService {
     const found = await this.cohortRepository.findById({ id });
     if (!found) {
       throw new AppException('COHORT_NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+
+    // 기수 삭제는 soft delete 라 projects.cohortId 의 FK RESTRICT 가 발동하지 않는다.
+    // 막지 않으면 프로젝트는 살아남은 채 cohort 관계만 null 이 되어 목록이 기수 없이 선다.
+    //
+    // 이 가드가 보는 것은 삭제 시점의 projects 뿐이다. 아직 열려 있는 경로:
+    //   - createProject 는 cohortId 생존을 확인하지 않아, 지워진 기수로 새 프로젝트를 만들 수 있다
+    //   - interview_slots 도 같은 RESTRICT 인데 여기서 세지 않는다
+    //   - cohort_parts 는 CASCADE 가 아니라 조인 조건(deletedAt IS NULL)에 걸려 지원 접수가 404 가 된다
+    if (await this.projectService.hasProjectsInCohort({ cohortId: id })) {
+      throw new AppException('COHORT_HAS_PROJECTS', HttpStatus.CONFLICT);
     }
 
     await this.cohortRepository.deleteById({ id });

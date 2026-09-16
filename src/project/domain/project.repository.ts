@@ -25,6 +25,14 @@ export class ProjectRepository {
     return this.writeRepository.findMany({ where, relations: ['members', 'cohort'] });
   }
 
+  /**
+   * soft-delete 된 프로젝트는 세지 않는다. 지워진 프로젝트는 모든 조회 경로에서 이미 빠지므로
+   * 기수가 없어져도 드러나지 않는다. 프로젝트 복구 기능이 생기면 이 전제를 다시 봐야 한다.
+   */
+  async existsByCohortId({ cohortId }: { cohortId: number }) {
+    return this.writeRepository.exists({ where: { cohortId } });
+  }
+
   async findPageByCursor({
     where,
     limit,
