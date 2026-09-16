@@ -35,6 +35,18 @@ export class Project extends BaseEntity {
   })
   members: ProjectMember[];
 
+  /**
+   * 목록 정렬에 쓰는 기수 순서 키. 기수 이름('13기')의 첫 숫자를 쓰고,
+   * 기수 행을 못 찾으면 cohortId 로 물러선다.
+   *
+   * WriteRepository 의 COHORT_ORDER 정렬식과 규칙이 같아야 한다.
+   * 어긋나면 커서가 가리키는 위치와 실제 정렬 위치가 달라져 페이지가 겹치거나 샌다.
+   */
+  get cohortOrder(): number {
+    const matched = this.cohort?.name?.match(/\d+/);
+    return matched ? Number(matched[0]) : this.cohortId;
+  }
+
   static create({
     cohortId,
     platforms,

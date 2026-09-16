@@ -7,6 +7,7 @@ import { AppException } from '../../common/exception/app.exception';
 import { hasDefinedValues } from '../../common/util/object-utils';
 import { GeneralEarlyNotificationService } from '../../notification/application/general-early-notification.service';
 import { NotificationCampaignService } from '../../notification/application/notification-campaign.service';
+import { ProjectService } from '../../project/application/project.service';
 import { CohortRepository } from '../domain/cohort.repository';
 import { CohortStatus } from '../domain/cohort.status';
 import type {
@@ -32,6 +33,7 @@ export class CohortService {
     private readonly notificationCampaignService: NotificationCampaignService,
     @Inject(forwardRef(() => ApplicationService))
     private readonly applicationService: ApplicationService,
+    private readonly projectService: ProjectService,
   ) {}
 
   /**
@@ -234,6 +236,14 @@ export class CohortService {
     const found = await this.cohortRepository.findById({ id });
     if (!found) {
       throw new AppException('COHORT_NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+
+    // Project.cohort 는 onDelete: 'RESTRICT' 라 "프로젝트가 붙은 기수는 못 지운다" 가 원래 의도다.
+    // 그런데 soft delete 는 행을 남기고 deletedAt 만 채우므로 DB 제약이 발동하지 않는다.
+    // 그 틈으로 기수가 지워져 프로젝트 목록에서 기수 이름이 사라지고 정렬 키까지 비었다.
+    const 붙어있는_프로젝트 = await this.projectService.countProjectsByCohortId({ cohortId: id });
+    if (붙어있는_프로젝트 > 0) {
+      throw new AppException('COHORT_HAS_PROJECTS', HttpStatus.CONFLICT);
     }
 
     await this.cohortRepository.deleteById({ id });

@@ -6,6 +6,7 @@ import { AuditLogService } from '../../audit/application/audit-log.service';
 import { AppException } from '../../common/exception/app.exception';
 import { GeneralEarlyNotificationService } from '../../notification/application/general-early-notification.service';
 import { NotificationCampaignService } from '../../notification/application/notification-campaign.service';
+import { ProjectService } from '../../project/application/project.service';
 import { CohortRepository } from '../domain/cohort.repository';
 import { CohortStatus } from '../domain/cohort.status';
 import { CohortService } from './cohort.service';
@@ -26,6 +27,7 @@ const mockCohortRepository = {
   findEndedActive: jest.fn(),
   update: jest.fn(),
   updateStatusFrom: jest.fn(),
+  deleteById: jest.fn(),
 };
 
 const mockApplicationService = {
@@ -43,6 +45,10 @@ const mockGeneralEarlyNotificationService = {
 
 const mockNotificationCampaignService = {
   registerDefaultForCohort: jest.fn(),
+};
+
+const mockProjectService = {
+  countProjectsByCohortId: jest.fn(),
 };
 
 const daysFromNow = (days: number) => new Date(Date.now() + days * 24 * 60 * 60 * 1000);
@@ -74,6 +80,7 @@ describe('CohortService', () => {
           provide: NotificationCampaignService,
           useValue: mockNotificationCampaignService,
         },
+        { provide: ProjectService, useValue: mockProjectService },
       ],
     }).compile();
 
@@ -662,6 +669,44 @@ describe('CohortService', () => {
 
       // Then
       expect(mockApplicationService.completeActivitiesForCohort).not.toHaveBeenCalled();
+    });
+  });
+  describe('deleteCohort', () => {
+    it('기수가 없으면 404를 던진다', async () => {
+      // Given
+      mockCohortRepository.findById.mockResolvedValue(null);
+
+      // When & Then
+      await expect(cohortService.deleteCohort({ id: 999 })).rejects.toThrow(
+        new AppException('COHORT_NOT_FOUND', HttpStatus.NOT_FOUND),
+      );
+      expect(mockCohortRepository.deleteById).not.toHaveBeenCalled();
+    });
+
+    // Project.cohort 는 onDelete: 'RESTRICT' 지만 soft delete 는 행을 남겨 DB 제약이 발동하지 않는다.
+    // 이 가드가 없으면 기수만 지워진 채 프로젝트가 남아, 목록에서 기수 이름과 정렬 키가 사라진다.
+    it('프로젝트가 붙어 있으면 지우지 않고 409를 던진다', async () => {
+      // Given
+      mockCohortRepository.findById.mockResolvedValue({ id: 4, name: '13기' });
+      mockProjectService.countProjectsByCohortId.mockResolvedValue(5);
+
+      // When & Then
+      await expect(cohortService.deleteCohort({ id: 4 })).rejects.toThrow(
+        new AppException('COHORT_HAS_PROJECTS', HttpStatus.CONFLICT),
+      );
+      expect(mockCohortRepository.deleteById).not.toHaveBeenCalled();
+    });
+
+    it('붙어 있는 프로젝트가 없으면 지운다', async () => {
+      // Given
+      mockCohortRepository.findById.mockResolvedValue({ id: 5, name: '8기' });
+      mockProjectService.countProjectsByCohortId.mockResolvedValue(0);
+
+      // When
+      await cohortService.deleteCohort({ id: 5 });
+
+      // Then
+      expect(mockCohortRepository.deleteById).toHaveBeenCalledWith({ id: 5 });
     });
   });
 });
