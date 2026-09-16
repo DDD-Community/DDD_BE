@@ -42,8 +42,8 @@ export class ProjectRepository {
     });
   }
 
-  async countByCohortId({ cohortId }: { cohortId: number }) {
-    return this.writeRepository.countByCohortId({ cohortId });
+  async existsByCohortId({ cohortId }: { cohortId: number }) {
+    return this.writeRepository.exists({ where: { cohortId } });
   }
 
   async update({ id, patch }: { id: number; patch: ProjectUpdatePatch }) {

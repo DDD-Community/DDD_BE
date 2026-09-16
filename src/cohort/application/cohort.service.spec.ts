@@ -48,7 +48,7 @@ const mockNotificationCampaignService = {
 };
 
 const mockProjectService = {
-  countProjectsByCohortId: jest.fn(),
+  hasProjectsInCohort: jest.fn(),
 };
 
 const daysFromNow = (days: number) => new Date(Date.now() + days * 24 * 60 * 60 * 1000);
@@ -688,7 +688,7 @@ describe('CohortService', () => {
     it('프로젝트가 붙어 있으면 지우지 않고 409를 던진다', async () => {
       // Given
       mockCohortRepository.findById.mockResolvedValue({ id: 4, name: '13기' });
-      mockProjectService.countProjectsByCohortId.mockResolvedValue(5);
+      mockProjectService.hasProjectsInCohort.mockResolvedValue(true);
 
       // When & Then
       await expect(cohortService.deleteCohort({ id: 4 })).rejects.toThrow(
@@ -700,12 +700,13 @@ describe('CohortService', () => {
     it('붙어 있는 프로젝트가 없으면 지운다', async () => {
       // Given
       mockCohortRepository.findById.mockResolvedValue({ id: 5, name: '8기' });
-      mockProjectService.countProjectsByCohortId.mockResolvedValue(0);
+      mockProjectService.hasProjectsInCohort.mockResolvedValue(false);
 
       // When
       await cohortService.deleteCohort({ id: 5 });
 
       // Then
+      expect(mockProjectService.hasProjectsInCohort).toHaveBeenCalledWith({ cohortId: 5 });
       expect(mockCohortRepository.deleteById).toHaveBeenCalledWith({ id: 5 });
     });
   });

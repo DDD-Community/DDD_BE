@@ -13,7 +13,7 @@ import { ProjectRepository } from '../src/project/domain/project.repository';
 import { ProjectMember } from '../src/project/domain/project-member.entity';
 import { ProjectPlatform } from '../src/project/domain/project-platform';
 import { MemberWriteRepository } from '../src/project/infrastructure/member.write.repository';
-import { WriteRepository } from '../src/project/infrastructure/write.repository';
+import { COHORT_ORDER, WriteRepository } from '../src/project/infrastructure/write.repository';
 
 // 개발자의 실제 DB 를 건드리지 않도록 전용 스키마에 테이블을 만들고 끝나면 통째로 지운다.
 const TEST_SCHEMA = 'project_order_test';
@@ -59,11 +59,21 @@ describe('프로젝트 목록 기수 순 정렬 (실 DB 통합)', () => {
     cohortId: number;
     createdAt: string;
   }) => {
-    const saved = await dataSource
-      .getRepository(Project)
-      .save(
-        Project.create({ cohortId, platforms: [ProjectPlatform.WEB], name, description: name }),
-      );
+    const saved = await dataSource.getRepository(Project).save(
+      Project.create({
+        cohortId,
+        platforms: [ProjectPlatform.WEB],
+        name,
+        description: name,
+        // members 가 없으면 조인이 행을 하나도 늘리지 않아, 1:N 중복 × LIMIT 이라는
+        // 실패 모드가 테스트에서 재현되지 않는다. 페이지가 멤버 수만큼 깎이는 회귀를 잡으려면 필요하다.
+        members: [
+          { name: `${name}-FE`, part: 'FE' },
+          { name: `${name}-BE`, part: 'BE' },
+          { name: `${name}-DE`, part: 'DE' },
+        ],
+      }),
+    );
     // createdAt 은 @CreateDateColumn 이라 삽입 시점으로 박힌다. 정렬을 검증하려면 직접 벌려 놓아야 한다.
     await dataSource.query(`UPDATE ${TEST_SCHEMA}.projects SET "createdAt" = $1 WHERE id = $2`, [
       new Date(createdAt),
@@ -178,7 +188,10 @@ describe('프로젝트 목록 기수 순 정렬 (실 DB 통합)', () => {
     expect(한건씩).toEqual(기대_순서);
     expect(두건씩).toEqual(기대_순서);
     expect(한번에).toEqual(기대_순서);
+    // 멤버 3명이 붙어 있어 조인은 행을 3배로 부풀린다. 그런데도 페이지가 깎이거나
+    // 같은 프로젝트가 두 번 나오면 안 된다.
     expect(new Set(한건씩).size).toBe(기대_순서.length);
+    expect(한건씩).toHaveLength(기대_순서.length);
   });
 
   it('플랫폼 필터를 걸어도 기수 순서를 유지한다', async () => {
@@ -219,7 +232,64 @@ describe('프로젝트 목록 기수 순 정렬 (실 DB 통합)', () => {
       const 순회결과 = await 전체_순회(1);
 
       // Then - 순서는 cohortId 로 밀리지만 다섯 건이 그대로 나와야 한다
-      expect(new Set(순회결과)).toEqual(new Set(기대_순서));
+      expect([...순회결과].sort()).toEqual([...기대_순서].sort());
+    });
+  });
+  // 설계 전체가 이 불변식 하나에 걸려 있다. Project.cohortOrder(TS)와 COHORT_ORDER(SQL)가
+  // 다른 값을 내면 커서가 가리키는 위치와 실제 정렬 위치가 어긋나 페이지가 겹치거나 샌다.
+  // 기수 이름은 어드민 자유 입력이라 아래 모양이 실제로 들어올 수 있다.
+  describe('기수 순서 키 - TS 구현과 SQL 식의 동치성', () => {
+    const 기수이름들 = [
+      '13기',
+      'DDD 13기',
+      '2024년 1기', // 앞선 숫자가 이긴다. 정렬 위치는 틀리지만 두 구현이 같아야 커서는 안전하다
+      '007기',
+      '기수', // 숫자 없음 → cohortId 폴백
+      '', // 빈 이름 → cohortId 폴백
+      '１３기', // 전각. Postgres 의 \d 는 로케일에 따라 집어서 JS 와 갈라질 수 있어 [0-9] 로 막았다
+      '99999999999기', // 자리수를 안 막으면 int4 를 넘겨 22003 으로 목록 전체가 죽는다
+    ];
+
+    it('어떤 기수 이름에도 두 구현이 같은 값을 낸다', async () => {
+      // Given
+      await dataSource.query(
+        `TRUNCATE ${TEST_SCHEMA}.project_members, ${TEST_SCHEMA}.projects,
+         ${TEST_SCHEMA}.cohort_parts, ${TEST_SCHEMA}.cohorts RESTART IDENTITY CASCADE`,
+      );
+      for (const [index, 이름] of 기수이름들.entries()) {
+        const cohort = await saveCohort(이름);
+        await saveProject({
+          name: `동치성-${index}`,
+          cohortId: cohort.id,
+          createdAt: '2026-01-01',
+        });
+      }
+
+      // When — 프로덕션 정렬식을 그대로 가져다 DB 가 계산한 값을 뽑는다
+      const raws = await dataSource
+        .createQueryBuilder(Project, 'project')
+        .leftJoin('project.cohort', 'cohort')
+        .select('project.id', 'project_id')
+        .addSelect(COHORT_ORDER, 'cohort_order')
+        .getRawMany<{ project_id: number; cohort_order: number }>();
+      const projects = await dataSource
+        .getRepository(Project)
+        .find({ relations: ['cohort'], order: { id: 'ASC' } });
+
+      // Then
+      const sql계산값 = new Map(
+        raws.map((raw) => [Number(raw.project_id), Number(raw.cohort_order)]),
+      );
+      expect(projects).toHaveLength(기수이름들.length);
+      for (const project of projects) {
+        expect({
+          이름: project.cohort?.name ?? null,
+          값: project.cohortOrder,
+        }).toEqual({
+          이름: project.cohort?.name ?? null,
+          값: sql계산값.get(project.id),
+        });
+      }
     });
   });
 });

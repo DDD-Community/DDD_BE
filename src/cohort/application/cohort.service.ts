@@ -241,8 +241,12 @@ export class CohortService {
     // Project.cohort 는 onDelete: 'RESTRICT' 라 "프로젝트가 붙은 기수는 못 지운다" 가 원래 의도다.
     // 그런데 soft delete 는 행을 남기고 deletedAt 만 채우므로 DB 제약이 발동하지 않는다.
     // 그 틈으로 기수가 지워져 프로젝트 목록에서 기수 이름이 사라지고 정렬 키까지 비었다.
-    const 붙어있는_프로젝트 = await this.projectService.countProjectsByCohortId({ cohortId: id });
-    if (붙어있는_프로젝트 > 0) {
+    //
+    // 이 가드가 보는 것은 삭제 시점의 projects 뿐이다. 아직 열려 있는 경로:
+    //   - createProject 는 cohortId 생존을 확인하지 않아, 지워진 기수로 새 프로젝트를 만들 수 있다
+    //   - interview_slots 도 같은 RESTRICT 인데 여기서 세지 않는다
+    //   - 모집 중인 기수를 지우면 cohort_parts 조인 조건에 걸려 지원 접수가 404 가 된다
+    if (await this.projectService.hasProjectsInCohort({ cohortId: id })) {
       throw new AppException('COHORT_HAS_PROJECTS', HttpStatus.CONFLICT);
     }
 
