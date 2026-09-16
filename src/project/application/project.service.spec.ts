@@ -232,25 +232,25 @@ describe('ProjectService', () => {
   describe('findProjectsByCursor', () => {
     const projectOf = ({
       id,
-      cohortStartAt,
+      cohortId,
       createdAt,
     }: {
       id: number;
-      cohortStartAt: string;
+      cohortId: number;
       createdAt: string;
     }) =>
       ({
         id,
-        cohort: { id, name: `${id}기`, recruitStartAt: new Date(cohortStartAt) },
+        cohortId,
         createdAt: new Date(createdAt),
       }) as unknown as Project;
 
-    it('다음 페이지가 있으면 마지막 항목의 기수 모집 시작일까지 커서에 담는다', async () => {
+    it('다음 페이지가 있으면 마지막 항목의 기수 id 까지 커서에 담는다', async () => {
       // Given — limit 1 요청에 2건이 내려오면 다음 페이지가 있다는 뜻
-      const last = projectOf({ id: 7, cohortStartAt: '2025-01-01', createdAt: '2026-04-01' });
+      const last = projectOf({ id: 7, cohortId: 13, createdAt: '2026-04-01' });
       mockProjectRepository.findPageByCursor.mockResolvedValue([
         last,
-        projectOf({ id: 8, cohortStartAt: '2024-01-01', createdAt: '2026-03-01' }),
+        projectOf({ id: 8, cohortId: 12, createdAt: '2026-03-01' }),
       ]);
 
       // When
@@ -262,17 +262,17 @@ describe('ProjectService', () => {
       expect(hasNext).toBe(true);
       expect(items).toEqual([last]);
       expect(decodeCursor(nextCursor as string)).toEqual({
-        cohortStartAt: new Date('2025-01-01').getTime(),
+        cohortId: 13,
         createdAt: new Date('2026-04-01').getTime(),
         id: 7,
       });
     });
 
-    it('커서를 받으면 기수 모집 시작일부터 이어받을 위치로 넘긴다', async () => {
+    it('커서를 받으면 기수 id 부터 이어받을 위치로 넘긴다', async () => {
       // Given
       mockProjectRepository.findPageByCursor.mockResolvedValue([]);
       const cursor = encodeCursor({
-        cohortStartAt: new Date('2025-01-01').getTime(),
+        cohortId: 13,
         createdAt: new Date('2026-04-01').getTime(),
         id: 7,
       });
@@ -285,10 +285,33 @@ describe('ProjectService', () => {
         where: undefined,
         limit: 10,
         after: {
-          cohortStartAt: new Date('2025-01-01'),
+          cohortId: 13,
           createdAt: new Date('2026-04-01'),
           id: 7,
         },
+      });
+    });
+
+    // 운영 장애 재현: 기수가 soft-delete 되면 cohort 관계가 null 로 들어온다.
+    // 예전 구현은 여기서 last.cohort.recruitStartAt 을 읽어 목록 전체가 500 이 됐다.
+    it('기수 행이 지워져 cohort 관계가 비어도 커서를 만든다', async () => {
+      // Given — 관계는 null 이지만 cohortId 는 남아 있는 실제 운영 데이터 모양
+      const last = {
+        id: 7,
+        cohortId: 4,
+        cohort: null,
+        createdAt: new Date('2026-04-01'),
+      } as unknown as Project;
+      mockProjectRepository.findPageByCursor.mockResolvedValue([last, last]);
+
+      // When
+      const { nextCursor } = await projectService.findProjectsByCursor({ limit: 1 });
+
+      // Then
+      expect(decodeCursor(nextCursor as string)).toEqual({
+        cohortId: 4,
+        createdAt: new Date('2026-04-01').getTime(),
+        id: 7,
       });
     });
 

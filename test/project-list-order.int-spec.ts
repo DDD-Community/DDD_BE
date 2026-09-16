@@ -19,14 +19,17 @@ import { WriteRepository } from '../src/project/infrastructure/write.repository'
 const TEST_SCHEMA = 'project_order_test';
 
 /**
- * 정렬 키가 조인 대상(cohort)이라 TypeORM 이 take 페이지네이션을 서브쿼리로 감싸는 방식과 맞물린다.
- * 생성 SQL 이 의도대로 도는지, 페이지 경계에서 항목이 새거나 겹치지 않는지는 실 DB 없이 확인할 수 없다.
+ * 커서 페이지네이션의 경계는 생성 SQL 을 실제로 돌려야 드러난다.
+ * 기수 행이 지워진 상태도 여기서만 재현된다 - 운영에서 목록 전체가 500 이 난 그 모양이다.
  */
 describe('프로젝트 목록 기수 순 정렬 (실 DB 통합)', () => {
   jest.setTimeout(30_000);
 
   let dataSource: DataSource;
   let service: ProjectService;
+  let 최신기수: Cohort;
+  let 중간기수: Cohort;
+  let 오래된기수: Cohort;
 
   // 기수 순서와 등록일 순서를 일부러 어긋나게 깐다.
   // 등록일만으로 정렬하면 D, C, E, B, A 가 되므로 두 규칙을 확실히 구분한다.
@@ -56,14 +59,11 @@ describe('프로젝트 목록 기수 순 정렬 (실 DB 통합)', () => {
     cohortId: number;
     createdAt: string;
   }) => {
-    const saved = await dataSource.getRepository(Project).save(
-      Project.create({
-        cohortId,
-        platforms: [ProjectPlatform.WEB],
-        name,
-        description: name,
-      }),
-    );
+    const saved = await dataSource
+      .getRepository(Project)
+      .save(
+        Project.create({ cohortId, platforms: [ProjectPlatform.WEB], name, description: name }),
+      );
     // createdAt 은 @CreateDateColumn 이라 삽입 시점으로 박힌다. 정렬을 검증하려면 직접 벌려 놓아야 한다.
     await dataSource.query(`UPDATE ${TEST_SCHEMA}.projects SET "createdAt" = $1 WHERE id = $2`, [
       new Date(createdAt),
@@ -128,10 +128,10 @@ describe('프로젝트 목록 기수 순 정렬 (실 DB 통합)', () => {
        ${TEST_SCHEMA}.cohort_parts, ${TEST_SCHEMA}.cohorts RESTART IDENTITY CASCADE`,
     );
 
-    // 과거 기수를 나중에 만든다. cohorts.id 로 정렬하면 뒤집히는 배치 - 운영 시드가 실제로 이 모양이다.
-    const 최신기수 = await saveCohort('13기', '2025-01-01');
-    const 중간기수 = await saveCohort('12기', '2024-07-01');
-    const 오래된기수 = await saveCohort('11기', '2024-01-01');
+    // 정렬이 cohortId 를 기수 순서로 쓴다. 기수를 시간 순으로 만들어 그 전제를 그대로 깐다.
+    오래된기수 = await saveCohort('11기', '2024-01-01');
+    중간기수 = await saveCohort('12기', '2024-07-01');
+    최신기수 = await saveCohort('13기', '2025-01-01');
 
     await saveProject({ name: '13기-가장오래됨', cohortId: 최신기수.id, createdAt: '2026-01-01' });
     await saveProject({ name: '13기-먼저등록', cohortId: 최신기수.id, createdAt: '2026-03-01' });
@@ -181,5 +181,32 @@ describe('프로젝트 목록 기수 순 정렬 (실 DB 통합)', () => {
     });
 
     expect(items.map((project) => project.name)).toEqual(기대_순서.slice(0, 2));
+  });
+
+  // 운영 장애 재현. 기수를 soft-delete 하면 cohort 관계가 null 로 들어오는데,
+  // 정렬이나 커서가 그 관계를 타고 있으면 목록 전체가 500 이 된다.
+  // projects.cohortId 는 기수 행 상태와 무관하게 남으므로 목록은 그대로 서야 한다.
+  describe('기수 행이 지워진 뒤', () => {
+    it('한 기수가 지워져도 목록이 끊기지 않는다', async () => {
+      // Given - 프로젝트는 살아 있고 기수만 지워진, 운영에서 실제로 나온 상태
+      await dataSource.getRepository(Cohort).softDelete(중간기수.id);
+
+      // When - 한 건씩 끊어 페이지마다 커서를 만들게 한다
+      const 순회결과 = await 전체_순회(1);
+
+      // Then
+      expect(순회결과).toEqual(기대_순서);
+    });
+
+    it('기수가 전부 지워져도 목록이 끊기지 않는다', async () => {
+      // Given
+      await dataSource.getRepository(Cohort).softDelete([오래된기수.id, 중간기수.id, 최신기수.id]);
+
+      // When
+      const 순회결과 = await 전체_순회(1);
+
+      // Then
+      expect(순회결과).toEqual(기대_순서);
+    });
   });
 });

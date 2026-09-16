@@ -32,7 +32,7 @@ export class ProjectRepository {
   }: {
     where?: ProjectFilter;
     limit: number;
-    after?: { cohortStartAt: Date; createdAt: Date; id: number };
+    after?: { cohortId: number; createdAt: Date; id: number };
   }) {
     return this.writeRepository.findManyByCursor({
       where,
