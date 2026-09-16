@@ -40,11 +40,11 @@ export class ProjectService {
   }): Promise<{ items: Project[]; nextCursor: string | null; hasNext: boolean }> {
     const resolvedLimit = resolveLimit(limit);
     const claim = cursor ? decodeCursor(cursor) : null;
-    // 기수 순 정렬 도입 전에 발급된 커서에는 cohortStartAt 이 없다. 이어받을 위치를 알 수 없으니 첫 페이지로 되돌린다.
+    // 기수 순 정렬 도입 전에 발급된 커서에는 cohortId 가 없다. 이어받을 위치를 알 수 없으니 첫 페이지로 되돌린다.
     const after =
-      claim && claim.cohortStartAt !== undefined
+      claim && claim.cohortId !== undefined
         ? {
-            cohortStartAt: new Date(claim.cohortStartAt),
+            cohortId: claim.cohortId,
             createdAt: new Date(claim.createdAt),
             id: claim.id,
           }
@@ -63,7 +63,8 @@ export class ProjectService {
     const nextCursor =
       hasNext && last
         ? encodeCursor({
-            cohortStartAt: last.cohort.recruitStartAt.getTime(),
+            // projects 자기 컬럼이라 기수 행이 지워져도 비지 않는다. cohort 관계를 타면 null 에 걸린다.
+            cohortId: last.cohortId,
             createdAt: last.createdAt.getTime(),
             id: last.id,
           })

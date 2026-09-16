@@ -6,9 +6,9 @@ export type CursorClaim = {
   id: number;
   /**
    * 기수 순으로 정렬하는 목록(프로젝트)에서만 채우는 선행 정렬 키.
-   * 소속 기수의 모집 시작일 epoch. 정렬 규칙이 바뀌기 전에 발급된 커서에는 없으므로 optional.
+   * projects.cohortId 를 그대로 쓴다. 기수 순 정렬 도입 전에 발급된 커서에는 없으므로 optional.
    */
-  cohortStartAt?: number;
+  cohortId?: number;
 };
 
 export const encodeCursor = (claim: CursorClaim): string => {
@@ -22,12 +22,12 @@ export const decodeCursor = (cursor: string): CursorClaim | null => {
     if (typeof parsed.createdAt !== 'number' || typeof parsed.id !== 'number') {
       return null;
     }
-    if (parsed.cohortStartAt !== undefined && typeof parsed.cohortStartAt !== 'number') {
+    if (parsed.cohortId !== undefined && typeof parsed.cohortId !== 'number') {
       return null;
     }
-    return parsed.cohortStartAt === undefined
+    return parsed.cohortId === undefined
       ? { createdAt: parsed.createdAt, id: parsed.id }
-      : { createdAt: parsed.createdAt, id: parsed.id, cohortStartAt: parsed.cohortStartAt };
+      : { createdAt: parsed.createdAt, id: parsed.id, cohortId: parsed.cohortId };
   } catch {
     return null;
   }
