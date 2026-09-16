@@ -9,7 +9,7 @@ import {
 
 import { filterDefinedFields } from '../../common/util/object-utils';
 import { Project } from '../domain/project.entity';
-import type { ProjectFilter, ProjectUpdatePatch } from './write.repository.type';
+import type { ProjectAssetUrls, ProjectFilter, ProjectUpdatePatch } from './write.repository.type';
 
 /**
  * 기수 순서 키. 기수 이름('13기')의 첫 숫자를 쓰고, 기수 행을 못 찾으면 cohortId 로 물러선다.
@@ -109,6 +109,20 @@ export class WriteRepository {
     }
 
     return this.repository.exists({ where: whereOptions });
+  }
+
+  /**
+   * 프로젝트가 참조 중인 에셋 URL 전부.
+   *
+   * soft-delete 된 행도 포함한다(withDeleted). 지워진 프로젝트는 복구될 수 있는데, 그 사이
+   * 스토리지 파일이 고아로 판정돼 삭제되면 복구해도 썸네일과 PDF 가 비어 있다.
+   * 이 목록이 하나라도 빠지면 살아 있는 파일을 지우므로 페이지네이션 없이 한 번에 읽는다.
+   */
+  async findAllAssetUrls(): Promise<ProjectAssetUrls[]> {
+    return this.repository.find({
+      select: { thumbnailUrl: true, pdfUrl: true },
+      withDeleted: true,
+    });
   }
 
   async softDelete({ where }: { where: ProjectFilter }) {
