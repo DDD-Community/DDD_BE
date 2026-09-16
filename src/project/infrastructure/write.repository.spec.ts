@@ -173,6 +173,18 @@ describe('Project WriteRepository', () => {
     });
   });
 
+  describe('exists', () => {
+    it('빈 필터면 예외를 던진다', async () => {
+      // Given — 빈 필터를 흘리면 "프로젝트가 하나라도 있는가" 가 되어 엉뚱한 기수까지 삭제가 막힌다
+      const writeRepository = createRepository(createQueryBuilderSpy());
+
+      // When & Then
+      await expect(writeRepository.exists({ where: {} })).rejects.toThrow(
+        'Project exists requires at least one where condition.',
+      );
+    });
+  });
+
   describe('softDelete', () => {
     it('빈 필터면 예외를 던진다', async () => {
       // Given

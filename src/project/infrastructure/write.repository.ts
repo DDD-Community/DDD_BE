@@ -20,8 +20,13 @@ import type { ProjectFilter, ProjectUpdatePatch } from './write.repository.type'
  * 그때는 cohortId 로 물러서서 최소한 기수별로는 묶이게 한다.
  *
  * Project.cohortOrder 가 같은 규칙을 TypeScript 로 구현한다. 둘이 어긋나면 커서가 어긋난다.
+ * 그래서 숫자 패턴을 [0-9]{1,9} 로 못박는다. \d 는 Postgres 에서 로케일에 따라 전각 숫자까지
+ * 집어 JS 의 \d(ASCII 전용)와 갈라지고, 자리수를 안 막으면 '99999999999기' 가 int4 를 넘겨
+ * 22003 으로 목록 전체가 죽는다. 9자리면 int4 안이고 기존 기수 이름 해석은 그대로다.
+ *
+ * 통합 테스트가 이 상수를 그대로 가져다 Project.cohortOrder 와 대조한다. 식을 고치면 그쪽이 먼저 깨진다.
  */
-const COHORT_ORDER = `COALESCE(NULLIF(substring(cohort.name from '\\d+'), '')::int, project."cohortId")`;
+export const COHORT_ORDER = `COALESCE(NULLIF(substring(cohort.name from '[0-9]{1,9}'), '')::int, project."cohortId")`;
 
 /**
  * 프로젝트 목록 정렬 규칙: 기수 순(최신 기수 우선) → 같은 기수 안에서는 등록일 역순.
@@ -90,8 +95,20 @@ export class WriteRepository {
     await this.repository.update(id, defined);
   }
 
-  async countByCohortId({ cohortId }: { cohortId: number }) {
-    return this.repository.count({ where: { cohortId } });
+  /**
+   * soft-delete 된 프로젝트는 세지 않는다. TypeORM 은 select 계열에 deletedAt IS NULL 을 붙이고
+   * (count 도 exists 도 똑같다), 지워진 프로젝트까지 세면 한 번 프로젝트가 있었던 기수는 영영 못 지운다.
+   * 프로젝트 복구 기능이 생기면 이 전제를 다시 봐야 한다.
+   */
+  async exists({ where }: { where: ProjectFilter }) {
+    const whereOptions = this.buildWhere(where);
+
+    // 빈 필터면 "프로젝트가 하나라도 있는가" 가 되어 엉뚱한 기수까지 막는다. softDelete 와 같은 가드를 둔다.
+    if (this.isEmptyWhere(whereOptions)) {
+      throw new Error('Project exists requires at least one where condition.');
+    }
+
+    return this.repository.exists({ where: whereOptions });
   }
 
   async softDelete({ where }: { where: ProjectFilter }) {

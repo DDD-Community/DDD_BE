@@ -75,8 +75,8 @@ export class ProjectService {
   }
 
   /** 기수 삭제 가드가 쓴다. 프로젝트가 남은 기수를 지우면 그 프로젝트가 고아가 된다. */
-  async countProjectsByCohortId({ cohortId }: { cohortId: number }) {
-    return this.projectRepository.countByCohortId({ cohortId });
+  async hasProjectsInCohort({ cohortId }: { cohortId: number }) {
+    return this.projectRepository.existsByCohortId({ cohortId });
   }
 
   async findProjectById({ id }: { id: number }) {

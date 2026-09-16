@@ -27,6 +27,20 @@ describe('cursor util', () => {
       expect(decodeCursor(junk)).toBeNull();
     });
 
+    // 커서는 클라이언트가 돌려보내는 값이라 여기서 안 걸러지면 그대로 쿼리 파라미터가 된다.
+    // 인증 없는 목록이라 아래 값들이 통과하면 누구나 500 을 만들 수 있다.
+    // 실제 공격 벡터와 같게 JSON 문자열을 그대로 싣는다.
+    // JS 리터럴로 쓰면 1e400 이 Infinity 로 접히면서 무엇을 막는 테스트인지 흐려진다.
+    it.each([
+      ['Infinity 로 접히는 지수', '{"createdAt":1,"id":2,"cohortOrder":1e400}'],
+      ['소수 id', '{"createdAt":1,"id":1.5}'],
+      ['Infinity createdAt', '{"createdAt":1e400,"id":2}'],
+      ['안전 정수를 넘는 값', '{"createdAt":1,"id":9007199254740993}'],
+    ])('정수가 아닌 %s 는 null을 반환한다', (_label, json) => {
+      const token = Buffer.from(json, 'utf8').toString('base64url');
+      expect(decodeCursor(token)).toBeNull();
+    });
+
     it('형식 불일치 토큰은 null을 반환한다', () => {
       expect(decodeCursor('invalid-base64')).toBeNull();
     });
