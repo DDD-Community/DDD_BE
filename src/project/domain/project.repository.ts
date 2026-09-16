@@ -2,7 +2,11 @@ import { Injectable } from '@nestjs/common';
 
 import { MemberWriteRepository } from '../infrastructure/member.write.repository';
 import { WriteRepository } from '../infrastructure/write.repository';
-import type { ProjectFilter, ProjectUpdatePatch } from '../infrastructure/write.repository.type';
+import type {
+  ProjectAssetUrls,
+  ProjectFilter,
+  ProjectUpdatePatch,
+} from '../infrastructure/write.repository.type';
 import { Project } from './project.entity';
 import { ProjectMember } from './project-member.entity';
 
@@ -44,6 +48,11 @@ export class ProjectRepository {
 
   async countByCohortId({ cohortId }: { cohortId: number }) {
     return this.writeRepository.countByCohortId({ cohortId });
+  }
+
+  /** 고아 에셋 정리가 "지우면 안 되는 파일" 을 가려내는 데 쓴다. */
+  async findAllAssetUrls(): Promise<ProjectAssetUrls[]> {
+    return this.writeRepository.findAllAssetUrls();
   }
 
   async update({ id, patch }: { id: number; patch: ProjectUpdatePatch }) {
