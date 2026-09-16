@@ -40,11 +40,12 @@ export class ProjectService {
   }): Promise<{ items: Project[]; nextCursor: string | null; hasNext: boolean }> {
     const resolvedLimit = resolveLimit(limit);
     const claim = cursor ? decodeCursor(cursor) : null;
-    // 기수 순 정렬 도입 전에 발급된 커서에는 cohortId 가 없다. 이어받을 위치를 알 수 없으니 첫 페이지로 되돌린다.
+    // 정렬 규칙이 바뀌기 전에 발급된 커서에는 cohortOrder 가 없다.
+    // 이어받을 위치를 특정할 수 없으니 첫 페이지로 되돌린다.
     const after =
-      claim && claim.cohortId !== undefined
+      claim && claim.cohortOrder !== undefined
         ? {
-            cohortId: claim.cohortId,
+            cohortOrder: claim.cohortOrder,
             createdAt: new Date(claim.createdAt),
             id: claim.id,
           }
@@ -63,14 +64,19 @@ export class ProjectService {
     const nextCursor =
       hasNext && last
         ? encodeCursor({
-            // projects 자기 컬럼이라 기수 행이 지워져도 비지 않는다. cohort 관계를 타면 null 에 걸린다.
-            cohortId: last.cohortId,
+            // 기수 행이 지워져도 cohortId 로 물러서므로 값이 비지 않는다.
+            cohortOrder: last.cohortOrder,
             createdAt: last.createdAt.getTime(),
             id: last.id,
           })
         : null;
 
     return { items, nextCursor, hasNext };
+  }
+
+  /** 기수 삭제 가드가 쓴다. 프로젝트가 남은 기수를 지우면 그 프로젝트가 고아가 된다. */
+  async countProjectsByCohortId({ cohortId }: { cohortId: number }) {
+    return this.projectRepository.countByCohortId({ cohortId });
   }
 
   async findProjectById({ id }: { id: number }) {

@@ -5,6 +5,7 @@ import { ApplicationModule } from '../application/application.module';
 import { AuditModule } from '../audit/audit.module';
 import { RolesGuard } from '../common/guard/roles.guard';
 import { NotificationModule } from '../notification/notification.module';
+import { ProjectModule } from '../project/project.module';
 import { CohortService } from './application/cohort.service';
 import { Cohort } from './domain/cohort.entity';
 import { CohortRepository } from './domain/cohort.repository';
@@ -21,6 +22,8 @@ import { PublicCohortController } from './interface/public.cohort.controller';
     AuditModule,
     forwardRef(() => NotificationModule),
     forwardRef(() => ApplicationModule),
+    // 기수를 지우기 전에 붙어 있는 프로젝트가 있는지 확인한다.
+    ProjectModule,
   ],
   controllers: [AdminCohortController, PublicCohortController],
   providers: [

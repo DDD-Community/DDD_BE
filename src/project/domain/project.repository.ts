@@ -32,7 +32,7 @@ export class ProjectRepository {
   }: {
     where?: ProjectFilter;
     limit: number;
-    after?: { cohortId: number; createdAt: Date; id: number };
+    after?: { cohortOrder: number; createdAt: Date; id: number };
   }) {
     return this.writeRepository.findManyByCursor({
       where,
@@ -40,6 +40,10 @@ export class ProjectRepository {
       limit,
       after,
     });
+  }
+
+  async countByCohortId({ cohortId }: { cohortId: number }) {
+    return this.writeRepository.countByCohortId({ cohortId });
   }
 
   async update({ id, patch }: { id: number; patch: ProjectUpdatePatch }) {
