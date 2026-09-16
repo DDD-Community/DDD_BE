@@ -6,6 +6,7 @@ import {
   HttpException,
   HttpStatus,
   INestApplication,
+  Logger,
   ParseIntPipe,
   PayloadTooLargeException,
   Post,
@@ -26,7 +27,7 @@ class SampleDto {
   name!: string;
 }
 
-const captureResponse = () => {
+const captureResponse = ({ url = '/api/v1/applications/draft' }: { url?: string } = {}) => {
   const payload: { status?: number; body?: unknown } = {};
   const response = {
     status(code: number) {
@@ -42,7 +43,7 @@ const captureResponse = () => {
   const host = {
     switchToHttp: () => ({
       getResponse: () => response,
-      getRequest: () => ({ method: 'POST', url: '/api/v1/applications/draft' }),
+      getRequest: () => ({ method: 'POST', url }),
     }),
   } as unknown as ArgumentsHost;
 
@@ -205,5 +206,86 @@ describe('HttpExceptionFilter — Express 미들웨어가 던진 오류', () => 
 
     // Then
     expect(response.status).toBe(HttpStatus.CREATED);
+  });
+
+  // 4xx 가 아무 흔적 없이 나가면 "요청이 거부됐는지, 아예 오지 않았는지" 를 서버에서 가릴 수 없다.
+  describe('클라이언트 오류 로깅', () => {
+    const filter = new HttpExceptionFilter();
+    let warn: jest.SpyInstance;
+
+    beforeEach(() => {
+      warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    });
+
+    afterEach(() => {
+      warn.mockRestore();
+    });
+
+    it('4xx 는 메서드·경로·상태·코드를 남긴다', () => {
+      // Given
+      const { host } = captureResponse();
+
+      // When
+      filter.catch(new AppException('PROJECT_NOT_FOUND', HttpStatus.NOT_FOUND), host);
+
+      // Then
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('POST /api/v1/applications/draft -> 404 PROJECT_NOT_FOUND'),
+      );
+    });
+
+    it('401 은 남기지 않는다', () => {
+      // 공개 도메인이라 인증 없는 스캐너 요청이 상시 들어온다. 로그 용량이 묶여 있어
+      // 그 노이즈가 정작 필요한 기록을 밀어낸다.
+      // Given
+      const { host } = captureResponse();
+
+      // When
+      filter.catch(new UnauthorizedException(), host);
+
+      // Then
+      expect(warn).not.toHaveBeenCalled();
+    });
+
+    // AppException 은 500/503 도 실어 올린다. warn 으로 흘리면 서버 오류가 스택도 없이
+    // error 알림을 비껴간다.
+    it('5xx 는 남기지 않는다', () => {
+      // Given
+      const { host } = captureResponse();
+
+      // When
+      filter.catch(new AppException('FILE_UPLOAD_FAILED', HttpStatus.INTERNAL_SERVER_ERROR), host);
+
+      // Then
+      expect(warn).not.toHaveBeenCalled();
+    });
+
+    // 스캐너는 /wp-login.php, /.env 처럼 라우트에 없는 경로를 때린다. 로그 용량이 묶여 있어
+    // 그 404 노이즈가 정작 필요한 기록을 밀어낸다.
+    it('/api 밖 경로의 4xx 는 남기지 않는다', () => {
+      // Given
+      const { host } = captureResponse({ url: '/wp-login.php' });
+
+      // When
+      filter.catch(new AppException('NOT_FOUND', HttpStatus.NOT_FOUND), host);
+
+      // Then
+      expect(warn).not.toHaveBeenCalled();
+    });
+
+    it('쿼리스트링은 남기지 않는다', () => {
+      // path 쿼리에 userId 가 들어간 첨부 경로가 그대로 실려오는 경로가 있다.
+      // Given
+      const { host } = captureResponse({
+        url: '/api/v1/admin/files/download?path=applications/attachments/12/abc.pdf',
+      });
+
+      // When
+      filter.catch(new AppException('FILE_NOT_FOUND', HttpStatus.NOT_FOUND), host);
+
+      // Then
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('/api/v1/admin/files/download ->'));
+      expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('attachments/12'));
+    });
   });
 });
