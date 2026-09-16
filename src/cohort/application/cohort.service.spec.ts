@@ -705,7 +705,8 @@ describe('CohortService', () => {
       // When
       await cohortService.deleteCohort({ id: 5 });
 
-      // Then
+      // Then - 세는 기수가 지우려는 기수와 같아야 한다. 인자를 안 보면 엉뚱한 기수를 세도 통과한다.
+      expect(mockProjectService.countProjectsByCohortId).toHaveBeenCalledWith({ cohortId: 5 });
       expect(mockCohortRepository.deleteById).toHaveBeenCalledWith({ id: 5 });
     });
   });
