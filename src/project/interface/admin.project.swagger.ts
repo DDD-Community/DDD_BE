@@ -1,3 +1,5 @@
+import type { ApiBodyOptions } from '@nestjs/swagger';
+
 import {
   CommonSwaggerResponses,
   successListResponseSchema,
@@ -13,6 +15,16 @@ const notFound = CommonSwaggerResponses.notFound(
   '프로젝트를 찾을 수 없습니다.',
   'PROJECT_NOT_FOUND',
 );
+
+// AdminProjectSwagger 안에 두지 않는다. as const 가 required 를 readonly 튜플로 만들어
+// ApiBodyOptions 에 맞지 않고, 타입을 붙이면 선언 생성이 비공개 타입을 참조해 빌드가 깨진다.
+export const ProjectAssetUploadBody: ApiBodyOptions = {
+  schema: {
+    type: 'object',
+    required: ['file'],
+    properties: { file: { type: 'string', format: 'binary' } },
+  },
+};
 
 /**
  * AdminProjectController Swagger 응답 스키마 정의
@@ -62,6 +74,16 @@ export const AdminProjectSwagger = {
       status: 200,
       description: '프로젝트 참여자가 수정되었습니다.',
       ...successNullResponseSchema('프로젝트 참여자가 수정되었습니다.'),
+    },
+    unauthorized,
+    notFound,
+  },
+
+  uploadAsset: {
+    success: {
+      status: 200,
+      description: '파일 업로드 및 프로젝트 연결 성공. 갱신된 프로젝트를 반환합니다.',
+      ...successResponseSchema(ProjectDetailResponseDto),
     },
     unauthorized,
     notFound,

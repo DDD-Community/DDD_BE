@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { RolesGuard } from '../common/guard/roles.guard';
 import { StorageModule } from '../storage/storage.module';
 import { ProjectService } from './application/project.service';
+import { ProjectAssetService } from './application/project-asset.service';
 import { ProjectAssetPurgeService } from './application/project-asset-purge.service';
 import { Project } from './domain/project.entity';
 import { ProjectRepository } from './domain/project.repository';
@@ -19,6 +20,7 @@ import { PublicProjectController } from './interface/public.project.controller';
   controllers: [AdminProjectController, PublicProjectController],
   providers: [
     ProjectService,
+    ProjectAssetService,
     ProjectAssetPurgeService,
     ProjectAssetPurgeScheduler,
     ProjectRepository,

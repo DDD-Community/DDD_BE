@@ -7,6 +7,7 @@ import type {
 import { Test } from '@nestjs/testing';
 
 import { ProjectService } from '../application/project.service';
+import { ProjectAssetService } from '../application/project-asset.service';
 import { AdminProjectController } from './admin.project.controller';
 import { PublicProjectController } from './public.project.controller';
 
@@ -44,7 +45,10 @@ describe('Project OpenAPI 응답 스키마', () => {
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
       controllers: [AdminProjectController, PublicProjectController],
-      providers: [{ provide: ProjectService, useValue: {} }],
+      providers: [
+        { provide: ProjectService, useValue: {} },
+        { provide: ProjectAssetService, useValue: {} },
+      ],
     }).compile();
 
     const app = moduleRef.createNestApplication();
@@ -75,6 +79,32 @@ describe('Project OpenAPI 응답 스키마', () => {
     const data = schema.properties?.data as { $ref: string };
     expect(data.$ref).toContain('ProjectDetailResponseDto');
   });
+
+  // 프론트는 생성된 클라이언트로 파일을 보낸다. 본문 스키마가 빠지면 file 인자가 생성되지 않는다.
+  it.each(['pdf', 'thumbnail'])(
+    '어드민 %s 업로드가 multipart file 본문과 ProjectDetailResponseDto 응답을 노출한다',
+    (kind) => {
+      // Given & When
+      const operation = document.paths[`/api/v1/admin/projects/{id}/${kind}`]?.post;
+
+      // Then
+      const body = operation?.requestBody as {
+        content: Record<string, { schema: SchemaObject }>;
+      };
+      expect(body.content['multipart/form-data'].schema.properties?.file).toEqual({
+        type: 'string',
+        format: 'binary',
+      });
+
+      const response = operation?.responses['200'] as {
+        content: Record<string, { schema: SchemaObject }>;
+      };
+      const data = response.content['application/json'].schema.properties?.data as {
+        $ref: string;
+      };
+      expect(data.$ref).toContain('ProjectDetailResponseDto');
+    },
+  );
 
   it('어드민 목록 조회 200 응답이 AdminProjectListResponseDto 배열을 참조한다', () => {
     // Given & When
