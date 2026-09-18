@@ -10,18 +10,25 @@ import {
   Patch,
   Post,
   Put,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiExtraModels, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBody, ApiConsumes, ApiExtraModels, ApiTags } from '@nestjs/swagger';
 
 import { Roles } from '../../common/decorator/roles.decorator';
 import { RolesGuard } from '../../common/guard/roles.guard';
 import { ApiResponse } from '../../common/response/api-response';
 import { ApiDoc } from '../../common/swagger/api-doc.decorator';
+import type { FilePayload } from '../../storage/domain/storage.type';
+import { UPLOAD_CATEGORY_CONFIG } from '../../storage/domain/storage.type';
 import { UserRole } from '../../user/domain/user.role';
 import { ProjectService } from '../application/project.service';
-import { AdminProjectSwagger } from './admin.project.swagger';
+import { ProjectAssetService } from '../application/project-asset.service';
+import { PROJECT_ASSET_CONFIG } from '../domain/project-asset';
+import { AdminProjectSwagger, ProjectAssetUploadBody } from './admin.project.swagger';
 import {
   CreateProjectRequestDto,
   UpdateProjectMembersRequestDto,
@@ -29,13 +36,31 @@ import {
 } from './dto/project.request.dto';
 import { AdminProjectListResponseDto, ProjectDetailResponseDto } from './dto/project.response.dto';
 
+// 범용 업로드와 달리 경로가 파일 종류를 정하므로 종류별 상한을 인터셉터에 그대로 건다.
+const PDF_MAX_SIZE_BYTES = UPLOAD_CATEGORY_CONFIG[PROJECT_ASSET_CONFIG.pdf.category].maxSizeBytes;
+const THUMBNAIL_MAX_SIZE_BYTES =
+  UPLOAD_CATEGORY_CONFIG[PROJECT_ASSET_CONFIG.thumbnail.category].maxSizeBytes;
+
+const toFilePayload = (file?: Express.Multer.File): FilePayload | null =>
+  file
+    ? {
+        buffer: file.buffer,
+        originalName: file.originalname,
+        mimeType: file.mimetype,
+        size: file.size,
+      }
+    : null;
+
 @ApiTags('Admin - Project')
 @ApiExtraModels(ProjectDetailResponseDto, AdminProjectListResponseDto)
 @Controller({ path: 'admin/projects', version: '1' })
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 @Roles(UserRole.계정관리, UserRole.운영자)
 export class AdminProjectController {
-  constructor(private readonly projectService: ProjectService) {}
+  constructor(
+    private readonly projectService: ProjectService,
+    private readonly projectAssetService: ProjectAssetService,
+  ) {}
 
   @ApiDoc({
     summary: '프로젝트 생성',
@@ -124,6 +149,64 @@ export class AdminProjectController {
   ) {
     await this.projectService.updateProjectMembers({ id, members: body.members });
     return ApiResponse.ok(null, '프로젝트 참여자가 수정되었습니다.');
+  }
+
+  @ApiDoc({
+    summary: '프로젝트 PDF 업로드',
+    description:
+      'PDF 를 올리고 같은 요청 안에서 프로젝트에 연결합니다. 기존 PDF 가 있으면 교체하고 이전 파일은 삭제합니다. 최대 20MB.',
+    operationId: 'project_uploadPdfAdmin',
+    auth: true,
+    responses: [
+      AdminProjectSwagger.uploadAsset.success,
+      AdminProjectSwagger.uploadAsset.unauthorized,
+      AdminProjectSwagger.uploadAsset.notFound,
+    ],
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody(ProjectAssetUploadBody)
+  @Post(':id/pdf')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: PDF_MAX_SIZE_BYTES } }))
+  async uploadProjectPdf(
+    @Param('id', ParseIntPipe) id: number,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    const project = await this.projectAssetService.replaceAsset({
+      id,
+      kind: 'pdf',
+      file: toFilePayload(file),
+    });
+    return ApiResponse.ok(ProjectDetailResponseDto.from(project));
+  }
+
+  @ApiDoc({
+    summary: '프로젝트 썸네일 업로드',
+    description:
+      '썸네일을 올리고 같은 요청 안에서 프로젝트에 연결합니다. 기존 썸네일이 있으면 교체하고 이전 파일은 삭제합니다. 최대 5MB.',
+    operationId: 'project_uploadThumbnailAdmin',
+    auth: true,
+    responses: [
+      AdminProjectSwagger.uploadAsset.success,
+      AdminProjectSwagger.uploadAsset.unauthorized,
+      AdminProjectSwagger.uploadAsset.notFound,
+    ],
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody(ProjectAssetUploadBody)
+  @Post(':id/thumbnail')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: THUMBNAIL_MAX_SIZE_BYTES } }))
+  async uploadProjectThumbnail(
+    @Param('id', ParseIntPipe) id: number,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    const project = await this.projectAssetService.replaceAsset({
+      id,
+      kind: 'thumbnail',
+      file: toFilePayload(file),
+    });
+    return ApiResponse.ok(ProjectDetailResponseDto.from(project));
   }
 
   @ApiDoc({
