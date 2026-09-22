@@ -29,10 +29,12 @@ export class RoleWriteRepository {
   }
 
   async countActiveByRole({ role }: { role: UserRole }): Promise<number> {
-    return this.repository
+    const activeRoles = await this.repository
       .createQueryBuilder('userRole')
+      .setLock('pessimistic_write')
       .where(':role = ANY(userRole.role)', { role })
       .andWhere('userRole.deletedAt IS NULL')
-      .getCount();
+      .getMany();
+    return activeRoles.length;
   }
 }
