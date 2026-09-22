@@ -84,6 +84,8 @@ describe('기수 삭제 가드 (실 DB 통합)', () => {
     // deleteCohort 가 실제로 쓰는 협력자만 진짜로 넣는다. 나머지는 이 경로를 타지 않는다.
     const projectService = new ProjectService(
       new ProjectRepository(new WriteRepository(dataSource), new MemberWriteRepository(dataSource)),
+      // 삭제 가드 경로는 기수 서비스를 타지 않는다
+      {} as never,
     );
     cohortService = new CohortService(
       new CohortRepository(

@@ -34,6 +34,9 @@ export class CohortService {
     private readonly notificationCampaignService: NotificationCampaignService,
     @Inject(forwardRef(() => ApplicationService))
     private readonly applicationService: ApplicationService,
+    // 프로젝트 쪽도 기수 재배정 때 CohortService 를 보므로 서로를 참조한다.
+    // forwardRef 가 없으면 순환 import 로 이 인자가 런타임에 undefined 가 된다.
+    @Inject(forwardRef(() => ProjectService))
     private readonly projectService: ProjectService,
   ) {}
 

@@ -129,6 +129,8 @@ describe('프로젝트 목록 기수 순 정렬 (실 DB 통합)', () => {
 
     service = new ProjectService(
       new ProjectRepository(new WriteRepository(dataSource), new MemberWriteRepository(dataSource)),
+      // 여기서 보는 것은 정렬이다. 기수 존재 검증 자체는 단위 테스트가 덮으므로 통과시킨다.
+      { findCohortById: () => Promise.resolve(null) } as never,
     );
   });
 
@@ -290,6 +292,49 @@ describe('프로젝트 목록 기수 순 정렬 (실 DB 통합)', () => {
           값: sql계산값.get(project.id),
         });
       }
+    });
+  });
+  // 운영에서 프로젝트가 엉뚱한 기수에 묶여 있었는데 고칠 API 가 없었다.
+  // 기수를 옮겼을 때 목록이 실제로 따라 움직이는지가 이 기능의 전부다.
+  describe('기수를 옮기면', () => {
+    it('옮긴 기수 자리로 순서가 따라 바뀐다', async () => {
+      // Given - 맨 앞에 있던 13기 프로젝트를 11기로 내린다 (이름은 라벨일 뿐이다)
+      const 옮길대상 = await dataSource
+        .getRepository(Project)
+        .findOneByOrFail({ name: '13기-늦게등록' });
+
+      // When
+      await service.updateProject({ id: 옮길대상.id, data: { cohortId: 기수11.id } });
+
+      // Then - 11기 안에서는 등록일 역순이라 '11기-가장최근등록'(2026-06-01) 뒤에 선다
+      const { items } = await service.findProjectsByCursor({ limit: 100 });
+      expect(items.map((project) => project.name)).toEqual([
+        '13기-먼저등록',
+        '13기-가장오래됨',
+        '12기-최근등록',
+        '11기-가장최근등록',
+        '13기-늦게등록',
+      ]);
+    });
+
+    it('페이지를 끊어 읽어도 옮긴 뒤 순서가 유지된다', async () => {
+      // Given
+      const 옮길대상 = await dataSource
+        .getRepository(Project)
+        .findOneByOrFail({ name: '13기-늦게등록' });
+      await service.updateProject({ id: 옮길대상.id, data: { cohortId: 기수11.id } });
+
+      // When - 한 건씩 끊으면 항목마다 커서 경계가 생긴다
+      const 순회결과 = await 전체_순회(1);
+
+      // Then
+      expect(순회결과).toEqual([
+        '13기-먼저등록',
+        '13기-가장오래됨',
+        '12기-최근등록',
+        '11기-가장최근등록',
+        '13기-늦게등록',
+      ]);
     });
   });
 });

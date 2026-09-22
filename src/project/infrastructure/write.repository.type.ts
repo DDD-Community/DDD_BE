@@ -13,6 +13,7 @@ export type ProjectAssetUrls = {
 };
 
 export type ProjectUpdatePatch = {
+  cohortId?: number;
   platforms?: ProjectPlatform[];
   name?: string;
   description?: string;
