@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
@@ -13,6 +13,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 
+import { parseScheduleDate } from '../../../common/util/kst-date';
 import { CohortStatus } from '../../domain/cohort.status';
 import { CohortPartName } from '../../domain/cohort-part-name';
 
@@ -50,7 +51,7 @@ export class CreateCohortRequestDto {
       '모집 시작일(한국 날짜). 시각이 아니라 날짜로 해석되며 해당 한국 날짜 00:00 부터 모집이 열린다.',
     example: '2024-03-01T00:00:00Z',
   })
-  @Type(() => Date)
+  @Transform(parseScheduleDate)
   @IsDate()
   @IsNotEmpty()
   recruitStartAt: Date;
@@ -60,7 +61,7 @@ export class CreateCohortRequestDto {
       '모집 종료일(한국 날짜). 시각이 아니라 날짜로 해석되며 해당 한국 날짜 23:59:59 까지 모집이 열린다.',
     example: '2024-03-15T00:00:00Z',
   })
-  @Type(() => Date)
+  @Transform(parseScheduleDate)
   @IsDate()
   @IsNotEmpty()
   recruitEndAt: Date;
@@ -70,7 +71,7 @@ export class CreateCohortRequestDto {
       '활동 종료일(한국 날짜). 이 한국 날짜가 지나면 기수가 자동 종료되고 활동중 지원자가 활동완료로 전환된다.',
     example: '2026-06-30T00:00:00Z',
   })
-  @Type(() => Date)
+  @Transform(parseScheduleDate)
   @IsDate()
   @IsOptional()
   activityEndAt?: Date;
@@ -131,13 +132,13 @@ export class UpdateCohortRequestDto {
   name?: string;
 
   @ApiPropertyOptional({ description: '모집 시작일(한국 날짜)' })
-  @Type(() => Date)
+  @Transform(parseScheduleDate)
   @IsDate()
   @IsOptional()
   recruitStartAt?: Date;
 
   @ApiPropertyOptional({ description: '모집 종료일(한국 날짜)' })
-  @Type(() => Date)
+  @Transform(parseScheduleDate)
   @IsDate()
   @IsOptional()
   recruitEndAt?: Date;
@@ -147,7 +148,7 @@ export class UpdateCohortRequestDto {
       '활동 종료일(한국 날짜). 이 한국 날짜가 지나면 기수가 자동 종료되고 활동중 지원자가 활동완료로 전환된다. null 을 보내면 예약을 해제한다.',
     nullable: true,
   })
-  @Type(() => Date)
+  @Transform(parseScheduleDate)
   @IsDate()
   @IsOptional()
   activityEndAt?: Date | null;

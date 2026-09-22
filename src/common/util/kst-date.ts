@@ -47,3 +47,39 @@ export const kstTodayStoredRange = ({ now }: { now: Date }): KstStoredDateRange 
   const end = new Date(start.getTime() + DAY_MS - 1);
   return { start, end };
 };
+
+/** 일정 입력에서 날짜 부분만 뽑아내기 위한 패턴. 뒤따르는 시각·오프셋은 보지 않는다. */
+const SCHEDULE_DATE_PREFIX = /^(\d{4})-(\d{2})-(\d{2})/;
+
+/**
+ * 일정 입력 문자열을 "표기된 날짜"의 UTC 자정으로 정규화한다.
+ *
+ * Date 로 바꾸는 순간 오프셋 표기가 사라지므로, 어느 날짜를 뜻했는지는 문자열일 때만 알 수 있다.
+ * `2026-09-21T00:00:00+09:00`(한국 자정)을 그대로 Date 로 만들면 UTC 로는 9/20 15:00 이 되어
+ * 달력 날짜가 하루 앞당겨진다. 반대로 `2026-09-21T23:59:59Z` 는 한국시간으로 9/22 라
+ * 한국 기준으로 환산하면 하루 밀린다. 어느 쪽도 운영진이 적은 날짜가 아니다.
+ *
+ * 그래서 시각과 오프셋은 버리고 **적힌 날짜 그대로**를 쓴다. 위 두 입력은 모두 9월 21일이 된다.
+ *
+ * Date.UTC 는 범위를 벗어난 구성 요소를 조용히 롤오버시키므로(13월 1일 -> 이듬해 1월)
+ * 되짚어 확인하고 어긋나면 원본 파싱에 맡긴다. 이는 기존 new Date(문자열) 동작을 그대로
+ * 유지하기 위한 것이다 - 2월 30일처럼 V8 이 롤오버하는 입력은 여기서도 롤오버된다.
+ */
+export const parseScheduleDate = ({ value }: { value: unknown }): unknown => {
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  const matched = SCHEDULE_DATE_PREFIX.exec(value.trim());
+  if (!matched) {
+    return new Date(value);
+  }
+
+  const [, year, month, day] = matched.map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  const isValidCalendarDate =
+    parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() === month - 1 &&
+    parsed.getUTCDate() === day;
+  return isValidCalendarDate ? parsed : new Date(value);
+};
