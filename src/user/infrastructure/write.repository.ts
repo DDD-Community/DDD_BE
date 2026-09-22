@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, Repository, SelectQueryBuilder } from 'typeorm';
 
 import { User } from '../domain/user.entity';
 import type { UserFindCondition, UserSavePatch, UserUpdatePatch } from './write.repository.type';
@@ -33,6 +33,35 @@ export class WriteRepository {
     });
   }
 
+  async findManyByCursor({
+    email,
+    after,
+    limit,
+  }: {
+    email?: string;
+    after?: { createdAt: Date; id: number };
+    limit: number;
+  }): Promise<User[]> {
+    const queryBuilder = this.repository
+      .createQueryBuilder('user')
+      .leftJoinAndSelect('user.userRoles', 'userRole', 'userRole.deletedAt IS NULL')
+      .where('user.deletedAt IS NULL')
+      .orderBy('user.createdAt', 'DESC')
+      .addOrderBy('user.id', 'DESC')
+      .take(limit + 1);
+
+    this.applyFilter({ queryBuilder, email });
+
+    if (after) {
+      queryBuilder.andWhere(
+        '(user.createdAt < :createdAt OR (user.createdAt = :createdAt AND user.id < :id))',
+        { createdAt: after.createdAt, id: after.id },
+      );
+    }
+
+    return queryBuilder.getMany();
+  }
+
   async update({ id, patch }: { id: number; patch: UserUpdatePatch }) {
     await this.repository.update(id, patch);
   }
@@ -51,6 +80,18 @@ export class WriteRepository {
     }
 
     await this.repository.restore(where);
+  }
+
+  private applyFilter({
+    queryBuilder,
+    email,
+  }: {
+    queryBuilder: SelectQueryBuilder<User>;
+    email?: string;
+  }) {
+    if (email !== undefined) {
+      queryBuilder.andWhere('user.email ILIKE :email', { email: `%${email}%` });
+    }
   }
 
   private isEmptyWhere(where: UserFindCondition) {

@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 
 import { AuditLogService } from '../../audit/application/audit-log.service';
 import { AppException } from '../../common/exception/app.exception';
+import { decodeCursor, encodeCursor } from '../../common/util/cursor';
 import { UserRepository } from '../domain/user.repository';
 import { UserRole } from '../domain/user.role';
 import { UserService } from './user.service';
@@ -15,6 +16,7 @@ jest.mock('typeorm-transactional', () => ({
 
 const mockUserRepository = {
   findByEmail: jest.fn(),
+  findPageByCursor: jest.fn(),
   findById: jest.fn(),
   findByIdWithDeleted: jest.fn(),
   findByRefreshToken: jest.fn(),
@@ -174,6 +176,33 @@ describe('UserService', () => {
       userRoles: [{ deletedAt: null, role: roles }],
     });
 
+    it('자기 권한 변경은 사용자 조회 전에 403으로 거부한다', async () => {
+      mockUserRepository.findByIdWithDeleted.mockResolvedValue(null);
+
+      const result = userService.assignRoles({ userId: 3, roles: [], adminId: 3 });
+
+      await expect(result).rejects.toMatchObject({
+        errorCode: 'SELF_ROLE_CHANGE_FORBIDDEN',
+        status: HttpStatus.FORBIDDEN,
+      });
+      expect(mockUserRepository.findByIdWithDeleted).not.toHaveBeenCalled();
+      expect(mockUserRepository.saveRoles).not.toHaveBeenCalled();
+      expect(mockAuditLogService.recordRoleChange).not.toHaveBeenCalled();
+    });
+
+    it('호출자 adminId로 권한 변경 감사 로그를 기록한다', async () => {
+      mockUserRepository.findByIdWithDeleted.mockResolvedValue(buildUser([UserRole.운영자]));
+
+      await userService.assignRoles({ userId: 3, roles: [], adminId: 7 });
+
+      expect(mockAuditLogService.recordRoleChange).toHaveBeenCalledWith({
+        userId: 3,
+        fromRoles: [UserRole.운영자],
+        toRoles: [],
+        adminId: 7,
+      });
+    });
+
     it('대상 사용자가 존재하지 않으면 USER_NOT_FOUND를 던진다', async () => {
       mockUserRepository.findByIdWithDeleted.mockResolvedValue(null);
 
@@ -201,7 +230,7 @@ describe('UserService', () => {
       mockUserRepository.countActiveByRole.mockResolvedValue(1);
 
       await expect(
-        userService.assignRoles({ userId: 3, roles: [UserRole.운영자] }),
+        userService.assignRoles({ userId: 3, roles: [UserRole.운영자], adminId: 7 }),
       ).rejects.toThrow(new AppException('ADMIN_LOCKOUT_PROTECTED', HttpStatus.CONFLICT));
       expect(mockUserRepository.saveRoles).not.toHaveBeenCalled();
     });
@@ -230,7 +259,7 @@ describe('UserService', () => {
       });
     });
 
-    it('성공 시 audit log에 fromRoles → toRoles를 기록한다', async () => {
+    it('adminId 생략 시 SYSTEM(0)으로 fromRoles → toRoles를 기록한다', async () => {
       mockUserRepository.findByIdWithDeleted.mockResolvedValue(buildUser([UserRole.운영자]));
       mockUserRepository.saveRoles.mockResolvedValue(undefined);
 
@@ -244,6 +273,62 @@ describe('UserService', () => {
         fromRoles: [UserRole.운영자],
         toRoles: [UserRole.계정관리, UserRole.운영자],
         adminId: 0,
+      });
+    });
+  });
+
+  describe('findUsersByCursor', () => {
+    const users = [
+      { id: 3, createdAt: new Date('2026-01-03T00:00:00Z') },
+      { id: 2, createdAt: new Date('2026-01-02T00:00:00Z') },
+      { id: 1, createdAt: new Date('2026-01-01T00:00:00Z') },
+    ];
+
+    it('이메일 키워드를 그대로 전달하고 기본 페이지 크기를 적용한다', async () => {
+      mockUserRepository.findPageByCursor.mockResolvedValue([]);
+
+      const result = await userService.findUsersByCursor({ email: 'Admin@Example' });
+
+      expect(mockUserRepository.findPageByCursor).toHaveBeenCalledWith({
+        email: 'Admin@Example',
+        after: undefined,
+        limit: 20,
+      });
+      expect(result).toEqual({ items: [], hasNext: false, nextCursor: null });
+    });
+
+    it('limit+1건이면 limit건과 마지막 반환 사용자의 다음 커서를 반환한다', async () => {
+      mockUserRepository.findPageByCursor.mockResolvedValue(users);
+
+      const result = await userService.findUsersByCursor({ limit: 2 });
+
+      expect(result.items).toEqual(users.slice(0, 2));
+      expect(result.hasNext).toBe(true);
+      expect(decodeCursor(result.nextCursor!)).toEqual({
+        createdAt: 1767312000000,
+        id: 2,
+      });
+    });
+
+    it.each([0, 1, 2])('limit 이하인 %i건이면 다음 커서 없이 반환한다', async (count) => {
+      const page = users.slice(0, count);
+      mockUserRepository.findPageByCursor.mockResolvedValue(page);
+
+      const result = await userService.findUsersByCursor({ limit: 2 });
+
+      expect(result).toEqual({ items: page, hasNext: false, nextCursor: null });
+    });
+
+    it('전달받은 커서를 해석하고 페이지 크기를 최대 100으로 제한한다', async () => {
+      mockUserRepository.findPageByCursor.mockResolvedValue([]);
+      const cursor = encodeCursor({ createdAt: 1767312000000, id: 2 });
+
+      await userService.findUsersByCursor({ cursor, limit: 101 });
+
+      expect(mockUserRepository.findPageByCursor).toHaveBeenCalledWith({
+        email: undefined,
+        after: { createdAt: new Date('2026-01-02T00:00:00Z'), id: 2 },
+        limit: 100,
       });
     });
   });

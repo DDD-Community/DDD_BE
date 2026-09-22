@@ -13,6 +13,8 @@ export const ErrorMessage = {
   BOOTSTRAP_TOKEN_EXPIRED: '부트스트랩 토큰이 만료되어 이 엔드포인트는 봉인되었습니다.',
   BOOTSTRAP_TOKEN_INVALID: '부트스트랩 토큰이 일치하지 않습니다.',
   ADMIN_LOCKOUT_PROTECTED: '활성 계정관리자가 0명이 되는 변경은 허용되지 않습니다.',
+  SELF_ROLE_CHANGE_FORBIDDEN:
+    '본인의 권한은 변경할 수 없습니다. 다른 계정관리자에게 요청해 주세요.',
 
   COHORT_NOT_FOUND: '기수를 찾을 수 없습니다.',
   COHORT_ALREADY_EXISTS: '이미 진행 중인 기수가 존재합니다.',
