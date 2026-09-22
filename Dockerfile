@@ -16,6 +16,12 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
+# 날짜 판정이 프로세스 TZ 에 기댄다. cohorts 의 일정 컬럼은 타임존 없는 TIMESTAMP 라
+# 쓰기·읽기가 모두 프로세스 TZ 로 직렬화되고, 어드민이 오프셋 없는 문자열을 보내면
+# 그것도 프로세스 TZ 로 해석된다. 지금까지는 base image 기본값이 UTC 라 맞아떨어졌을 뿐이라
+# 관례를 명시로 바꾼다. 한국 날짜 경계는 common/util/kst-date.ts 가 따로 환산한다.
+ENV TZ=UTC
+
 COPY package.json yarn.lock ./
 RUN yarn install --frozen-lockfile --production=true && yarn cache clean
 
