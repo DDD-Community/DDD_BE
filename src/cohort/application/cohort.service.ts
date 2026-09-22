@@ -4,6 +4,7 @@ import { Transactional } from 'typeorm-transactional';
 import { ApplicationService } from '../../application/usecase/application.service';
 import { AuditLogService } from '../../audit/application/audit-log.service';
 import { AppException } from '../../common/exception/app.exception';
+import { toKstDayEnd, toKstDayStart } from '../../common/util/kst-date';
 import { hasDefinedValues } from '../../common/util/object-utils';
 import { GeneralEarlyNotificationService } from '../../notification/application/general-early-notification.service';
 import { NotificationCampaignService } from '../../notification/application/notification-campaign.service';
@@ -39,6 +40,10 @@ export class CohortService {
   /**
    * 모집 개폐가 일정에 좌우되므로 시작일이 종료일보다 늦으면 기수가 영구히 닫힌다.
    * 어드민에는 RECRUITING 으로 보이면서 실제로는 아무도 지원하지 못하는 상태가 되므로 입력 시점에 막는다.
+   *
+   * 아래 일정 검증은 모두 한국 날짜 단위로 본다. 모집 개폐 판정(isRecruitmentOpenAt)과
+   * 상태 전환 스케줄러가 한국 날짜 기준이므로, 검증만 UTC 시각으로 두면
+   * 통과한 일정이 실제로는 뒤집히는 조합이 생긴다.
    */
   private assertRecruitPeriod({
     recruitStartAt,
@@ -47,7 +52,9 @@ export class CohortService {
     recruitStartAt: Date;
     recruitEndAt: Date;
   }) {
-    if (recruitStartAt.getTime() > recruitEndAt.getTime()) {
+    const startBoundary = toKstDayStart({ date: recruitStartAt }).getTime();
+    const endBoundary = toKstDayEnd({ date: recruitEndAt }).getTime();
+    if (startBoundary > endBoundary) {
       throw new AppException('INVALID_RECRUIT_PERIOD', HttpStatus.BAD_REQUEST);
     }
   }
@@ -62,7 +69,13 @@ export class CohortService {
     recruitEndAt: Date;
     activityEndAt?: Date | null;
   }) {
-    if (activityEndAt && activityEndAt.getTime() < recruitEndAt.getTime()) {
+    if (!activityEndAt) {
+      return;
+    }
+
+    const activityBoundary = toKstDayEnd({ date: activityEndAt }).getTime();
+    const recruitBoundary = toKstDayEnd({ date: recruitEndAt }).getTime();
+    if (activityBoundary < recruitBoundary) {
       throw new AppException('INVALID_ACTIVITY_END_DATE', HttpStatus.BAD_REQUEST);
     }
   }
@@ -73,7 +86,7 @@ export class CohortService {
    * 이미 끝난 기수를 닫는 건 status 를 CLOSED 로 바꾸는 경로가 따로 있다.
    */
   private assertActivityEndNotPast({ activityEndAt }: { activityEndAt?: Date | null }) {
-    if (activityEndAt && activityEndAt.getTime() < Date.now()) {
+    if (activityEndAt && toKstDayEnd({ date: activityEndAt }).getTime() < Date.now()) {
       throw new AppException('ACTIVITY_END_DATE_IN_PAST', HttpStatus.BAD_REQUEST);
     }
   }

@@ -45,13 +45,21 @@ export class CreateCohortRequestDto {
   @IsNotEmpty()
   name: string;
 
-  @ApiProperty({ description: '모집 시작일', example: '2024-03-01T00:00:00Z' })
+  @ApiProperty({
+    description:
+      '모집 시작일(한국 날짜). 시각이 아니라 날짜로 해석되며 해당 한국 날짜 00:00 부터 모집이 열린다.',
+    example: '2024-03-01T00:00:00Z',
+  })
   @Type(() => Date)
   @IsDate()
   @IsNotEmpty()
   recruitStartAt: Date;
 
-  @ApiProperty({ description: '모집 종료일', example: '2024-03-15T23:59:59Z' })
+  @ApiProperty({
+    description:
+      '모집 종료일(한국 날짜). 시각이 아니라 날짜로 해석되며 해당 한국 날짜 23:59:59 까지 모집이 열린다.',
+    example: '2024-03-15T00:00:00Z',
+  })
   @Type(() => Date)
   @IsDate()
   @IsNotEmpty()
@@ -59,8 +67,8 @@ export class CreateCohortRequestDto {
 
   @ApiPropertyOptional({
     description:
-      '활동 종료일. 이 시각이 지나면 기수가 자동 종료되고 활동중 지원자가 활동완료로 전환된다.',
-    example: '2026-06-30T23:59:59Z',
+      '활동 종료일(한국 날짜). 이 한국 날짜가 지나면 기수가 자동 종료되고 활동중 지원자가 활동완료로 전환된다.',
+    example: '2026-06-30T00:00:00Z',
   })
   @Type(() => Date)
   @IsDate()
@@ -122,13 +130,13 @@ export class UpdateCohortRequestDto {
   @IsOptional()
   name?: string;
 
-  @ApiPropertyOptional({ description: '모집 시작일' })
+  @ApiPropertyOptional({ description: '모집 시작일(한국 날짜)' })
   @Type(() => Date)
   @IsDate()
   @IsOptional()
   recruitStartAt?: Date;
 
-  @ApiPropertyOptional({ description: '모집 종료일' })
+  @ApiPropertyOptional({ description: '모집 종료일(한국 날짜)' })
   @Type(() => Date)
   @IsDate()
   @IsOptional()
@@ -136,7 +144,7 @@ export class UpdateCohortRequestDto {
 
   @ApiPropertyOptional({
     description:
-      '활동 종료일. 이 시각이 지나면 기수가 자동 종료되고 활동중 지원자가 활동완료로 전환된다. null 을 보내면 예약을 해제한다.',
+      '활동 종료일(한국 날짜). 이 한국 날짜가 지나면 기수가 자동 종료되고 활동중 지원자가 활동완료로 전환된다. null 을 보내면 예약을 해제한다.',
     nullable: true,
   })
   @Type(() => Date)
