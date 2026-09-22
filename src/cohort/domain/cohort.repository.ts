@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
+import { kstTodayStoredRange } from '../../common/util/kst-date';
 import { Cohort } from '../domain/cohort.entity';
 import type { CohortUpdatePatch } from '../domain/cohort.repository.type';
 import { CohortStatus } from '../domain/cohort.status';
@@ -53,11 +54,16 @@ export class CohortRepository {
     return this.writeRepository.findMany({ where: {}, includeParts: true });
   }
 
+  /**
+   * 모집 종료일이 지난 모집중(RECRUITING) 기수.
+   * 저장값은 한국 날짜를 뜻하므로 "그 한국 날짜가 통째로 지났는지"로 본다.
+   */
   async findExpiredRecruiting() {
+    const today = kstTodayStoredRange({ now: new Date() });
     return this.writeRepository.findMany({
       where: {
         status: CohortStatus.RECRUITING,
-        recruitEndAtLt: new Date(),
+        recruitEndAtLt: today.start,
       },
       includeParts: true,
     });
@@ -67,19 +73,25 @@ export class CohortRepository {
    * 활동 종료일이 지난 활동중(ACTIVE) 기수. activityEndAt 이 비어 있으면 자동 종료 대상이 아니다.
    */
   async findEndedActive() {
+    const today = kstTodayStoredRange({ now: new Date() });
     return this.writeRepository.findMany({
       where: {
         status: CohortStatus.ACTIVE,
-        activityEndAtLt: new Date(),
+        activityEndAtLt: today.start,
       },
     });
   }
 
+  /**
+   * 모집 시작일이 도래한 예정(UPCOMING) 기수.
+   * 환산하지 않으면 한국시간 자정에 도는 스케줄러가 UTC 자정 저장값을 아직 미래로 보고 하루를 건너뛴다.
+   */
   async findUpcomingToRecruiting() {
+    const today = kstTodayStoredRange({ now: new Date() });
     return this.writeRepository.findMany({
       where: {
         status: CohortStatus.UPCOMING,
-        recruitStartAtLte: new Date(),
+        recruitStartAtLte: today.end,
       },
       includeParts: true,
     });

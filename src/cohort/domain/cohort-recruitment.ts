@@ -1,4 +1,13 @@
+import { toKstDayEnd, toKstDayStart } from '../../common/util/kst-date';
 import { CohortStatus } from './cohort.status';
+
+/**
+ * 모집 일정은 한국 날짜 감각으로 입력되지만 값은 UTC 로 저장된다(예: 2026-09-21T00:00:00Z).
+ * 저장된 시각을 그대로 비교하면 한국시간 오전 9시가 하루의 경계가 되어
+ * "9월 21일부터 9월 30일까지"가 실제로는 9/21 09:00 ~ 10/1 09:00 이 된다.
+ * 그래서 시작도 종료도 저장값이 가리키는 한국 날짜의 경계로 환산해 비교한다.
+ * 상태 전환 스케줄러도 같은 기준(Asia/Seoul 자정)을 쓰므로 둘이 어긋나지 않는다.
+ */
 
 /**
  * 모집 개폐 판정에 필요한 최소 정보.
@@ -8,17 +17,6 @@ export type CohortRecruitmentWindow = {
   status: CohortStatus;
   recruitStartAt?: Date | null;
   recruitEndAt?: Date | null;
-};
-
-/**
- * 모집 종료일은 "그날까지 모집"을 뜻하므로 저장된 시각이 아니라 그날의 끝을 마감으로 본다.
- * 어드민이 날짜만 고르면 00:00:00 으로 저장되는데(예: 2026-09-05T00:00:00Z),
- * 그 시각을 그대로 마감으로 쓰면 마지막 하루가 통째로 사라진다.
- */
-const endOfUtcDay = (date: Date): Date => {
-  const end = new Date(date);
-  end.setUTCHours(23, 59, 59, 999);
-  return end;
 };
 
 /**
@@ -43,8 +41,8 @@ export const isRecruitmentOpenAt = ({
   }
 
   const current = now.getTime();
-  const started = recruitStartAt.getTime() <= current;
-  const notEnded = current <= endOfUtcDay(recruitEndAt).getTime();
+  const started = toKstDayStart({ date: recruitStartAt }).getTime() <= current;
+  const notEnded = current <= toKstDayEnd({ date: recruitEndAt }).getTime();
   return started && notEnded;
 };
 
@@ -61,5 +59,5 @@ export const isBeforeRecruitStart = ({
     return false;
   }
 
-  return now.getTime() < recruitStartAt.getTime();
+  return now.getTime() < toKstDayStart({ date: recruitStartAt }).getTime();
 };

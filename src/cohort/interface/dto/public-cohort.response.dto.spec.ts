@@ -11,6 +11,10 @@ const BEFORE_START = new Date('2026-02-20T00:00:00.000Z');
 const DURING = new Date('2026-03-10T00:00:00.000Z');
 const AFTER_END = new Date('2026-03-16T00:00:00.000Z');
 
+// 위 저장값이 뜻하는 한국시간 경계.
+const KST_START_OF_FIRST_DAY = new Date('2026-02-28T15:00:00.000Z');
+const KST_END_OF_LAST_DAY = new Date('2026-03-15T14:59:59.999Z');
+
 const makeCohort = ({
   status,
   parts = [],
@@ -186,16 +190,43 @@ describe('PublicCohortResponseDto', () => {
       expect(result.isRecruitmentOpen).toBe(false);
     });
 
-    it('모집 종료일이 지정 시각을 넘겨도 그날 하루는 지원 CTA 를 유지한다', () => {
-      // Given — recruitEndAt 은 03-15T23:59:59Z
+    it('모집 종료일의 한국시간 마지막 순간까지 지원 CTA 를 유지한다', () => {
+      // Given — recruitEndAt 은 03-15T23:59:59Z, 즉 한국 날짜 3/15
       const cohort = makeCohort({ status: CohortStatus.RECRUITING, parts: [openFePart] });
 
       // When
-      const result = PublicCohortResponseDto.from(cohort, new Date('2026-03-15T23:59:59.500Z'));
+      const result = PublicCohortResponseDto.from(cohort, KST_END_OF_LAST_DAY);
 
       // Then
       expect(result.ctaStatus).toBe(CohortCtaStatus.APPLY);
       expect(result.isRecruitmentOpen).toBe(true);
+    });
+
+    it('모집 시작일의 한국시간 자정부터 지원 CTA 를 노출한다', () => {
+      // Given — 예전에는 이 시점에 사전 알림 CTA 가 떠서 어드민과 화면이 어긋났다
+      const cohort = makeCohort({ status: CohortStatus.RECRUITING, parts: [openFePart] });
+
+      // When
+      const result = PublicCohortResponseDto.from(cohort, KST_START_OF_FIRST_DAY);
+
+      // Then
+      expect(result.ctaStatus).toBe(CohortCtaStatus.APPLY);
+      expect(result.isRecruitmentOpen).toBe(true);
+    });
+
+    it('모집 종료일 다음 날 한국시간 자정에는 마감 CTA 를 반환한다', () => {
+      // Given — 예전에는 한국시간 다음 날 08:59 까지 지원이 열려 있었다
+      const cohort = makeCohort({ status: CohortStatus.RECRUITING, parts: [openFePart] });
+
+      // When
+      const result = PublicCohortResponseDto.from(
+        cohort,
+        new Date(KST_END_OF_LAST_DAY.getTime() + 1),
+      );
+
+      // Then
+      expect(result.ctaStatus).toBe(CohortCtaStatus.CLOSED);
+      expect(result.isRecruitmentOpen).toBe(false);
     });
   });
 });

@@ -11,7 +11,10 @@ export class PiiPurgeScheduler {
 
   constructor(private readonly piiPurgeService: PiiPurgeService) {}
 
-  @Cron(CronExpression.EVERY_DAY_AT_3AM)
+  // 타임존을 비우면 컨테이너 TZ(운영은 UTC)를 따라 한국시간 낮 12시에 돈다.
+  // 에셋 정리(4시)가 "개인정보 파기(3시)와 겹치지 않게" 떨어뜨린 것도 이 3시가
+  // 한국시간이라는 전제였으므로, 여기서도 같은 기준을 명시한다.
+  @Cron(CronExpression.EVERY_DAY_AT_3AM, { timeZone: 'Asia/Seoul' })
   async purgeExpiredPii(): Promise<void> {
     this.logger.log('개인정보 파기 스케줄러 실행');
 

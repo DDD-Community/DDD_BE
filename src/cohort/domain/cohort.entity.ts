@@ -10,6 +10,10 @@ export class Cohort extends BaseEntity {
   @Column()
   name: string;
 
+  /**
+   * 모집 시작일·종료일. 저장값에서 의미를 갖는 것은 시각이 아니라 UTC 달력 날짜이고,
+   * 그 날짜가 곧 운영진이 의도한 한국 날짜다(common/util/kst-date.ts 참고).
+   */
   @Column()
   recruitStartAt: Date;
 
@@ -17,7 +21,7 @@ export class Cohort extends BaseEntity {
   recruitEndAt: Date;
 
   /**
-   * 기수 활동 종료일. 이 시각이 지나면 스케줄러가 기수를 CLOSED 로 내리고
+   * 기수 활동 종료일. 이 한국 날짜가 지나면 스케줄러가 기수를 CLOSED 로 내리고
    * 활동중 지원자를 활동완료로 넘긴다. 비어 있으면 자동 종료 대상이 아니다.
    */
   @Column({ nullable: true })
