@@ -33,6 +33,18 @@ export class UserRepository {
     });
   }
 
+  async findPageByCursor({
+    email,
+    after,
+    limit,
+  }: {
+    email?: string;
+    after?: { createdAt: Date; id: number };
+    limit: number;
+  }) {
+    return this.writeRepository.findManyByCursor({ email, after, limit });
+  }
+
   async findById({ id }: { id: number }) {
     return this.writeRepository.findOne({ where: { id }, includeRoles: true });
   }

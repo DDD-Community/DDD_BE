@@ -3,9 +3,17 @@ import { Transactional } from 'typeorm-transactional';
 
 import { AuditLogService } from '../../audit/application/audit-log.service';
 import { AppException } from '../../common/exception/app.exception';
+import { decodeCursor, encodeCursor, resolveLimit } from '../../common/util/cursor';
+import type { User } from '../domain/user.entity';
 import { UserRepository } from '../domain/user.repository';
 import { UserRole } from '../domain/user.role';
 import type { RegisterResult, UserType } from '../domain/user.type';
+
+type UserCursorPage = {
+  items: User[];
+  nextCursor: string | null;
+  hasNext: boolean;
+};
 
 const SYSTEM_ADMIN_ID = 0;
 
@@ -74,6 +82,34 @@ export class UserService {
     return this.userRepository.findById({ id });
   }
 
+  async findUsersByCursor({
+    email,
+    cursor,
+    limit,
+  }: {
+    email?: string;
+    cursor?: string;
+    limit?: number;
+  }): Promise<UserCursorPage> {
+    const resolvedLimit = resolveLimit(limit);
+    const claim = cursor ? decodeCursor(cursor) : null;
+    const after = claim ? { createdAt: new Date(claim.createdAt), id: claim.id } : undefined;
+
+    const fetched = await this.userRepository.findPageByCursor({
+      email,
+      limit: resolvedLimit,
+      after,
+    });
+
+    const hasNext = fetched.length > resolvedLimit;
+    const items = hasNext ? fetched.slice(0, resolvedLimit) : fetched;
+    const last = items[items.length - 1];
+    const nextCursor =
+      hasNext && last ? encodeCursor({ createdAt: last.createdAt.getTime(), id: last.id }) : null;
+
+    return { items, nextCursor, hasNext };
+  }
+
   async findByRefreshToken({ hash }: { hash: string }) {
     return this.userRepository.findByRefreshToken({ hash });
   }
@@ -86,10 +122,21 @@ export class UserService {
     await this.userRepository.withdraw({ id });
   }
 
-  // NOTE: 부트스트랩 토큰 게이트로만 호출되는 권한 부여 흐름.
   // typeorm-transactional의 @Transactional()로 findById → countActiveByRole → saveRoles → audit를 같은 트랜잭션에 묶는다.
   @Transactional()
-  async assignRoles({ userId, roles }: { userId: number; roles: UserRole[] }) {
+  async assignRoles({
+    userId,
+    roles,
+    adminId,
+  }: {
+    userId: number;
+    roles: UserRole[];
+    adminId?: number;
+  }) {
+    if (adminId !== undefined && adminId === userId) {
+      throw new AppException('SELF_ROLE_CHANGE_FORBIDDEN', HttpStatus.FORBIDDEN);
+    }
+
     const user = await this.userRepository.findByIdWithDeleted({ id: userId });
     if (!user) {
       throw new AppException('USER_NOT_FOUND', HttpStatus.NOT_FOUND);
@@ -106,7 +153,7 @@ export class UserService {
       userId,
       fromRoles: previousRoles,
       toRoles: roles,
-      adminId: SYSTEM_ADMIN_ID,
+      adminId: adminId ?? SYSTEM_ADMIN_ID,
     });
     return user;
   }

@@ -9,12 +9,13 @@ import { UserRepository } from './domain/user.repository';
 import { UserRoleEntity } from './domain/user-role.entity';
 import { RoleWriteRepository } from './infrastructure/role.write.repository';
 import { WriteRepository } from './infrastructure/write.repository';
+import { AdminUserController } from './interface/admin.user.controller';
 import { BootstrapUserController } from './interface/bootstrap.user.controller';
 import { UserController } from './interface/user.controller';
 
 @Module({
   imports: [TypeOrmModule.forFeature([User, UserRoleEntity]), AuditModule],
-  controllers: [BootstrapUserController, UserController],
+  controllers: [BootstrapUserController, UserController, AdminUserController],
   providers: [
     UserService,
     UserRepository,
