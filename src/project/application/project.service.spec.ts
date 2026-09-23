@@ -1,6 +1,7 @@
 import { HttpStatus } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 
+import { CohortService } from '../../cohort/application/cohort.service';
 import { AppException } from '../../common/exception/app.exception';
 import { decodeCursor, encodeCursor } from '../../common/util/cursor';
 import { Project } from '../domain/project.entity';
@@ -13,6 +14,10 @@ jest.mock('typeorm-transactional', () => ({
     descriptor,
   initializeTransactionalContext: jest.fn(),
 }));
+
+const mockCohortService = {
+  findCohortById: jest.fn(),
+};
 
 const mockProjectRepository = {
   save: jest.fn(),
@@ -29,11 +34,16 @@ describe('ProjectService', () => {
 
   beforeEach(async () => {
     const module = await Test.createTestingModule({
-      providers: [ProjectService, { provide: ProjectRepository, useValue: mockProjectRepository }],
+      providers: [
+        ProjectService,
+        { provide: ProjectRepository, useValue: mockProjectRepository },
+        { provide: CohortService, useValue: mockCohortService },
+      ],
     }).compile();
 
     projectService = module.get(ProjectService);
     jest.clearAllMocks();
+    mockCohortService.findCohortById.mockResolvedValue({ id: 1, name: '13기' });
   });
 
   const projectFixture = {
@@ -54,6 +64,26 @@ describe('ProjectService', () => {
   } as unknown as Project;
 
   describe('createProject', () => {
+    it('없거나 지워진 기수로는 만들지 않는다', async () => {
+      // Given
+      mockCohortService.findCohortById.mockRejectedValue(
+        new AppException('COHORT_NOT_FOUND', HttpStatus.NOT_FOUND),
+      );
+
+      // When & Then
+      await expect(
+        projectService.createProject({
+          data: {
+            cohortId: 999,
+            platforms: [ProjectPlatform.WEB],
+            name: '고아 프로젝트',
+            description: '설명',
+          },
+        }),
+      ).rejects.toThrow(new AppException('COHORT_NOT_FOUND', HttpStatus.NOT_FOUND));
+      expect(mockProjectRepository.save).not.toHaveBeenCalled();
+    });
+
     it('프로젝트를 생성하고 반환한다', async () => {
       // Given
       const createInput = {
@@ -134,6 +164,50 @@ describe('ProjectService', () => {
   });
 
   describe('updateProject', () => {
+    // 운영에서 프로젝트가 엉뚱한 기수에 묶여 있었는데 고칠 API 가 없었다.
+    it('기수를 다른 기수로 옮긴다', async () => {
+      // Given
+      mockProjectRepository.findById.mockResolvedValue(projectFixture);
+      mockCohortService.findCohortById.mockResolvedValue({ id: 3, name: '12기' });
+
+      // When
+      await projectService.updateProject({ id: 1, data: { cohortId: 3 } });
+
+      // Then
+      expect(mockCohortService.findCohortById).toHaveBeenCalledWith({ id: 3 });
+      expect(mockProjectRepository.update).toHaveBeenCalledWith({
+        id: 1,
+        patch: { cohortId: 3 },
+      });
+    });
+
+    // findCohortById 는 soft-delete 된 기수도 못 찾는다. 지워진 기수로 옮기면
+    // 목록에서 기수 이름이 비고 정렬 키가 cohortId 로 밀리므로 여기서 막아야 한다.
+    it('없거나 지워진 기수로는 옮기지 않는다', async () => {
+      // Given
+      mockProjectRepository.findById.mockResolvedValue(projectFixture);
+      mockCohortService.findCohortById.mockRejectedValue(
+        new AppException('COHORT_NOT_FOUND', HttpStatus.NOT_FOUND),
+      );
+
+      // When & Then
+      await expect(
+        projectService.updateProject({ id: 1, data: { cohortId: 999 } }),
+      ).rejects.toThrow(new AppException('COHORT_NOT_FOUND', HttpStatus.NOT_FOUND));
+      expect(mockProjectRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('기수를 건드리지 않는 수정은 기수를 조회하지 않는다', async () => {
+      // Given
+      mockProjectRepository.findById.mockResolvedValue(projectFixture);
+
+      // When
+      await projectService.updateProject({ id: 1, data: { name: '이름만 변경' } });
+
+      // Then
+      expect(mockCohortService.findCohortById).not.toHaveBeenCalled();
+    });
+
     it('프로젝트가 존재하면 수정한다', async () => {
       // Given
       const updateData = { name: '수정된 프로젝트명' };

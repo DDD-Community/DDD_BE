@@ -23,7 +23,8 @@ import { PublicCohortController } from './interface/public.cohort.controller';
     forwardRef(() => NotificationModule),
     forwardRef(() => ApplicationModule),
     // 기수를 지우기 전에 붙어 있는 프로젝트가 있는지 확인한다.
-    ProjectModule,
+    // 프로젝트 쪽도 기수 재배정 때 이 모듈을 보므로 서로를 참조한다.
+    forwardRef(() => ProjectModule),
   ],
   controllers: [AdminCohortController, PublicCohortController],
   providers: [

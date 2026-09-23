@@ -77,6 +77,11 @@ export class CreateProjectRequestDto {
 }
 
 export class UpdateProjectRequestDto {
+  @ApiPropertyOptional({ description: '기수 ID. 프로젝트를 다른 기수로 옮길 때 쓴다.', example: 1 })
+  @IsInt()
+  @IsOptional()
+  cohortId?: number;
+
   @ApiPropertyOptional({
     description: '플랫폼 목록',
     enum: ProjectPlatform,

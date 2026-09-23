@@ -1,6 +1,7 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { forwardRef, HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { Transactional } from 'typeorm-transactional';
 
+import { CohortService } from '../../cohort/application/cohort.service';
 import { AppException } from '../../common/exception/app.exception';
 import { decodeCursor, encodeCursor, resolveLimit } from '../../common/util/cursor';
 import { hasDefinedValues } from '../../common/util/object-utils';
@@ -16,10 +17,26 @@ import type { ProjectPlatform } from '../domain/project-platform';
 
 @Injectable()
 export class ProjectService {
-  constructor(private readonly projectRepository: ProjectRepository) {}
+  constructor(
+    private readonly projectRepository: ProjectRepository,
+    // 기수 삭제 가드가 CohortService -> ProjectService 로 물려 있어 서로를 참조한다.
+    @Inject(forwardRef(() => CohortService))
+    private readonly cohortService: CohortService,
+  ) {}
+
+  /**
+   * 살아 있는 기수인지 확인한다. findCohortById 는 못 찾으면 404 를 던지고,
+   * soft-delete 된 기수도 못 찾으므로 지워진 기수로 배정하는 것까지 함께 막힌다.
+   * 그대로 두면 목록에서 기수 이름이 비고 정렬 키가 cohortId 로 밀린다.
+   */
+  private async assertCohortExists({ cohortId }: { cohortId: number }) {
+    await this.cohortService.findCohortById({ id: cohortId });
+  }
 
   @Transactional()
   async createProject({ data }: { data: ProjectCreateType }) {
+    await this.assertCohortExists({ cohortId: data.cohortId });
+
     const project = Project.create(data);
     return this.projectRepository.save({ project });
   }
@@ -96,6 +113,10 @@ export class ProjectService {
 
     if (!hasDefinedValues(data)) {
       return;
+    }
+
+    if (data.cohortId !== undefined) {
+      await this.assertCohortExists({ cohortId: data.cohortId });
     }
 
     await this.projectRepository.update({ id, patch: data });

@@ -74,7 +74,20 @@ export class Project extends BaseEntity {
     return project;
   }
 
-  update({ platforms, name, description, thumbnailUrl, pdfUrl }: ProjectUpdateType): void {
+  update({
+    cohortId,
+    platforms,
+    name,
+    description,
+    thumbnailUrl,
+    pdfUrl,
+  }: ProjectUpdateType): void {
+    if (cohortId !== undefined) {
+      this.cohortId = cohortId;
+      // 관계 객체는 다음 조회에서 새 기수로 다시 채워진다. 여기서 비워 두지 않으면
+      // 옛 기수가 남아 cohortOrder 가 이전 기수 번호를 계속 내놓는다.
+      this.cohort = undefined as unknown as Cohort;
+    }
     if (platforms !== undefined) {
       this.platforms = platforms;
     }
