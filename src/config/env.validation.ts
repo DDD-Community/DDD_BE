@@ -5,9 +5,11 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsUrl,
   Matches,
   Max,
   Min,
+  MinLength,
   ValidateIf,
   validateSync,
 } from 'class-validator';
@@ -139,6 +141,18 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   DISCORD_INVITE_URL?: string;
+
+  @IsString()
+  @ValidateIf((env: EnvironmentVariables) => env.ATTENDANCE_API_BASE_URL !== '')
+  @IsOptional()
+  @IsUrl({ require_tld: false })
+  ATTENDANCE_API_BASE_URL?: string;
+
+  @IsString()
+  @ValidateIf((env: EnvironmentVariables) => env.ATTENDANCE_API_KEY !== '')
+  @IsOptional()
+  @MinLength(32)
+  ATTENDANCE_API_KEY?: string;
 
   @IsIn(STORAGE_PROVIDERS, {
     message: `STORAGE_PROVIDER 는 ${STORAGE_PROVIDERS.join(' | ')} 중 하나여야 합니다.`,

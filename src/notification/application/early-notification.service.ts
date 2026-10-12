@@ -3,6 +3,7 @@ import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { CohortRepository } from '../../cohort/domain/cohort.repository';
 import { CohortStatus } from '../../cohort/domain/cohort.status';
 import { AppException } from '../../common/exception/app.exception';
+import { escapeCsvField } from '../../common/util/csv';
 import { isPostgresUniqueViolation } from '../../common/util/postgres-error';
 import type { EarlyNotification } from '../domain/early-notification.entity';
 import { EarlyNotificationRepository } from '../domain/early-notification.repository';
@@ -160,10 +161,3 @@ export class EarlyNotificationService {
     };
   }
 }
-
-const escapeCsvField = (field: string): string => {
-  if (/[",\r\n]/.test(field)) {
-    return `"${field.replace(/"/g, '""')}"`;
-  }
-  return field;
-};

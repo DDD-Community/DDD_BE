@@ -21,6 +21,35 @@ const createValidConfig = (): Record<string, unknown> => ({
 });
 
 describe('env validation', () => {
+  describe('출석 서버 설정', () => {
+    it('두 설정이 없어도 앱 설정 검증을 통과한다', () => {
+      expect(() => validate(createValidConfig())).not.toThrow();
+    });
+
+    it('배포에서 빈 문자열로 전달되어도 설정되지 않은 값으로 취급한다', () => {
+      expect(() =>
+        validate({
+          ...createValidConfig(),
+          ATTENDANCE_API_BASE_URL: '',
+          ATTENDANCE_API_KEY: '',
+        }),
+      ).not.toThrow();
+    });
+
+    it('유효한 URL과 32자 이상의 키를 허용한다', () => {
+      expect(() =>
+        validate({
+          ...createValidConfig(),
+          ATTENDANCE_API_BASE_URL: 'https://attendance.local',
+          ATTENDANCE_API_KEY: 'a'.repeat(32),
+        }),
+      ).not.toThrow();
+    });
+
+    it('짧은 API 키를 거부한다', () => {
+      expect(() => validate({ ...createValidConfig(), ATTENDANCE_API_KEY: 'too-short' })).toThrow();
+    });
+  });
   it('유효한 ENCRYPTION_KEY면 검증을 통과한다', () => {
     const result = validate(createValidConfig());
 
