@@ -1,4 +1,6 @@
 export type AttendanceStatus = 'ATTENDED' | 'LATE' | 'ABSENT' | 'NONE';
+export const ATTENDANCE_INVITATION_TYPES = ['MEMBER', 'MANAGER'] as const;
+export type AttendanceInvitationType = (typeof ATTENDANCE_INVITATION_TYPES)[number];
 
 export type AttendanceGeneration = { id: number; name: string; memberCount: number };
 export type AttendanceTeam = {
@@ -10,7 +12,7 @@ export type AttendanceTeam = {
 export type AttendanceInvitation = {
   id: number;
   code: string;
-  type: 'MEMBER' | 'MANAGER';
+  type: AttendanceInvitationType;
   description: string | null;
   registeredCount: number;
   createdAt: string;

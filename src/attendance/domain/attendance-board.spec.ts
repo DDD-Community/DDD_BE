@@ -20,10 +20,13 @@ const board: AttendanceBoard = {
   ],
 };
 
-describe('attendance board', () => {
-  it('keeps member and schedule order while counting attendance statuses', () => {
+describe('출석 보드', () => {
+  it('회원과 일정 순서를 유지하며 출석 상태를 집계한다', () => {
+    // Given
+    // When
     const result = summarizeAttendanceBoard({ board });
 
+    // Then
     expect(result.memberSummaries).toEqual([
       { memberId: 2, attended: 1, late: 0, absent: 0 },
       { memberId: 1, attended: 0, late: 1, absent: 1 },
@@ -34,13 +37,16 @@ describe('attendance board', () => {
     ]);
   });
 
-  it('exports Korean statuses, escaped fields, formula-safe fields, BOM and CRLF', () => {
+  it('한국어 상태와 CSV 이스케이프, 수식 방지, BOM, CRLF를 적용해 내보낸다', () => {
+    // Given
+    // When
     const result = createAttendanceCsv({
       board: summarizeAttendanceBoard({ board }),
       generationId: 3,
       date: new Date(2026, 9, 12),
     });
 
+    // Then
     expect(result.filename).toBe('attendance-generation-3-20261012.csv');
     expect(result.content).toBe(
       '\uFEFF이름,팀,직군,10/01 오리엔테이션,10/08 정기모임,출석,지각,결석\r\n' +

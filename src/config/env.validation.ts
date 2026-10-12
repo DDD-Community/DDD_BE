@@ -19,6 +19,7 @@ export type StorageProvider = (typeof STORAGE_PROVIDERS)[number];
 
 export const EMAIL_PROVIDERS = ['console', 'gmail'] as const;
 export type EmailProvider = (typeof EMAIL_PROVIDERS)[number];
+export const ATTENDANCE_API_KEY_MIN_LENGTH = 32;
 
 class EnvironmentVariables {
   @IsNumber()
@@ -151,7 +152,7 @@ class EnvironmentVariables {
   @IsString()
   @ValidateIf((env: EnvironmentVariables) => env.ATTENDANCE_API_KEY !== '')
   @IsOptional()
-  @MinLength(32)
+  @MinLength(ATTENDANCE_API_KEY_MIN_LENGTH)
   ATTENDANCE_API_KEY?: string;
 
   @IsIn(STORAGE_PROVIDERS, {

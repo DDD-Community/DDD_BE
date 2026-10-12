@@ -2,6 +2,9 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsIn, IsNotEmpty, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 
+import type { AttendanceInvitationType } from '../../domain/attendance.type';
+import { ATTENDANCE_INVITATION_TYPES } from '../../domain/attendance.type';
+
 const trim = ({ value }: { value: unknown }): unknown =>
   typeof value === 'string' ? value.trim() : value;
 
@@ -31,9 +34,9 @@ export class CreateAttendanceTeamRequestDto {
 }
 
 export class CreateAttendanceInvitationRequestDto {
-  @ApiProperty({ enum: ['MEMBER', 'MANAGER'] })
-  @IsIn(['MEMBER', 'MANAGER'])
-  type: 'MEMBER' | 'MANAGER';
+  @ApiProperty({ enum: ATTENDANCE_INVITATION_TYPES })
+  @IsIn(ATTENDANCE_INVITATION_TYPES)
+  type: AttendanceInvitationType;
 
   @ApiPropertyOptional({ minLength: 4, maxLength: 50, pattern: '^[A-Za-z0-9_-]{4,50}$' })
   @IsOptional()

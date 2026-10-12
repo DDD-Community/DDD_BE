@@ -7,6 +7,7 @@ import {
   AttendanceCsv,
   AttendanceGeneration,
   AttendanceInvitation,
+  AttendanceInvitationType,
   AttendanceTeam,
 } from '../domain/attendance.type';
 import { createAttendanceCsv, summarizeAttendanceBoard } from '../domain/attendance-board';
@@ -111,7 +112,7 @@ export class AttendanceAdminService {
     adminId,
   }: {
     generationId: number;
-    type: 'MEMBER' | 'MANAGER';
+    type: AttendanceInvitationType;
     code?: string;
     description?: string;
     adminId: number;

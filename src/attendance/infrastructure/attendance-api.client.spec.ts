@@ -2,7 +2,7 @@ import { ConfigService } from '@nestjs/config';
 
 import { AttendanceApiClient } from './attendance-api.client';
 
-describe('AttendanceApiClient', () => {
+describe('출석 API 클라이언트', () => {
   const apiKey = 'test-internal-api-key-at-least-32-characters';
   const config = {
     get: jest.fn((name: string) => {
@@ -20,16 +20,19 @@ describe('AttendanceApiClient', () => {
     global.fetch = fetchMock;
   });
 
-  it('sends the internal key and parses a 2xx response', async () => {
+  it('내부 키를 전송하고 2xx 응답을 파싱한다', async () => {
+    // Given
     fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
       json: () => Promise.resolve([{ id: 1, name: '15기', memberCount: 0 }]),
     });
 
-    await expect(client.getGenerations()).resolves.toEqual([
-      { id: 1, name: '15기', memberCount: 0 },
-    ]);
+    // When
+    const result = await client.getGenerations();
+
+    // Then
+    expect(result).toEqual([{ id: 1, name: '15기', memberCount: 0 }]);
     expect(fetchMock).toHaveBeenCalledWith(
       'https://attendance.example.com/api/internal/generations',
       expect.objectContaining({
@@ -40,8 +43,10 @@ describe('AttendanceApiClient', () => {
     );
   });
 
-  it('maps 204 to void', async () => {
+  it('204 응답을 void로 변환한다', async () => {
+    // Given
     fetchMock.mockResolvedValue({ ok: true, status: 204 });
+    // When & Then
     await expect(client.deleteGeneration({ generationId: 1 })).resolves.toBeUndefined();
   });
 
@@ -58,16 +63,23 @@ describe('AttendanceApiClient', () => {
     [401, '', 'ATTENDANCE_UPSTREAM_ERROR', 502],
     [403, '', 'ATTENDANCE_UPSTREAM_ERROR', 502],
     [500, '', 'ATTENDANCE_UPSTREAM_ERROR', 502],
-  ])('maps upstream %i to %s / %i', async (status, body, expectedCode, expectedStatus) => {
-    fetchMock.mockResolvedValue({ ok: false, status, text: () => Promise.resolve(body) });
-    await expect(client.getGenerations()).rejects.toMatchObject({
-      errorCode: expectedCode,
-      status: expectedStatus,
-    });
-  });
+  ])(
+    'upstream %i 응답을 %s / %i로 변환한다',
+    async (status, body, expectedCode, expectedStatus) => {
+      // Given
+      fetchMock.mockResolvedValue({ ok: false, status, text: () => Promise.resolve(body) });
+      // When & Then
+      await expect(client.getGenerations()).rejects.toMatchObject({
+        errorCode: expectedCode,
+        status: expectedStatus,
+      });
+    },
+  );
 
-  it('maps network failures and timeouts to 502', async () => {
+  it('네트워크 오류와 시간 초과를 502로 변환한다', async () => {
+    // Given
     fetchMock.mockRejectedValueOnce(new Error('network failed'));
+    // When & Then
     await expect(client.getGenerations()).rejects.toMatchObject({
       errorCode: 'ATTENDANCE_UPSTREAM_ERROR',
       status: 502,
@@ -79,21 +91,25 @@ describe('AttendanceApiClient', () => {
     });
   });
 
-  it('maps invalid success JSON to 502', async () => {
+  it('잘못된 성공 JSON을 502로 변환한다', async () => {
+    // Given
     fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
       json: () => Promise.reject(new SyntaxError('invalid')),
     });
+    // When & Then
     await expect(client.getGenerations()).rejects.toMatchObject({
       errorCode: 'ATTENDANCE_UPSTREAM_ERROR',
       status: 502,
     });
   });
 
-  it('rejects missing configuration without calling fetch', async () => {
+  it('설정이 없으면 fetch를 호출하지 않고 거부한다', async () => {
+    // Given
     const missingConfig = { get: () => undefined };
     const unconfigured = new AttendanceApiClient(missingConfig as unknown as ConfigService);
+    // When & Then
     await expect(unconfigured.getGenerations()).rejects.toMatchObject({
       errorCode: 'ATTENDANCE_NOT_CONFIGURED',
       status: 503,

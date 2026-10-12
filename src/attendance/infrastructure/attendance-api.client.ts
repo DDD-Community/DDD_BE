@@ -2,16 +2,25 @@ import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { AppException } from '../../common/exception/app.exception';
+import { ATTENDANCE_API_KEY_MIN_LENGTH } from '../../config/env.validation';
 import {
   AttendanceBoard,
   AttendanceGeneration,
   AttendanceInvitation,
+  AttendanceInvitationType,
   AttendanceTeam,
 } from '../domain/attendance.type';
 
 type RequestMethod = 'GET' | 'POST' | 'DELETE';
 type RequestOptions = { path: string; method?: RequestMethod; body?: object };
 type UpstreamError = { code?: unknown };
+export type AttendanceConflictCode =
+  | 'ATTENDANCE_GENERATION_IN_USE'
+  | 'ATTENDANCE_TEAM_IN_USE'
+  | 'ATTENDANCE_GENERATION_DUPLICATED'
+  | 'ATTENDANCE_TEAM_DUPLICATED'
+  | 'ATTENDANCE_INVITATION_DUPLICATED'
+  | 'ATTENDANCE_CONFLICT';
 
 @Injectable()
 export class AttendanceApiClient {
@@ -81,7 +90,7 @@ export class AttendanceApiClient {
     description,
   }: {
     generationId: number;
-    type: 'MEMBER' | 'MANAGER';
+    type: AttendanceInvitationType;
     code?: string;
     description?: string;
   }): Promise<AttendanceInvitation> {
@@ -101,7 +110,7 @@ export class AttendanceApiClient {
   }
 
   private async request<T>({ path, method = 'GET', body }: RequestOptions): Promise<T> {
-    if (!this.baseUrl || !this.apiKey || this.apiKey.length < 32) {
+    if (!this.baseUrl || !this.apiKey || this.apiKey.length < ATTENDANCE_API_KEY_MIN_LENGTH) {
       throw new AppException('ATTENDANCE_NOT_CONFIGURED', HttpStatus.SERVICE_UNAVAILABLE);
     }
 
@@ -169,20 +178,13 @@ export class AttendanceApiClient {
     throw new AppException('ATTENDANCE_UPSTREAM_ERROR', HttpStatus.BAD_GATEWAY);
   }
 
-  private readConflictCode(
-    body: string,
-  ):
-    | 'ATTENDANCE_GENERATION_IN_USE'
-    | 'ATTENDANCE_TEAM_IN_USE'
-    | 'ATTENDANCE_GENERATION_DUPLICATED'
-    | 'ATTENDANCE_TEAM_DUPLICATED'
-    | 'ATTENDANCE_INVITATION_DUPLICATED'
-    | 'ATTENDANCE_CONFLICT' {
+  private readConflictCode(body: string): AttendanceConflictCode {
     try {
       const parsed = JSON.parse(body) as UpstreamError;
       const code = parsed.code;
       if (typeof code === 'string' && CONFLICT_CODES.has(code)) {
-        return `ATTENDANCE_${code}` as ReturnType<AttendanceApiClient['readConflictCode']>;
+        const conflictCode = `ATTENDANCE_${code}` as AttendanceConflictCode;
+        return conflictCode;
       }
     } catch {
       return 'ATTENDANCE_CONFLICT';
@@ -194,7 +196,8 @@ export class AttendanceApiClient {
     if (!this.apiKey) {
       return value;
     }
-    return value.split(this.apiKey).join('[REDACTED]');
+    const redactedValue = value.split(this.apiKey).join('[REDACTED]');
+    return redactedValue;
   }
 
   private safeStack(error: unknown): string | undefined {
