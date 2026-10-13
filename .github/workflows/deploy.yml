@@ -114,7 +114,7 @@ jobs:
             GCS_BUCKET_NAME,GCP_SERVICE_ACCOUNT_JSON,DISCORD_CLIENT_ID,DISCORD_CLIENT_SECRET,
             DISCORD_CALLBACK_URL,DISCORD_BOT_TOKEN,DISCORD_GUILD_ID,DISCORD_INVITE_URL,
             DISCORD_ROLE_ID_PM,DISCORD_ROLE_ID_PD,DISCORD_ROLE_ID_BE,DISCORD_ROLE_ID_FE,
-            DISCORD_ROLE_ID_IOS,DISCORD_ROLE_ID_AOS
+            DISCORD_ROLE_ID_IOS,DISCORD_ROLE_ID_AOS,ATTENDANCE_API_BASE_URL,ATTENDANCE_API_KEY
           script: |
             # 어떤 명령이 실패해도 즉시 중단한다.
             # 이 한 줄이 없어서 2026-08-09 배포가 실패하고도 초록불로 보고됐고, 3개월간 아무도 몰랐다.
@@ -148,6 +148,8 @@ jobs:
             : "${DISCORD_ROLE_ID_FE:=}"
             : "${DISCORD_ROLE_ID_IOS:=}"
             : "${DISCORD_ROLE_ID_AOS:=}"
+            : "${ATTENDANCE_API_BASE_URL:=}"
+            : "${ATTENDANCE_API_KEY:=}"
 
             # 반대로 이게 비면 앱이 부팅조차 못 한다(env.validation 의 필수 항목 + 배포 필수값).
             # set -e 는 "명령 실패" 만 잡고 "값의 부재" 는 잡지 못하므로 여기서 양성 검증한다.
@@ -396,6 +398,8 @@ jobs:
             printf 'DISCORD_ROLE_ID_FE=%s\n'  "$DISCORD_ROLE_ID_FE"  >> "$ENV_TMP"
             printf 'DISCORD_ROLE_ID_IOS=%s\n' "$DISCORD_ROLE_ID_IOS" >> "$ENV_TMP"
             printf 'DISCORD_ROLE_ID_AOS=%s\n' "$DISCORD_ROLE_ID_AOS" >> "$ENV_TMP"
+            printf 'ATTENDANCE_API_BASE_URL=%s\n' "$ATTENDANCE_API_BASE_URL" >> "$ENV_TMP"
+            printf 'ATTENDANCE_API_KEY=%s\n' "$ATTENDANCE_API_KEY" >> "$ENV_TMP"
 
             # 완결성 센티널. 줄 수 임계값 같은 매직 넘버는 항목이 늘면 곧바로 거짓말을 하므로,
             # "마지막 줄까지 실제로 기록됐다" 를 구조적으로 증명하는 방식을 쓴다.
@@ -566,6 +570,8 @@ jobs:
           DISCORD_ROLE_ID_FE: ${{ secrets.DISCORD_ROLE_ID_FE }}
           DISCORD_ROLE_ID_IOS: ${{ secrets.DISCORD_ROLE_ID_IOS }}
           DISCORD_ROLE_ID_AOS: ${{ secrets.DISCORD_ROLE_ID_AOS }}
+          ATTENDANCE_API_BASE_URL: ${{ secrets.ATTENDANCE_API_BASE_URL }}
+          ATTENDANCE_API_KEY: ${{ secrets.ATTENDANCE_API_KEY }}
 
   export-openapi:
     runs-on: ubuntu-latest

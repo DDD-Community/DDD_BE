@@ -9,6 +9,7 @@ import { DataSource } from 'typeorm';
 import { addTransactionalDataSource } from 'typeorm-transactional';
 
 import { ApplicationModule } from './application/application.module';
+import { AttendanceModule } from './attendance/attendance.module';
 import { AuditModule } from './audit/audit.module';
 import { BlogModule } from './blog/blog.module';
 import { CohortModule } from './cohort/cohort.module';
@@ -51,6 +52,7 @@ const ENV_FILE_PATHS = ['.env.production', '.env.staging', '.env.test', '.env.de
     StorageModule,
     InterviewModule,
     DiscordModule,
+    AttendanceModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: HttpExceptionFilter },
