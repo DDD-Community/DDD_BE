@@ -17,9 +17,10 @@ describe('CSV 필드 이스케이프', () => {
       escapeCsvField('=1+1', true),
       escapeCsvField('-1', true),
       escapeCsvField('\tcmd', true),
+      escapeCsvField('\n=cmd', true),
     ];
 
     // Then
-    expect(escapedFields).toEqual(["'=1+1", "'-1", "'\tcmd"]);
+    expect(escapedFields).toEqual(["'=1+1", "'-1", "'\tcmd", `"'\n=cmd"`]);
   });
 });

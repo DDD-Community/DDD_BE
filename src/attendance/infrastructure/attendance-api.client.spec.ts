@@ -43,6 +43,48 @@ describe('출석 API 클라이언트', () => {
     );
   });
 
+  it.each([
+    [
+      '팀 생성',
+      () => client.createTeam({ generationId: 3, name: 'WEB 1팀', serviceName: '모아' }),
+      '/generations/3/teams',
+      'POST',
+      { name: 'WEB 1팀', serviceName: '모아' },
+    ],
+    [
+      '초대코드 생성',
+      () =>
+        client.createInvitation({
+          generationId: 3,
+          type: 'MANAGER',
+          code: 'OPS13',
+          description: '13기 운영진',
+        }),
+      '/generations/3/invitations',
+      'POST',
+      { type: 'MANAGER', code: 'OPS13', description: '13기 운영진' },
+    ],
+    [
+      '출석 보드 조회',
+      () => client.getBoard({ generationId: 3 }),
+      '/generations/3/attendance-board',
+      'GET',
+      undefined,
+    ],
+  ])('%s 요청을 upstream 계약대로 보낸다', async (_label, call, path, method, body) => {
+    // Given
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve({}) });
+
+    // When
+    await call();
+
+    // Then
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`https://attendance.example.com/api/internal${path}`);
+    expect(init.method).toBe(method);
+    expect(init.body === undefined ? undefined : JSON.parse(init.body as string)).toEqual(body);
+  });
+
   it('204 응답을 void로 변환한다', async () => {
     // Given
     fetchMock.mockResolvedValue({ ok: true, status: 204 });
