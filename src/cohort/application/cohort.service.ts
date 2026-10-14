@@ -59,7 +59,7 @@ export class CohortService {
     const attendanceSync = cohort.curriculum
       ? await this.attendanceScheduleSyncService.syncFromCohort({
           cohortName: created.name,
-          curriculum: cohort.curriculum,
+          curriculum: created.curriculum ?? [],
           adminId,
         })
       : null;
@@ -76,11 +76,13 @@ export class CohortService {
     adminId: number;
   }): Promise<CohortAttendanceSyncResult> {
     await this.updateCohort({ id, data, adminId });
+    // 요청 본문이 아니라 커밋 뒤 다시 읽은 커리큘럼으로 동기화한다.
+    // 동시 수정의 완료 순서가 뒤집혀도 마지막 동기화가 최신 저장 상태를 보내게 하기 위함이다.
     const cohort = await this.findCohortById({ id });
     const attendanceSync = data.curriculum
       ? await this.attendanceScheduleSyncService.syncFromCohort({
           cohortName: cohort.name,
-          curriculum: data.curriculum,
+          curriculum: cohort.curriculum ?? [],
           adminId,
         })
       : null;
