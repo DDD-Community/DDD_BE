@@ -13,7 +13,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiExtraModels, ApiTags } from '@nestjs/swagger';
 
 import type { JwtUser } from '../../auth/application/auth.type';
 import { AuthUser } from '../../common/decorator/auth-user.decorator';
@@ -23,14 +23,19 @@ import { ApiResponse } from '../../common/response/api-response';
 import { ApiDoc } from '../../common/swagger/api-doc.decorator';
 import { UserRole } from '../../user/domain/user.role';
 import { CohortService } from '../application/cohort.service';
+import { AdminCohortSwagger } from './admin.cohort.swagger';
 import {
   CreateCohortRequestDto,
   UpdateCohortPartsRequestDto,
   UpdateCohortRequestDto,
 } from './dto/admin-cohort.request.dto';
-import { CohortAdminResponseDto } from './dto/admin-cohort.response.dto';
+import {
+  AttendanceSyncResultResponseDto,
+  CohortAdminResponseDto,
+} from './dto/admin-cohort.response.dto';
 
 @ApiTags('Admin - Cohort')
+@ApiExtraModels(CohortAdminResponseDto, AttendanceSyncResultResponseDto)
 @Controller({ path: 'admin/cohorts', version: '1' })
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 @Roles(UserRole.계정관리, UserRole.운영자)
@@ -42,10 +47,11 @@ export class AdminCohortController {
     description: '새로운 기수를 생성합니다. 모집 파트 설정도 함께 포함할 수 있습니다.',
     operationId: 'cohort_createAdmin',
     auth: true,
+    ...AdminCohortSwagger.createCohort,
   })
   @Post()
-  async createCohort(@Body() body: CreateCohortRequestDto) {
-    const cohort = await this.cohortService.createCohort({
+  async createCohort(@Body() body: CreateCohortRequestDto, @AuthUser() user: JwtUser) {
+    const { cohort, attendanceSync } = await this.cohortService.createCohortWithAttendanceSync({
       cohort: {
         ...body,
         parts: body.parts?.map(({ name, isOpen, formSchema }) => ({
@@ -54,8 +60,9 @@ export class AdminCohortController {
           applicationSchema: formSchema,
         })),
       },
+      adminId: user.id,
     });
-    return ApiResponse.ok(CohortAdminResponseDto.from(cohort));
+    return ApiResponse.ok(CohortAdminResponseDto.from(cohort, attendanceSync));
   }
 
   @ApiDoc({
@@ -87,6 +94,7 @@ export class AdminCohortController {
     description: '기수의 명칭, 일정, 상태 등을 수동으로 수정합니다.',
     operationId: 'cohort_updateAdminById',
     auth: true,
+    ...AdminCohortSwagger.updateCohort,
   })
   @Patch(':id')
   async updateCohort(
@@ -94,8 +102,15 @@ export class AdminCohortController {
     @AuthUser() user: JwtUser,
     @Body() body: UpdateCohortRequestDto,
   ) {
-    await this.cohortService.updateCohort({ id, data: body, adminId: user.id });
-    return ApiResponse.ok(null, '기수 정보가 수정되었습니다.');
+    const { cohort, attendanceSync } = await this.cohortService.updateCohortWithAttendanceSync({
+      id,
+      data: body,
+      adminId: user.id,
+    });
+    return ApiResponse.ok(
+      CohortAdminResponseDto.from(cohort, attendanceSync),
+      '기수 정보가 수정되었습니다.',
+    );
   }
 
   @ApiDoc({

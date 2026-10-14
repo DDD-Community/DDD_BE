@@ -100,6 +100,7 @@ describe('출석 API 클라이언트', () => {
     [409, '{"code":"GENERATION_DUPLICATED"}', 'ATTENDANCE_GENERATION_DUPLICATED', 409],
     [409, '{"code":"TEAM_DUPLICATED"}', 'ATTENDANCE_TEAM_DUPLICATED', 409],
     [409, '{"code":"INVITATION_DUPLICATED"}', 'ATTENDANCE_INVITATION_DUPLICATED', 409],
+    [409, '{"code":"SCHEDULE_DATE_CONFLICT"}', 'ATTENDANCE_SCHEDULE_DATE_CONFLICT', 409],
     [409, '{"code":"UNKNOWN"}', 'ATTENDANCE_CONFLICT', 409],
     [409, 'not-json', 'ATTENDANCE_CONFLICT', 409],
     [401, '', 'ATTENDANCE_UPSTREAM_ERROR', 502],
@@ -131,6 +132,39 @@ describe('출석 API 클라이언트', () => {
       errorCode: 'ATTENDANCE_UPSTREAM_ERROR',
       status: 502,
     });
+  });
+
+  it('일정 조회와 동기화 요청을 해당 경로와 메서드로 보낸다', async () => {
+    // Given
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve([]) });
+
+    // When
+    await client.getSchedules({ generationId: 9 });
+    await client.syncSchedules({
+      generationId: 9,
+      schedules: [
+        { date: '2026-10-14', scheduleTime: '19:00', name: '모임', description: '모임 설명' },
+      ],
+    });
+
+    // Then
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining('/generations/9/schedules'),
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining('/generations/9/schedules'),
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({
+          schedules: [
+            { date: '2026-10-14', scheduleTime: '19:00', name: '모임', description: '모임 설명' },
+          ],
+        }),
+      }),
+    );
   });
 
   it('잘못된 성공 JSON을 502로 변환한다', async () => {

@@ -89,6 +89,7 @@ export const ErrorMessage = {
   ATTENDANCE_TEAM_DUPLICATED: '이미 존재하는 팀입니다.',
   ATTENDANCE_TEAM_IN_USE: '회원이 소속된 팀은 삭제할 수 없습니다.',
   ATTENDANCE_INVITATION_DUPLICATED: '이미 사용 중인 초대 코드입니다.',
+  ATTENDANCE_SCHEDULE_DATE_CONFLICT: '다른 기수에 같은 날짜의 출석 일정이 있습니다.',
   ATTENDANCE_UPSTREAM_ERROR: '출석 관리 서버 요청에 실패했습니다.',
   TOO_MANY_REQUESTS: '요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.',
   WITHDRAWN_ACCOUNT: '탈퇴한 계정은 다시 가입할 수 없습니다.',

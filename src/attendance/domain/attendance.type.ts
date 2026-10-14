@@ -3,6 +3,34 @@ export const ATTENDANCE_INVITATION_TYPES = ['MEMBER', 'MANAGER'] as const;
 export type AttendanceInvitationType = (typeof ATTENDANCE_INVITATION_TYPES)[number];
 
 export type AttendanceGeneration = { id: number; name: string; memberCount: number };
+export type AttendanceScheduleSyncItem = {
+  date: string;
+  scheduleTime: string;
+  name: string;
+  description: string;
+};
+export type AttendanceScheduleSyncResponse = {
+  created: string[];
+  updated: string[];
+  unchanged: string[];
+  deleted: string[];
+  kept: { date: string; reason: string }[];
+  skipped: { date: string; reason: string }[];
+};
+export type AttendanceSyncResult =
+  | {
+      status: 'SYNCED';
+      generationName: string;
+      created: string[];
+      updated: string[];
+      unchanged: string[];
+      deleted: string[];
+      kept: { date: string; reason: string }[];
+      skipped: { date: string; reason: string }[];
+      ignoredWeeks: number[];
+    }
+  | { status: 'SKIPPED'; reason: 'NOT_CONFIGURED' | 'NAME_TOO_LONG' | 'NO_VALID_WEEKS' }
+  | { status: 'FAILED'; message: string };
 export type AttendanceTeam = {
   id: number;
   name: string;
@@ -18,6 +46,10 @@ export type AttendanceInvitation = {
   createdAt: string;
 };
 export type AttendanceSchedule = { id: number; name: string; date: string; scheduleTime: string };
+export type AttendanceScheduleWithCount = AttendanceSchedule & {
+  description: string;
+  attendanceCount: number;
+};
 export type AttendanceMember = {
   id: number;
   name: string | null;
