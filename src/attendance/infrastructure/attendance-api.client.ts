@@ -8,10 +8,13 @@ import {
   AttendanceGeneration,
   AttendanceInvitation,
   AttendanceInvitationType,
+  AttendanceScheduleSyncItem,
+  AttendanceScheduleSyncResponse,
+  AttendanceScheduleWithCount,
   AttendanceTeam,
 } from '../domain/attendance.type';
 
-type RequestMethod = 'GET' | 'POST' | 'DELETE';
+type RequestMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
 type RequestOptions = { path: string; method?: RequestMethod; body?: object };
 type UpstreamError = { code?: unknown };
 export type AttendanceConflictCode =
@@ -20,7 +23,13 @@ export type AttendanceConflictCode =
   | 'ATTENDANCE_GENERATION_DUPLICATED'
   | 'ATTENDANCE_TEAM_DUPLICATED'
   | 'ATTENDANCE_INVITATION_DUPLICATED'
+  | 'ATTENDANCE_SCHEDULE_DATE_CONFLICT'
   | 'ATTENDANCE_CONFLICT';
+
+export type {
+  AttendanceScheduleSyncItem,
+  AttendanceScheduleSyncResponse,
+} from '../domain/attendance.type';
 
 @Injectable()
 export class AttendanceApiClient {
@@ -42,6 +51,30 @@ export class AttendanceApiClient {
       path: '/generations',
       method: 'POST',
       body: { name },
+    });
+  }
+
+  async getSchedules({
+    generationId,
+  }: {
+    generationId: number;
+  }): Promise<AttendanceScheduleWithCount[]> {
+    return this.request<AttendanceScheduleWithCount[]>({
+      path: `/generations/${generationId}/schedules`,
+    });
+  }
+
+  async syncSchedules({
+    generationId,
+    schedules,
+  }: {
+    generationId: number;
+    schedules: AttendanceScheduleSyncItem[];
+  }): Promise<AttendanceScheduleSyncResponse> {
+    return this.request<AttendanceScheduleSyncResponse>({
+      path: `/generations/${generationId}/schedules`,
+      method: 'PUT',
+      body: { schedules },
     });
   }
 
@@ -214,4 +247,5 @@ const CONFLICT_CODES = new Set([
   'GENERATION_DUPLICATED',
   'TEAM_DUPLICATED',
   'INVITATION_DUPLICATED',
+  'SCHEDULE_DATE_CONFLICT',
 ]);

@@ -2,6 +2,7 @@ import { HttpStatus } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 
 import { ApplicationService } from '../../application/usecase/application.service';
+import { AttendanceScheduleSyncService } from '../../attendance/application/attendance-schedule-sync.service';
 import { AuditLogService } from '../../audit/application/audit-log.service';
 import { AppException } from '../../common/exception/app.exception';
 import { GeneralEarlyNotificationService } from '../../notification/application/general-early-notification.service';
@@ -51,6 +52,10 @@ const mockProjectService = {
   hasProjectsInCohort: jest.fn(),
 };
 
+const mockAttendanceScheduleSyncService = {
+  syncFromCohort: jest.fn(),
+};
+
 const daysFromNow = (days: number) => new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 
 const createRecruitingWindow = ({
@@ -81,6 +86,10 @@ describe('CohortService', () => {
           useValue: mockNotificationCampaignService,
         },
         { provide: ProjectService, useValue: mockProjectService },
+        {
+          provide: AttendanceScheduleSyncService,
+          useValue: mockAttendanceScheduleSyncService,
+        },
       ],
     }).compile();
 
@@ -708,6 +717,60 @@ describe('CohortService', () => {
       // Then
       expect(mockProjectService.hasProjectsInCohort).toHaveBeenCalledWith({ cohortId: 5 });
       expect(mockCohortRepository.deleteById).toHaveBeenCalledWith({ id: 5 });
+    });
+  });
+
+  describe('기수 저장 후 출석 일정 동기화', () => {
+    it('커리큘럼을 수정하면 트랜잭션 뒤 동기화를 수행하고 결과를 반환한다', async () => {
+      // Given
+      const curriculum = [{ date: '2026-10-14', time: '19:00', description: '모임' }];
+      mockCohortRepository.findById.mockResolvedValue({
+        id: 7,
+        name: '14기',
+        recruitStartAt: new Date('2026-03-01'),
+        recruitEndAt: new Date('2026-03-15'),
+        curriculum,
+      });
+      mockAttendanceScheduleSyncService.syncFromCohort.mockResolvedValue({
+        status: 'FAILED',
+        message: '연결 실패',
+      });
+
+      // When
+      const result = await cohortService.updateCohortWithAttendanceSync({
+        id: 7,
+        data: { curriculum },
+        adminId: 5,
+      });
+
+      // Then
+      expect(mockAttendanceScheduleSyncService.syncFromCohort).toHaveBeenCalledWith({
+        cohortName: '14기',
+        curriculum,
+        adminId: 5,
+      });
+      expect(result.attendanceSync).toEqual({ status: 'FAILED', message: '연결 실패' });
+    });
+
+    it('커리큘럼을 보내지 않은 수정은 동기화하지 않고 null을 반환한다', async () => {
+      // Given
+      mockCohortRepository.findById.mockResolvedValue({
+        id: 7,
+        name: '14기',
+        recruitStartAt: new Date('2026-03-01'),
+        recruitEndAt: new Date('2026-03-15'),
+      });
+
+      // When
+      const result = await cohortService.updateCohortWithAttendanceSync({
+        id: 7,
+        data: { name: '수정 14기' },
+        adminId: 5,
+      });
+
+      // Then
+      expect(mockAttendanceScheduleSyncService.syncFromCohort).not.toHaveBeenCalled();
+      expect(result.attendanceSync).toBeNull();
     });
   });
 });

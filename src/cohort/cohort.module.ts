@@ -2,6 +2,7 @@ import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { ApplicationModule } from '../application/application.module';
+import { AttendanceModule } from '../attendance/attendance.module';
 import { AuditModule } from '../audit/audit.module';
 import { RolesGuard } from '../common/guard/roles.guard';
 import { NotificationModule } from '../notification/notification.module';
@@ -20,6 +21,7 @@ import { PublicCohortController } from './interface/public.cohort.controller';
   imports: [
     TypeOrmModule.forFeature([Cohort, CohortPart]),
     AuditModule,
+    AttendanceModule,
     forwardRef(() => NotificationModule),
     forwardRef(() => ApplicationModule),
     // 기수를 지우기 전에 붙어 있는 프로젝트가 있는지 확인한다.

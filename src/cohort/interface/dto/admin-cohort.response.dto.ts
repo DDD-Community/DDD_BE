@@ -1,9 +1,52 @@
 import { ApiProperty } from '@nestjs/swagger';
 
+import type { AttendanceSyncResult } from '../../../attendance/domain/attendance.type';
 import type { Cohort } from '../../domain/cohort.entity';
 import { CohortStatus } from '../../domain/cohort.status';
 import type { CohortPart } from '../../domain/cohort-part.entity';
 import { CohortPartName } from '../../domain/cohort-part-name';
+
+export class AttendanceSyncResultResponseDto {
+  @ApiProperty({ enum: ['SYNCED', 'SKIPPED', 'FAILED'] })
+  status: AttendanceSyncResult['status'];
+
+  @ApiProperty({ required: false, nullable: true })
+  reason?: string;
+
+  @ApiProperty({ required: false, nullable: true })
+  message?: string;
+
+  @ApiProperty({ required: false, nullable: true })
+  generationName?: string;
+
+  @ApiProperty({ required: false, nullable: true, type: [String] })
+  created?: string[];
+
+  @ApiProperty({ required: false, nullable: true, type: [String] })
+  updated?: string[];
+
+  @ApiProperty({ required: false, nullable: true, type: [String] })
+  unchanged?: string[];
+
+  @ApiProperty({ required: false, nullable: true, type: [String] })
+  deleted?: string[];
+
+  @ApiProperty({ required: false, nullable: true, type: [Object] })
+  kept?: { date: string; reason: string }[];
+
+  @ApiProperty({ required: false, nullable: true, type: [Object] })
+  skipped?: { date: string; reason: string }[];
+
+  @ApiProperty({ required: false, nullable: true, type: [Number] })
+  ignoredWeeks?: number[];
+
+  static from(value: AttendanceSyncResult | null): AttendanceSyncResultResponseDto | null {
+    if (!value) {
+      return null;
+    }
+    return Object.assign(new AttendanceSyncResultResponseDto(), value);
+  }
+}
 
 export class CohortPartAdminResponseDto {
   @ApiProperty({ description: 'ID', example: 1 })
@@ -37,6 +80,12 @@ export class CohortPartAdminResponseDto {
 }
 
 export class CohortAdminResponseDto {
+  @ApiProperty({
+    description: '출석 일정 동기화 결과. 커리큘럼을 요청하지 않은 경우 null',
+    type: () => AttendanceSyncResultResponseDto,
+    nullable: true,
+  })
+  attendanceSync: AttendanceSyncResultResponseDto | null;
   @ApiProperty({ description: 'ID', example: 1 })
   id: number;
 
@@ -96,7 +145,10 @@ export class CohortAdminResponseDto {
   @ApiProperty({ description: '수정일' })
   updatedAt: Date;
 
-  static from(cohort: Cohort): CohortAdminResponseDto {
+  static from(
+    cohort: Cohort,
+    attendanceSync: AttendanceSyncResult | null = null,
+  ): CohortAdminResponseDto {
     const dto = new CohortAdminResponseDto();
     dto.id = cohort.id;
     dto.name = cohort.name;
@@ -110,6 +162,7 @@ export class CohortAdminResponseDto {
     dto.parts = (cohort.parts ?? []).map((part) => CohortPartAdminResponseDto.from(part));
     dto.createdAt = cohort.createdAt;
     dto.updatedAt = cohort.updatedAt;
+    dto.attendanceSync = AttendanceSyncResultResponseDto.from(attendanceSync);
     return dto;
   }
 }

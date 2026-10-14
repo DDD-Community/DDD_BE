@@ -2,6 +2,8 @@ import { forwardRef, HttpStatus, Inject, Injectable, Logger } from '@nestjs/comm
 import { Transactional } from 'typeorm-transactional';
 
 import { ApplicationService } from '../../application/usecase/application.service';
+import { AttendanceScheduleSyncService } from '../../attendance/application/attendance-schedule-sync.service';
+import type { AttendanceSyncResult } from '../../attendance/domain/attendance.type';
 import { AuditLogService } from '../../audit/application/audit-log.service';
 import { AppException } from '../../common/exception/app.exception';
 import { toKstDayEnd, toKstDayStart } from '../../common/util/kst-date';
@@ -9,6 +11,7 @@ import { hasDefinedValues } from '../../common/util/object-utils';
 import { GeneralEarlyNotificationService } from '../../notification/application/general-early-notification.service';
 import { NotificationCampaignService } from '../../notification/application/notification-campaign.service';
 import { ProjectService } from '../../project/application/project.service';
+import { Cohort } from '../domain/cohort.entity';
 import { CohortRepository } from '../domain/cohort.repository';
 import { CohortStatus } from '../domain/cohort.status';
 import type {
@@ -20,6 +23,10 @@ import { isRecruitmentOpenAt } from '../domain/cohort-recruitment';
 
 const AUDIT_ENTITY_TYPE = 'cohort';
 const SYSTEM_ADMIN_ID = 0;
+type CohortAttendanceSyncResult = {
+  cohort: Cohort;
+  attendanceSync: AttendanceSyncResult | null;
+};
 
 @Injectable()
 export class CohortService {
@@ -38,7 +45,47 @@ export class CohortService {
     // forwardRef 가 없으면 순환 import 로 이 인자가 런타임에 undefined 가 된다.
     @Inject(forwardRef(() => ProjectService))
     private readonly projectService: ProjectService,
+    private readonly attendanceScheduleSyncService: AttendanceScheduleSyncService,
   ) {}
+
+  async createCohortWithAttendanceSync({
+    cohort,
+    adminId,
+  }: {
+    cohort: CohortCreateType;
+    adminId: number;
+  }): Promise<CohortAttendanceSyncResult> {
+    const created = await this.createCohort({ cohort });
+    const attendanceSync = cohort.curriculum
+      ? await this.attendanceScheduleSyncService.syncFromCohort({
+          cohortName: created.name,
+          curriculum: cohort.curriculum,
+          adminId,
+        })
+      : null;
+    return { cohort: created, attendanceSync };
+  }
+
+  async updateCohortWithAttendanceSync({
+    id,
+    data,
+    adminId,
+  }: {
+    id: number;
+    data: CohortUpdateType;
+    adminId: number;
+  }): Promise<CohortAttendanceSyncResult> {
+    await this.updateCohort({ id, data, adminId });
+    const cohort = await this.findCohortById({ id });
+    const attendanceSync = data.curriculum
+      ? await this.attendanceScheduleSyncService.syncFromCohort({
+          cohortName: cohort.name,
+          curriculum: data.curriculum,
+          adminId,
+        })
+      : null;
+    return { cohort, attendanceSync };
+  }
 
   /**
    * 모집 개폐가 일정에 좌우되므로 시작일이 종료일보다 늦으면 기수가 영구히 닫힌다.
