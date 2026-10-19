@@ -116,6 +116,16 @@ describe('GmailEmailClient', () => {
     expect(documentCall).toBe(fullDocument);
   });
 
+  it('첨부가 없으면 더미 첨부 없이 보낸다', async () => {
+    // 예전에는 한글 깨짐 우회로 spacer.png 를 붙였지만, 수신자에게 정체불명의 첨부로 보였다.
+    // quoted-printable 본문이면 네이버에서도 한글이 정상이라 더 붙이지 않는다.
+    const client = await createClient(gmailEnv);
+
+    await client.sendEmail(emailPayload);
+
+    expect(sendMail).toHaveBeenCalledWith(expect.objectContaining({ attachments: undefined }));
+  });
+
   it('발송이 실패하면 예외를 그대로 전파한다', async () => {
     sendMail.mockRejectedValue(new Error('Invalid login'));
     const client = await createClient(gmailEnv);
