@@ -236,8 +236,11 @@ export class EmailEventHandler {
     // 기수 process 에 없는 항목은 줄째 생략한다. 잘못된 계좌나 "undefined" 가 나가는 것보다 낫다.
     const rows: EmailInfoRow[] = [];
     if (cohort.participationFee !== null) {
-      const fee = `${cohort.participationFee.toLocaleString('ko-KR')}원`;
-      rows.push({ label: '참가비', valueHtml: fee, valueText: fee });
+      const amount = `${cohort.participationFee.toLocaleString('ko-KR')}원`;
+      const fee = cohort.participationFeeDetail
+        ? `${amount} (${cohort.participationFeeDetail})`
+        : amount;
+      rows.push({ label: '참가비', valueHtml: escapeHtml(fee), valueText: fee });
     }
     if (cohort.bankAccount) {
       rows.push({
@@ -255,7 +258,7 @@ export class EmailEventHandler {
     }
     if (cohort.participationConfirmDeadline) {
       const deadline = formatKoreanDeadline(cohort.participationConfirmDeadline);
-      rows.push({ label: '회신 기한', valueHtml: escapeHtml(deadline), valueText: deadline });
+      rows.push({ label: '입금 기한', valueHtml: escapeHtml(deadline), valueText: deadline });
     }
 
     const title = `${this.cohortLabel(cohort)} 최종 합격을 축하드립니다`;

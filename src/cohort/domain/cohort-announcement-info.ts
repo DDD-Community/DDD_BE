@@ -16,6 +16,8 @@ export type CohortAnnouncementInfo = {
   interviewRescheduleDeadline: string | null;
   /** 참가비(원) */
   participationFee: number | null;
+  /** 참가비 구성 설명 (예: 운영비 8만원 + 노쇼비 8만원). 있으면 금액 뒤 괄호로 붙는다 */
+  participationFeeDetail: string | null;
   /** 입금 계좌 (은행명 계좌번호) */
   bankAccount: string | null;
   /** 예금주. 없으면 메일에서 예금주 줄을 생략한다 */
@@ -32,6 +34,7 @@ export const EMPTY_COHORT_ANNOUNCEMENT_INFO: CohortAnnouncementInfo = {
   interviewDurationMinutes: null,
   interviewRescheduleDeadline: null,
   participationFee: null,
+  participationFeeDetail: null,
   bankAccount: null,
   accountHolder: null,
   participationConfirmDeadline: null,
@@ -74,6 +77,7 @@ export const toCohortAnnouncementInfo = ({
     interviewDurationMinutes: readPositiveNumber(source, 'interviewDurationMinutes'),
     interviewRescheduleDeadline: readString(source, 'interviewRescheduleDeadline'),
     participationFee: readPositiveNumber(source, 'participationFee'),
+    participationFeeDetail: readString(source, 'participationFeeDetail'),
     bankAccount: readString(source, 'bankAccount'),
     accountHolder: readString(source, 'accountHolder'),
     participationConfirmDeadline: readString(source, 'participationConfirmDeadline'),

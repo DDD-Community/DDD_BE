@@ -33,6 +33,7 @@ describe('EmailEventHandler', () => {
     interviewDurationMinutes: 30,
     interviewRescheduleDeadline: '2026-09-18',
     participationFee: 50000,
+    participationFeeDetail: null,
     bankAccount: '국민은행 123-456-789',
     accountHolder: '홍길동',
     participationConfirmDeadline: '2026-09-28',
@@ -240,7 +241,7 @@ describe('EmailEventHandler', () => {
     });
 
     describe('면접합격 (지원자에게 알리는 최종 합격)', () => {
-      it('참가비·계좌·예금주·회신 기한과 회신 양식을 안내한다', async () => {
+      it('참가비·계좌·예금주·입금 기한과 회신 양식을 안내한다', async () => {
         await emailEventHandler.handleApplicationStatusChangedEvent(
           makeStatusPayload({ newStatus: ApplicationStatus.면접합격, name: '김지원' }),
         );
@@ -251,7 +252,7 @@ describe('EmailEventHandler', () => {
         expect(text).toContain('- 참가비: 50,000원');
         expect(text).toContain('- 입금 계좌: 국민은행 123-456-789');
         expect(text).toContain('- 예금주: 홍길동');
-        expect(text).toContain('- 회신 기한: 9월 28일(월)');
+        expect(text).toContain('- 입금 기한: 9월 28일(월)');
         // 회신 양식 3줄이 text 에서도 줄바꿈으로 살아있어야 한다.
         expect(text).toContain(
           '회신 양식\n이름 / 지원 파트 / 입금자명\n참가 여부 : 참여합니다\n입금 완료 여부 : 완료',
@@ -259,6 +260,21 @@ describe('EmailEventHandler', () => {
         expect(html).toContain('<strong>본 메일에 회신</strong>');
         expect(text).toContain('입금 후 위 양식대로 본 메일에 회신해 주세요.');
         expect(text).toContain('합격이 취소될 수 있습니다');
+      });
+
+      it('참가비 구성 설명이 있으면 금액 뒤 괄호로 붙인다', async () => {
+        await emailEventHandler.handleApplicationStatusChangedEvent(
+          makeStatusPayload({
+            newStatus: ApplicationStatus.면접합격,
+            cohort: {
+              ...fullCohort,
+              participationFee: 160000,
+              participationFeeDetail: '운영비 8만원 + 노쇼비 8만원',
+            },
+          }),
+        );
+
+        expect(lastEmail().text).toContain('- 참가비: 160,000원 (운영비 8만원 + 노쇼비 8만원)');
       });
 
       it('기수명이 html 에 escape 되고 text 는 원문으로 복원된다', async () => {
