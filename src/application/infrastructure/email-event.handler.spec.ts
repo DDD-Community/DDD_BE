@@ -279,6 +279,20 @@ describe('EmailEventHandler', () => {
         expect(lastEmail().text).toContain('- 참가비: 160,000원 (운영비 8만원 + 노쇼비 8만원)');
       });
 
+      it('참가비 구성 설명은 운영진 입력값이라 html 에서 escape 된다', async () => {
+        await emailEventHandler.handleApplicationStatusChangedEvent(
+          makeStatusPayload({
+            newStatus: ApplicationStatus.면접합격,
+            cohort: { ...fullCohort, participationFeeDetail: '<img src=x onerror=alert(1)>' },
+          }),
+        );
+
+        const { html, text } = lastEmail();
+        expect(html).not.toContain('<img src=x');
+        expect(html).toContain('50,000원 (&lt;img src=x onerror=alert(1)&gt;)');
+        expect(text).toContain('- 참가비: 50,000원 (<img src=x onerror=alert(1)>)');
+      });
+
       it('기수명이 html 에 escape 되고 text 는 원문으로 복원된다', async () => {
         await emailEventHandler.handleApplicationStatusChangedEvent(
           makeStatusPayload({
