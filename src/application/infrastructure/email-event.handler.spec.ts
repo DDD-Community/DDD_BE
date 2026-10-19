@@ -258,6 +258,8 @@ describe('EmailEventHandler', () => {
           '회신 양식\n이름 / 지원 파트 / 입금자명\n참가 여부 : 참여합니다\n입금 완료 여부 : 완료',
         );
         expect(html).toContain('<strong>본 메일에 회신</strong>');
+        // 합격 취소로 이어지는 안내라 회색 보조문이 아니라 검정 볼드로 보인다.
+        expect(html).toMatch(/color:#111827; font-weight:700;[^>]*>\s*입금 후 위 양식대로/);
         expect(text).toContain('입금 후 위 양식대로 본 메일에 회신해 주세요.');
         expect(text).toContain('합격이 취소될 수 있습니다');
       });

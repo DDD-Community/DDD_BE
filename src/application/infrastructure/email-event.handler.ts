@@ -277,6 +277,7 @@ export class EmailEventHandler {
         },
         {
           type: 'note',
+          emphasis: true,
           lines: [
             '입금 후 위 양식대로 <strong>본 메일에 회신</strong>해 주세요.',
             '기한 내 입금과 회신이 확인되지 않으면 합격이 취소될 수 있습니다.',

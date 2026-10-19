@@ -30,7 +30,8 @@ export type EmailBlock =
   /** 검은 CTA 버튼. href 는 escape 전 원본 URL */
   | { type: 'button'; label: string; href: string }
   /** 회색 보조 안내 (13px). 한 블록 안의 줄은 <br> 로 이어진다 */
-  | { type: 'note'; lines: SafeHtml[] }
+  /** emphasis: 놓치면 불이익이 있는 안내(입금 기한 등)를 회색 대신 검정 볼드로 보인다 */
+  | { type: 'note'; lines: SafeHtml[]; emphasis?: boolean }
   /** 버튼이 안 눌릴 때를 위한 원문 주소 안내. href 는 escape 전 원본 URL */
   | { type: 'linkFallback'; href: string };
 
@@ -181,9 +182,12 @@ const renderBlockHtml = (block: EmailBlock, paddingTop: number): string => {
     case 'note': {
       // 시안에서 문단·안내 뒤로 멀리 떨어진 안내만 줄 간격이 조금 넓다.
       const lineHeight = paddingTop === 18 ? 1.7 : 1.65;
+      const tone = block.emphasis
+        ? `color:${COLOR.title}; font-weight:700;`
+        : `color:${COLOR.muted};`;
       return `
   <tr>
-    <td style="padding-top:${paddingTop}px; font-family:${FONT_FAMILY}; font-size:13px; line-height:${lineHeight}; color:${COLOR.muted}; letter-spacing:-0.3px;">
+    <td style="padding-top:${paddingTop}px; font-family:${FONT_FAMILY}; font-size:13px; line-height:${lineHeight}; ${tone} letter-spacing:-0.3px;">
       ${block.lines.join('<br>')}
     </td>
   </tr>`;
