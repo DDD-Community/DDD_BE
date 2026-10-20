@@ -123,7 +123,10 @@ describe('GmailEmailClient', () => {
 
     await client.sendEmail(emailPayload);
 
-    expect(sendMail).toHaveBeenCalledWith(expect.objectContaining({ attachments: undefined }));
+    // 더미 첨부를 뺄 수 있는 근거가 quoted-printable 이므로 함께 고정한다.
+    expect(sendMail).toHaveBeenCalledWith(
+      expect.objectContaining({ attachments: undefined, textEncoding: 'quoted-printable' }),
+    );
   });
 
   it('발송이 실패하면 예외를 그대로 전파한다', async () => {
