@@ -246,7 +246,19 @@ export class CohortService {
     const { status, ...rest } = data;
     const statusChanged = status !== undefined && status !== previousStatus;
 
-    await this.cohortRepository.update({ id, ...rest });
+    // process 는 여러 화면·메일이 나눠 쓰는 jsonb 라 통째로 갈아 끼우지 않고 보낸 키만 병합한다.
+    // 갈아 끼우면 어드민 일정 폼이 모르는 키(참가비·입금 계좌 등 메일 안내 값)가 저장할 때마다 지워진다.
+    // 키를 지우려면 그 키에 null 을 보낸다 — 읽는 쪽이 null·빈 문자열을 모두 없음으로 본다.
+    // undefined 는 손대지 않음, null 은 통째로 비움이라 둘은 병합 대상이 아니다.
+    const { process, ...others } = rest;
+    await this.cohortRepository.update({
+      id,
+      ...others,
+      process: process === null ? process : undefined,
+    });
+    if (process) {
+      await this.cohortRepository.mergeProcess({ id, patch: process });
+    }
 
     if (!statusChanged || status === undefined) {
       return;

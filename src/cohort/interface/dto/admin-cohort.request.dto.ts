@@ -158,7 +158,10 @@ export class UpdateCohortRequestDto {
   @IsOptional()
   status?: CohortStatus;
 
-  @ApiPropertyOptional({ description: '프로세스 일정 JSON' })
+  @ApiPropertyOptional({
+    description:
+      '프로세스 일정·메일 안내 JSON. 보낸 키만 바뀌고 보내지 않은 기존 키는 유지된다. 키를 비우려면 null 을 보낸다',
+  })
   @IsObject()
   @IsOptional()
   process?: Record<string, unknown>;
