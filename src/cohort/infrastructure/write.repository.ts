@@ -51,6 +51,23 @@ export class WriteRepository {
   }
 
   /**
+   * process jsonb 에 patch 의 키만 덮어쓴다.
+   *
+   * 읽은 값과 합쳐 통째로 쓰면, 두 요청이 같은 옛 값을 읽고 서로 다른 키를 고칠 때 나중 쓰기가
+   * 앞 요청의 키를 지운다. 병합을 UPDATE 한 문장 안에서 하면 PostgreSQL 이 행 잠금으로
+   * 직렬화하고 각자 그 시점의 현재 값 위에 합친다.
+   */
+  async mergeProcess({ id, patch }: { id: number; patch: Record<string, unknown> }) {
+    await this.repository
+      .createQueryBuilder()
+      .update(Cohort)
+      .set({ process: () => `COALESCE("process", '{}'::jsonb) || CAST(:processPatch AS jsonb)` })
+      .setParameter('processPatch', JSON.stringify(patch))
+      .where('id = :id', { id })
+      .execute();
+  }
+
+  /**
    * 현재 상태가 fromStatus 일 때만 전환한다. 전환에 성공했으면 true.
    *
    * 스케줄러의 자동 종료와 어드민의 수동 종료가 같은 기수를 동시에 잡으면, 둘 다 ACTIVE 를

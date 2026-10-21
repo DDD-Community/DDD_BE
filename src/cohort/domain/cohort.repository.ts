@@ -127,6 +127,11 @@ export class CohortRepository {
     });
   }
 
+  /** process 에 보낸 키만 덮어쓴다. 나머지 키는 남는다 */
+  async mergeProcess({ id, patch }: { id: number; patch: Record<string, unknown> }) {
+    await this.writeRepository.mergeProcess({ id, patch });
+  }
+
   async updateStatusFrom({
     id,
     fromStatus,

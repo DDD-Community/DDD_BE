@@ -246,12 +246,19 @@ export class CohortService {
     const { status, ...rest } = data;
     const statusChanged = status !== undefined && status !== previousStatus;
 
+    // process 는 여러 화면·메일이 나눠 쓰는 jsonb 라 통째로 갈아 끼우지 않고 보낸 키만 병합한다.
+    // 갈아 끼우면 어드민 일정 폼이 모르는 키(참가비·입금 계좌 등 메일 안내 값)가 저장할 때마다 지워진다.
+    // 키를 지우려면 그 키에 null 을 보낸다 — 읽는 쪽이 null·빈 문자열을 모두 없음으로 본다.
+    // undefined 는 손대지 않음, null 은 통째로 비움이라 둘은 병합 대상이 아니다.
+    const { process, ...others } = rest;
     await this.cohortRepository.update({
       id,
-      ...rest,
-      // undefined 는 손대지 않음, null 은 통째로 비움 — 둘 다 병합 대상이 아니다.
-      process: rest.process == null ? rest.process : mergeProcess(found.process, rest.process),
+      ...others,
+      process: process === null ? process : undefined,
     });
+    if (process) {
+      await this.cohortRepository.mergeProcess({ id, patch: process });
+    }
 
     if (!statusChanged || status === undefined) {
       return;
@@ -432,13 +439,3 @@ export class CohortService {
     );
   }
 }
-
-/**
- * process 는 여러 화면·메일이 나눠 쓰는 jsonb 라, 요청에 담긴 키만 바꾸고 나머지는 남긴다.
- * 통째로 갈아 끼우면 어드민 일정 폼이 모르는 키(참가비·입금 계좌 등 메일 안내 값)가
- * 저장할 때마다 지워진다. 키를 지우려면 값으로 null 이나 빈 문자열을 보낸다 — 읽는 쪽이 둘 다 없음으로 본다.
- */
-const mergeProcess = (
-  current: Record<string, unknown> | null | undefined,
-  patch: Record<string, unknown>,
-): Record<string, unknown> => ({ ...(current ?? {}), ...patch });

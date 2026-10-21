@@ -28,6 +28,7 @@ const mockCohortRepository = {
   findEndedActive: jest.fn(),
   update: jest.fn(),
   updateStatusFrom: jest.fn(),
+  mergeProcess: jest.fn(),
   deleteById: jest.fn(),
 };
 
@@ -455,31 +456,28 @@ describe('CohortService', () => {
       expect(mockCohortRepository.update).toHaveBeenCalledWith({ id: 1, name: '14기(수정)' });
     });
 
-    it('process 는 보낸 키만 바꾸고 기존 키는 남긴다', async () => {
+    it('process 는 통째로 쓰지 않고 보낸 키만 병합하도록 넘긴다', async () => {
       mockCohortRepository.findById.mockResolvedValue({
         id: 1,
         status: CohortStatus.RECRUITING,
         recruitStartAt: new Date('2020-03-01T00:00:00.000Z'),
         recruitEndAt: new Date('2020-03-15T00:00:00.000Z'),
-        process: {
-          documentResultDate: '2026-10-07',
-          participationFee: 160000,
-          bankAccount: '토스뱅크 1002-000-0000',
-        },
+        process: { participationFee: 160000 },
       });
 
       await cohortService.updateCohort({
         id: 1,
-        data: { process: { documentResultDate: '2026-10-08', bankAccount: null } },
+        data: { name: '14기', process: { documentResultDate: '2026-10-08', bankAccount: null } },
       });
 
       expect(mockCohortRepository.update).toHaveBeenCalledWith({
         id: 1,
-        process: {
-          documentResultDate: '2026-10-08',
-          participationFee: 160000,
-          bankAccount: null,
-        },
+        name: '14기',
+        process: undefined,
+      });
+      expect(mockCohortRepository.mergeProcess).toHaveBeenCalledWith({
+        id: 1,
+        patch: { documentResultDate: '2026-10-08', bankAccount: null },
       });
     });
 
@@ -498,26 +496,20 @@ describe('CohortService', () => {
       });
 
       expect(mockCohortRepository.update).toHaveBeenCalledWith({ id: 1, process: null });
+      expect(mockCohortRepository.mergeProcess).not.toHaveBeenCalled();
     });
 
-    it('기존 process 가 없으면 보낸 값이 그대로 저장된다', async () => {
+    it('process 를 보내지 않으면 병합하지 않는다', async () => {
       mockCohortRepository.findById.mockResolvedValue({
         id: 1,
         status: CohortStatus.RECRUITING,
         recruitStartAt: new Date('2020-03-01T00:00:00.000Z'),
         recruitEndAt: new Date('2020-03-15T00:00:00.000Z'),
-        process: null,
       });
 
-      await cohortService.updateCohort({
-        id: 1,
-        data: { process: { documentResultDate: '2026-10-08' } },
-      });
+      await cohortService.updateCohort({ id: 1, data: { name: '14기' } });
 
-      expect(mockCohortRepository.update).toHaveBeenCalledWith({
-        id: 1,
-        process: { documentResultDate: '2026-10-08' },
-      });
+      expect(mockCohortRepository.mergeProcess).not.toHaveBeenCalled();
     });
 
     it('null 을 보내면 자동 종료 예약을 해제한다', async () => {
