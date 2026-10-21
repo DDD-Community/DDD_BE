@@ -95,6 +95,11 @@ class EnvironmentVariables {
   @IsUrl({ require_tld: false, require_protocol: true })
   GOOGLE_CALENDAR_CONNECT_CALLBACK_URL?: string;
 
+  @ValidateIf((env: EnvironmentVariables) => env.INTERVIEW_JOIN_BASE_URL !== '')
+  @IsOptional()
+  @IsUrl({ require_tld: false, require_protocol: true })
+  INTERVIEW_JOIN_BASE_URL?: string;
+
   @IsString()
   CLIENT_REDIRECT_URL: string;
 

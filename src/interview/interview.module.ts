@@ -1,15 +1,19 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { ApplicationModule } from '../application/application.module';
+import { KoreanThrottlerGuard } from '../common/guard/korean-throttler.guard';
 import { RolesGuard } from '../common/guard/roles.guard';
 import { GoogleCalendarModule } from '../google-calendar/google-calendar.module';
 import { NotificationModule } from '../notification/notification.module';
 import { UserModule } from '../user/user.module';
 import { InterviewService } from './application/interview.service';
 import { InterviewBookingTokenService } from './application/interview-booking-token.service';
+import { InterviewJoinService } from './application/interview-join.service';
+import { InterviewJoinTokenService } from './application/interview-join-token.service';
 import { InterviewMeetingService } from './application/interview-meeting.service';
 import { InterviewRepository } from './domain/interview.repository';
 import { InterviewReservation } from './domain/interview-reservation.entity';
@@ -23,6 +27,7 @@ import { SlotWriteRepository } from './infrastructure/slot.write.repository';
 import { AdminInterviewController } from './interface/admin.interview.controller';
 import { InterviewBookingGuard } from './interface/interview-booking.guard';
 import { PublicInterviewBookingController } from './interface/public.interview-booking.controller';
+import { PublicInterviewJoinController } from './interface/public.interview-join.controller';
 
 @Module({
   imports: [
@@ -31,6 +36,7 @@ import { PublicInterviewBookingController } from './interface/public.interview-b
     NotificationModule,
     GoogleCalendarModule,
     UserModule,
+    ThrottlerModule.forRoot([{ ttl: 60 * 1000, limit: 30 }]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
@@ -39,7 +45,11 @@ import { PublicInterviewBookingController } from './interface/public.interview-b
       inject: [ConfigService],
     }),
   ],
-  controllers: [AdminInterviewController, PublicInterviewBookingController],
+  controllers: [
+    AdminInterviewController,
+    PublicInterviewBookingController,
+    PublicInterviewJoinController,
+  ],
   providers: [
     InterviewService,
     InterviewMeetingService,
@@ -50,7 +60,10 @@ import { PublicInterviewBookingController } from './interface/public.interview-b
     ReservationWriteRepository,
     GoogleCalendarClient,
     RolesGuard,
+    KoreanThrottlerGuard,
     InterviewBookingTokenService,
+    InterviewJoinTokenService,
+    InterviewJoinService,
     InterviewBookingGuard,
   ],
   exports: [InterviewService, InterviewBookingTokenService],

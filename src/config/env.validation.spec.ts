@@ -21,6 +21,20 @@ const createValidConfig = (): Record<string, unknown> => ({
 });
 
 describe('env validation', () => {
+  describe('면접 입장 링크 설정', () => {
+    it('빈 값과 URL을 허용하고 잘못된 URL을 거부한다', () => {
+      expect(() => validate({ ...createValidConfig(), INTERVIEW_JOIN_BASE_URL: '' })).not.toThrow();
+      expect(() =>
+        validate({
+          ...createValidConfig(),
+          INTERVIEW_JOIN_BASE_URL: 'https://api.example.com/join',
+        }),
+      ).not.toThrow();
+      expect(() =>
+        validate({ ...createValidConfig(), INTERVIEW_JOIN_BASE_URL: 'not-a-url' }),
+      ).toThrow();
+    });
+  });
   describe('Google Calendar 연동 콜백 설정', () => {
     it('미설정이면 통과한다 (로그인 콜백 origin 에서 만든다)', () => {
       expect(() => validate(createValidConfig())).not.toThrow();

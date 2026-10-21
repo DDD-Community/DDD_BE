@@ -15,6 +15,7 @@ import type { InterviewSlot } from '../domain/interview-slot.entity';
 import { InterviewSlotMeetingStatus } from '../domain/interview-slot-meeting.status';
 import { GoogleCalendarClient } from '../infrastructure/google-calendar.client';
 import { InterviewService } from './interview.service';
+import { InterviewJoinTokenService } from './interview-join-token.service';
 import { InterviewMeetingService } from './interview-meeting.service';
 
 jest.mock('typeorm-transactional', () => ({
@@ -117,6 +118,16 @@ describe('InterviewService', () => {
         { provide: ApplicationService, useValue: {} },
         { provide: UserService, useValue: mockUserService },
         { provide: InterviewMeetingService, useValue: mockMeetingService },
+        {
+          provide: InterviewJoinTokenService,
+          useValue: {
+            createUrl: jest
+              .fn()
+              .mockReturnValue(
+                'https://api.example.com/api/v1/interview-bookings/join?token=join-token',
+              ),
+          },
+        },
         {
           provide: GoogleCalendarConnectionService,
           useValue: { findConnectionSummaries: jest.fn() },

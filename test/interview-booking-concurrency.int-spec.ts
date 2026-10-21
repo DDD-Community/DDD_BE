@@ -106,6 +106,9 @@ describe('면접 예약 동시성 (실 DB 통합)', () => {
       {} as never,
       {} as never,
       {} as never,
+      {
+        createUrl: () => 'https://api.example.com/api/v1/interview-bookings/join?token=test',
+      } as never,
     );
   });
 

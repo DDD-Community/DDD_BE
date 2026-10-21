@@ -109,5 +109,16 @@ export const formatKoreanDateTime = (date: Date): string => {
   return `${formatDatePart(parts)} ${formatTimePart(parts)}`;
 };
 
+/** 입장 가능 시각: 9월 19일(토) 13:50 */
+export const formatKoreanDateTime24 = (date: Date): string => {
+  const parts = toKstParts(date);
+  return `${formatDatePart(parts)} ${String(parts.hour).padStart(2, '0')}:${parts.minute}`;
+};
+
+export const formatKoreanTime24 = (date: Date): string => {
+  const parts = toKstParts(date);
+  return `${String(parts.hour).padStart(2, '0')}:${parts.minute}`;
+};
+
 export const diffMinutes = ({ startAt, endAt }: { startAt: Date; endAt: Date }): number =>
   Math.max(0, Math.round((endAt.getTime() - startAt.getTime()) / 60_000));

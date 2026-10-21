@@ -140,6 +140,14 @@ export class InterviewRepository {
     return this.reservationWriteRepository.findOne({ where: { id }, relations: ['slot'] });
   }
 
+  async findReservationByIdIncludingDeleted({ id }: { id: number }) {
+    return this.reservationWriteRepository.findOne({
+      where: { id },
+      relations: ['slot'],
+      withDeleted: true,
+    });
+  }
+
   async findReservations({ where }: { where?: ReservationFilter } = {}) {
     return this.reservationWriteRepository.findMany({ where, relations: ['slot'] });
   }
