@@ -36,45 +36,9 @@ export class EmailEventHandler {
   async handleApplicationSubmittedEvent(payload: ApplicationSubmittedEventPayload): Promise<void> {
     this.logger.log(`[이메일 이벤트] 지원서 최종 제출 완료 안내 메일 발송`);
     try {
-      const { cohort } = payload;
-      const submittedAt = formatKoreanDateTime(payload.submittedAt);
-      const rows: EmailInfoRow[] = [];
-      if (cohort.name) {
-        const cohortName = `DDD ${escapeHtml(cohort.name)}`;
-        rows.push({ label: '지원 기수', valueHtml: cohortName, valueText: `DDD ${cohort.name}` });
-      }
-      if (payload.partName) {
-        rows.push({
-          label: '지원 파트',
-          valueHtml: escapeHtml(payload.partName),
-          valueText: payload.partName,
-        });
-      }
-      rows.push({ label: '접수 일시', valueHtml: submittedAt, valueText: submittedAt });
-
-      // 발표일이 비어 있으면 "undefined부터" 가 나가지 않도록 날짜 없는 문장으로 바꾼다.
-      const resultNotice = cohort.documentResultDate
-        ? `서류 전형 결과는 ${escapeHtml(formatKoreanDeadline(cohort.documentResultDate))}부터 순차적으로 안내드립니다.`
-        : '서류 전형 결과는 추후 이메일로 안내드립니다.';
-
-      const title = '지원서 접수가 완료되었습니다';
-      const { html, text } = buildEmail({
-        title,
-        blocks: [
-          {
-            type: 'lead',
-            html: `${escapeHtml(payload.name)}님, 지원서가 정상적으로 접수되었습니다.`,
-          },
-          { type: 'info', rows },
-          { type: 'note', lines: [resultNotice, '지원해 주셔서 감사합니다.'] },
-        ],
-      });
-
       return await this.notificationService.sendEmail({
         to: payload.email,
-        subject: toEmailSubject(title),
-        html,
-        text,
+        ...this.renderSubmittedEmail(payload),
       });
     } catch (error) {
       this.logger.error(
@@ -82,6 +46,45 @@ export class EmailEventHandler {
         error instanceof Error ? error.stack : String(error),
       );
     }
+  }
+
+  /** 지원서 접수 안내 메일. 어드민 테스트 발송도 같은 함수를 써서 실제 양식과 어긋나지 않게 한다 */
+  renderSubmittedEmail(payload: ApplicationSubmittedEventPayload): RenderedStatusEmailTemplate {
+    const { cohort } = payload;
+    const submittedAt = formatKoreanDateTime(payload.submittedAt);
+    const rows: EmailInfoRow[] = [];
+    if (cohort.name) {
+      const cohortName = `DDD ${escapeHtml(cohort.name)}`;
+      rows.push({ label: '지원 기수', valueHtml: cohortName, valueText: `DDD ${cohort.name}` });
+    }
+    if (payload.partName) {
+      rows.push({
+        label: '지원 파트',
+        valueHtml: escapeHtml(payload.partName),
+        valueText: payload.partName,
+      });
+    }
+    rows.push({ label: '접수 일시', valueHtml: submittedAt, valueText: submittedAt });
+
+    // 발표일이 비어 있으면 "undefined부터" 가 나가지 않도록 날짜 없는 문장으로 바꾼다.
+    const resultNotice = cohort.documentResultDate
+      ? `서류 전형 결과는 ${escapeHtml(formatKoreanDeadline(cohort.documentResultDate))}부터 순차적으로 안내드립니다.`
+      : '서류 전형 결과는 추후 이메일로 안내드립니다.';
+
+    const title = '지원서 접수가 완료되었습니다';
+    const { html, text } = buildEmail({
+      title,
+      blocks: [
+        {
+          type: 'lead',
+          html: `${escapeHtml(payload.name)}님, 지원서가 정상적으로 접수되었습니다.`,
+        },
+        { type: 'info', rows },
+        { type: 'note', lines: [resultNotice, '지원해 주셔서 감사합니다.'] },
+      ],
+    });
+
+    return { subject: toEmailSubject(title), html, text };
   }
 
   @OnEvent('application.status_changed')
@@ -94,7 +97,7 @@ export class EmailEventHandler {
 
     this.logger.log(`[이메일 이벤트] 지원서 상태 변경 안내 메일 발송`);
     try {
-      const template = this.buildStatusEmailTemplate(payload, payload.newStatus);
+      const template = this.renderStatusEmail(payload, payload.newStatus);
 
       return await this.notificationService.sendEmail({
         to: payload.email,
@@ -108,7 +111,8 @@ export class EmailEventHandler {
     }
   }
 
-  private buildStatusEmailTemplate(
+  /** 전형 결과 안내 메일. 어드민 테스트 발송도 같은 함수를 써서 실제 양식과 어긋나지 않게 한다 */
+  renderStatusEmail(
     payload: ApplicationStatusChangedEventPayload,
     newStatus: AnnouncementStatus,
   ): RenderedStatusEmailTemplate {
