@@ -29,9 +29,9 @@ describe('AdminApplicationFormResponseDto', () => {
       expect(dto.applicantName).toBe('홍길동');
     });
 
-    it('전화번호는 가운데만 마스킹한다', () => {
+    it('전화번호 원문을 반환한다', () => {
       const dto = AdminApplicationFormResponseDto.from(makeForm(), roles);
-      expect(dto.applicantPhone).toBe('010-****-5678');
+      expect(dto.applicantPhone).toBe('010-1234-5678');
     });
 
     it('생년월일과 지역을 원문 반환한다', () => {
@@ -69,9 +69,9 @@ describe('AdminApplicationFormResponseDto', () => {
       expect(dto.applicantName).toBe('홍길동');
     });
 
-    it('전화번호는 가운데만 마스킹한다', () => {
+    it('전화번호 원문을 반환한다', () => {
       const dto = AdminApplicationFormResponseDto.from(makeForm(), roles);
-      expect(dto.applicantPhone).toBe('010-****-5678');
+      expect(dto.applicantPhone).toBe('010-1234-5678');
     });
 
     it('생년월일과 지역을 원문 반환한다', () => {
@@ -106,39 +106,8 @@ describe('AdminApplicationFormResponseDto', () => {
     });
   });
 
-  describe('maskPhone (계정관리 기준)', () => {
-    const roles = [UserRole.계정관리];
-
-    it('11자리 번호는 가운데 4자리를 마스킹한다', () => {
-      const dto = AdminApplicationFormResponseDto.from(
-        makeForm({ applicantPhone: '010-1234-5678' }),
-        roles,
-      );
-      expect(dto.applicantPhone).toBe('010-****-5678');
-    });
-
-    it('10자리 번호는 가운데 3자리를 마스킹한다', () => {
-      const dto = AdminApplicationFormResponseDto.from(
-        makeForm({ applicantPhone: '010-123-4567' }),
-        roles,
-      );
-      expect(dto.applicantPhone).toBe('010-***-4567');
-    });
-
-    it('하이픈 없는 11자리도 마스킹한다', () => {
-      const dto = AdminApplicationFormResponseDto.from(
-        makeForm({ applicantPhone: '01012345678' }),
-        roles,
-      );
-      expect(dto.applicantPhone).toBe('010-****-5678');
-    });
-
-    it('8자리 미만은 원본을 반환한다', () => {
-      const dto = AdminApplicationFormResponseDto.from(
-        makeForm({ applicantPhone: '1234567' }),
-        roles,
-      );
-      expect(dto.applicantPhone).toBe('1234567');
-    });
+  it('운영자 역할도 전화번호 원문을 반환한다', () => {
+    const dto = AdminApplicationFormResponseDto.from(makeForm(), [UserRole.운영자]);
+    expect(dto.applicantPhone).toBe('010-1234-5678');
   });
 });

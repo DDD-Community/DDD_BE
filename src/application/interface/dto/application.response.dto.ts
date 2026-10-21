@@ -94,11 +94,7 @@ export class AdminApplicationFormResponseDto {
       : canAccessPii
         ? form.applicantName
         : this.maskName(form.applicantName);
-    dto.applicantPhone = isPurged
-      ? ''
-      : canAccessPii
-        ? this.maskPhone(form.applicantPhone)
-        : this.redactPhone();
+    dto.applicantPhone = isPurged ? '' : canAccessPii ? form.applicantPhone : this.redactPhone();
     dto.applicantBirthDate = canAccessPii ? (form.applicantBirthDate ?? null) : null;
     dto.applicantRegion = canAccessPii ? (form.applicantRegion ?? null) : null;
     dto.applicantEmail =
@@ -125,19 +121,6 @@ export class AdminApplicationFormResponseDto {
 
   private static redactPhone(): string {
     return '***-****-****';
-  }
-
-  static maskPhone(phone: string): string {
-    const digits = phone.replace(/[^0-9]/g, '');
-    if (digits.length < 8) {
-      return phone;
-    }
-
-    if (digits.length === 11) {
-      return `${digits.slice(0, 3)}-${digits.slice(3, 7).replace(/./g, '*')}-${digits.slice(7)}`;
-    }
-
-    return `${digits.slice(0, 3)}-${digits.slice(3, 6).replace(/./g, '*')}-${digits.slice(6)}`;
   }
 }
 
