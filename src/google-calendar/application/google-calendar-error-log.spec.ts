@@ -17,13 +17,14 @@ describe('google-calendar-error-log', () => {
       expect(detail).not.toContain('SECRET');
     });
 
-    it('식별자 형식이 아닌 값은 버린다', () => {
-      expect(
-        describeGoogleError({
-          name: 'x',
-          response: { data: { error: 'token ya29.SECRET value' } },
-        }),
-      ).toBe('name=x');
+    it('알려지지 않은 google_error 는 형식이 맞아도 other 로 바꾼다', () => {
+      const detail = describeGoogleError({
+        name: 'GaxiosError',
+        response: { status: 400, data: { error: 'ya29.SECRET_ACCESS_TOKEN' } },
+      });
+
+      expect(detail).toBe('name=GaxiosError status=400 google_error=other');
+      expect(detail).not.toContain('SECRET');
     });
 
     it('객체가 아닌 오류는 내용을 싣지 않는다', () => {

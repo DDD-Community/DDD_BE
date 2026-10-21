@@ -22,7 +22,34 @@ const describe = (fields: Array<[string, unknown]>): string =>
     .map(([key, value]) => `${key}=${value}`)
     .join(' ');
 
-/** Google 호출 실패: 오류 종류·HTTP 상태·Google 공개 오류 코드(예: redirect_uri_mismatch)만 */
+/**
+ * Google 토큰 서버가 돌려줄 수 있는 OAuth 오류 코드(RFC 6749 §5.2 + Google 확장).
+ * 형식 검사만으로는 허용 문자로 된 비밀값을 막지 못하므로, 알려진 코드만 그대로 남긴다.
+ */
+const KNOWN_GOOGLE_ERRORS: ReadonlySet<string> = new Set([
+  'invalid_request',
+  'invalid_client',
+  'invalid_grant',
+  'unauthorized_client',
+  'unsupported_grant_type',
+  'invalid_scope',
+  'access_denied',
+  'redirect_uri_mismatch',
+  'admin_policy_enforced',
+  'org_internal',
+  'disallowed_useragent',
+  'deleted_client',
+  'invalid_token',
+]);
+
+const toKnownGoogleError = (value: unknown): string | null => {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  return typeof value === 'string' && KNOWN_GOOGLE_ERRORS.has(value) ? value : 'other';
+};
+
+/** Google 호출 실패: 오류 종류·HTTP 상태·알려진 Google 오류 코드(예: redirect_uri_mismatch)만 */
 export const describeGoogleError = (error: unknown): string => {
   if (typeof error !== 'object' || error === null) {
     return 'name=non_object_error';
@@ -36,7 +63,7 @@ export const describeGoogleError = (error: unknown): string => {
     describe([
       ['name', record.name],
       ['status', record.response?.status ?? record.status],
-      ['google_error', record.response?.data?.error],
+      ['google_error', toKnownGoogleError(record.response?.data?.error)],
     ]) || 'name=unknown'
   );
 };
