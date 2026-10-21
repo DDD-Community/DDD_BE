@@ -20,8 +20,16 @@ export class ReservationWriteRepository {
     return this.repository.save(reservation);
   }
 
-  async findOne({ where, relations }: { where: ReservationFilter; relations?: string[] }) {
-    return this.repository.findOne({ where: this.toWhereOptions(where), relations });
+  async findOne({
+    where,
+    relations,
+    withDeleted,
+  }: {
+    where: ReservationFilter;
+    relations?: string[];
+    withDeleted?: boolean;
+  }) {
+    return this.repository.findOne({ where: this.toWhereOptions(where), relations, withDeleted });
   }
 
   async findMany({

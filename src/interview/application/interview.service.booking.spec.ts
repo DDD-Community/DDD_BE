@@ -14,6 +14,7 @@ import { InterviewSlotMeetingStatus } from '../domain/interview-slot-meeting.sta
 import { GoogleCalendarClient } from '../infrastructure/google-calendar.client';
 import { BookingSlotResponseDto } from '../interface/dto/interview-booking.response.dto';
 import { InterviewService } from './interview.service';
+import { InterviewJoinTokenService } from './interview-join-token.service';
 import { InterviewMeetingService } from './interview-meeting.service';
 
 jest.mock('typeorm-transactional', () => ({
@@ -81,6 +82,16 @@ describe('InterviewService (지원자 예약)', () => {
         { provide: ApplicationService, useValue: mockApplicationService },
         { provide: UserService, useValue: {} },
         { provide: InterviewMeetingService, useValue: {} },
+        {
+          provide: InterviewJoinTokenService,
+          useValue: {
+            createUrl: jest
+              .fn()
+              .mockReturnValue(
+                'https://api.example.com/api/v1/interview-bookings/join?token=join-token',
+              ),
+          },
+        },
         { provide: GoogleCalendarConnectionService, useValue: {} },
       ],
     }).compile();
@@ -138,6 +149,36 @@ describe('InterviewService (지원자 예약)', () => {
       expect(mockNotificationService.sendEmail).toHaveBeenCalledWith(
         expect.objectContaining({ to: 'applicant@example.com' }),
       );
+    });
+
+    it('Meet 모드 메일과 ICS에 입장 링크만 담는다', async () => {
+      const meetUrl = 'https://meet.google.com/private-room';
+      const location = 'https://location.example.com/private';
+      mockRepository.findSlotByIdForUpdate.mockResolvedValue(
+        makeSlot({ meetingStatus: InterviewSlotMeetingStatus.READY, meetUrl, location }),
+      );
+      mockRepository.findReservationByApplicationFormId.mockResolvedValue(null);
+      mockRepository.countActiveReservationsBySlotId.mockResolvedValue(0);
+      mockRepository.saveReservation.mockImplementation(
+        ({ reservation }: { reservation: InterviewReservation }) =>
+          Promise.resolve(Object.assign(reservation, { id: 55 })),
+      );
+
+      await service.createReservationByApplicant({ input });
+      await flushPostCommitTasks(service);
+
+      const sent = mockNotificationService.sendEmail.mock.calls[0][0] as {
+        html: string;
+        text: string;
+        attachments: Array<{ content: string }>;
+      };
+      const combined = `${sent.html}\n${sent.text}\n${sent.attachments[0].content}`;
+      expect(combined).toContain(
+        'https://api.example.com/api/v1/interview-bookings/join?token=join-token',
+      );
+      expect(combined).not.toContain(meetUrl);
+      expect(combined).not.toContain(location);
+      expect(sent.text).toContain('시작 10분 전부터 입장할 수 있습니다.');
     });
     it('열린 슬롯을 잠그고 예약을 생성한다', async () => {
       mockRepository.findSlotByIdForUpdate.mockResolvedValue(makeSlot());

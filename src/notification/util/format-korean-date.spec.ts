@@ -1,4 +1,18 @@
-import { diffMinutes, formatKoreanDateTime, formatKoreanDeadline } from './format-korean-date';
+import {
+  diffMinutes,
+  formatKoreanDateTime,
+  formatKoreanDateTime24,
+  formatKoreanDeadline,
+  formatKoreanTime24,
+} from './format-korean-date';
+
+describe('면접 입장 시각', () => {
+  it('UTC 날짜 경계를 넘어도 KST 날짜와 24시간제를 표시한다', () => {
+    const date = new Date('2026-09-18T15:50:00Z');
+    expect(formatKoreanDateTime24(date)).toBe('9월 19일(토) 00:50');
+    expect(formatKoreanTime24(date)).toBe('00:50');
+  });
+});
 
 describe('formatKoreanDeadline', () => {
   it('날짜만 있으면 월/일(요일) 로 표기한다', () => {

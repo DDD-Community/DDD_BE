@@ -9,6 +9,7 @@ const mockInterviewService = {
   findActiveReservationByApplicationFormId: jest.fn(),
   findOpenSlotsForBooking: jest.fn(),
   createReservationByApplicant: jest.fn(),
+  createJoinUrlForReservation: jest.fn().mockReturnValue(null),
 };
 
 const token: InterviewBookingTokenPayload = {

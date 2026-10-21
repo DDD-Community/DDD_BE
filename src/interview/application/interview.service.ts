@@ -37,6 +37,7 @@ import {
   isMeetingBookable,
 } from '../domain/interview-slot-meeting.status';
 import { GoogleCalendarClient } from '../infrastructure/google-calendar.client';
+import { InterviewJoinTokenService } from './interview-join-token.service';
 import { InterviewMeetingService } from './interview-meeting.service';
 
 const ONLINE_INTERVIEW = '온라인 (Google Meet)';
@@ -63,7 +64,20 @@ export class InterviewService {
     private readonly userService: UserService,
     private readonly interviewMeetingService: InterviewMeetingService,
     private readonly calendarConnectionService: GoogleCalendarConnectionService,
+    private readonly joinTokenService: InterviewJoinTokenService,
   ) {}
+
+  createJoinUrlForReservation({
+    reservation,
+  }: {
+    reservation: InterviewReservation;
+  }): string | null {
+    const slot = reservation.slot;
+    if (!slot || !slot.meetingStatus || slot.meetingStatus === InterviewSlotMeetingStatus.NONE) {
+      return null;
+    }
+    return this.joinTokenService.createUrl({ reservationId: reservation.id });
+  }
 
   async createSlotWithMeeting({
     input,
@@ -552,6 +566,7 @@ export class InterviewService {
     });
 
     await this.sendInterviewInviteEmail({
+      reservationId,
       applicantName,
       applicantEmail,
       slot,
@@ -735,12 +750,14 @@ export class InterviewService {
   }
 
   private async sendInterviewInviteEmail({
+    reservationId,
     applicantName,
     applicantEmail,
     slot,
     cohort,
     partName,
   }: {
+    reservationId: number;
     applicantName: string;
     applicantEmail: string;
     slot: InterviewSlot;
@@ -749,13 +766,19 @@ export class InterviewService {
   }): Promise<void> {
     try {
       const summary = `[DDD] 면접 일정 안내`;
+      const isMeetMode = Boolean(
+        slot.meetingStatus && slot.meetingStatus !== InterviewSlotMeetingStatus.NONE,
+      );
+      const joinUrl = isMeetMode ? this.joinTokenService.createUrl({ reservationId }) : null;
       const ics = buildIcsFile({
         uid: `interview-${slot.id}-${applicantEmail}@dddstudy.kr`,
         summary,
         startAt: slot.startAt,
         endAt: slot.endAt,
-        location: slot.location,
-        description: slot.description,
+        location: joinUrl ?? slot.location,
+        description: joinUrl
+          ? `${slot.description ? `${slot.description}\n\n` : ''}입장 링크: ${joinUrl}\n시작 10분 전부터 입장할 수 있습니다.`
+          : slot.description,
       });
 
       const scheduledAt = formatKoreanDateTime(slot.startAt);
@@ -781,9 +804,9 @@ export class InterviewService {
 
       // 장소가 미팅 링크일 때만 버튼으로 보낸다. "추후 안내" 같은 문구를 href 에 넣으면
       // 눌러도 아무 데도 가지 않는 버튼이 되므로, 그때는 장소 줄로 그대로 보여준다.
-      const location = slot.location.trim();
-      const meetingLink = /^https?:\/\/\S+$/.test(location) ? location : null;
-      if (!meetingLink) {
+      const location = isMeetMode ? '' : slot.location.trim();
+      const meetingLink = joinUrl ?? (/^https?:\/\/\S+$/.test(location) ? location : null);
+      if (!isMeetMode && !meetingLink) {
         rows.push({ label: '장소', valueHtml: escapeHtml(location), valueText: location });
       }
 
@@ -797,6 +820,14 @@ export class InterviewService {
       ];
       if (meetingLink) {
         blocks.push({ type: 'button', label: '인터뷰 참여하기', href: meetingLink });
+      }
+      if (isMeetMode) {
+        blocks.push({
+          type: 'note',
+          lines: [
+            '시작 10분 전부터 입장할 수 있습니다. 입장 후 면접관이 수락할 때까지 잠시 기다려 주세요.',
+          ],
+        });
       }
       blocks.push(
         { type: 'note', lines: ['시작 5분 전까지 접속 환경과 마이크를 확인해 주세요.'] },
@@ -825,11 +856,9 @@ export class InterviewService {
           },
         ],
       });
-    } catch (error) {
-      this.logger.error(
-        '면접 일정 안내 이메일 발송 실패 (예약은 저장됨)',
-        error instanceof Error ? error.stack : String(error),
-      );
+    } catch {
+      // 발송 오류에는 수신자와 본문(입장 토큰)이 포함될 수 있어 원문을 기록하지 않는다.
+      this.logger.error('면접 일정 안내 이메일 발송 실패 (예약은 저장됨)');
     }
   }
 }

@@ -35,6 +35,9 @@ export class PublicInterviewBookingController {
         applicantName: token.applicantName,
         partName: token.partName,
         reservation,
+        joinUrl: reservation
+          ? this.interviewService.createJoinUrlForReservation({ reservation })
+          : null,
       }),
     );
   }
@@ -74,7 +77,10 @@ export class PublicInterviewBookingController {
       },
     });
     return ApiResponse.ok(
-      BookingReservationResponseDto.from(reservation),
+      BookingReservationResponseDto.from({
+        reservation,
+        joinUrl: this.interviewService.createJoinUrlForReservation({ reservation }),
+      }),
       '면접 예약이 완료되었습니다.',
     );
   }

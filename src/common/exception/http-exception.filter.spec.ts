@@ -287,5 +287,25 @@ describe('HttpExceptionFilter — Express 미들웨어가 던진 오류', () => 
       expect(warn).toHaveBeenCalledWith(expect.stringContaining('/api/v1/admin/files/download ->'));
       expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('attachments/12'));
     });
+
+    it('처리되지 않은 예외의 로그에도 쿼리스트링을 남기지 않는다', () => {
+      // 면접 입장 링크는 토큰을 쿼리로 받는다. 처리 중 DB 오류가 나면 이 경로로 떨어진다.
+      // Given
+      const error = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+      const { host } = captureResponse({
+        url: '/api/v1/interview-bookings/join?token=secret.join.token',
+      });
+
+      // When
+      filter.catch(new Error('db down'), host);
+
+      // Then
+      expect(error).toHaveBeenCalledWith(
+        'Unhandled exception on POST /api/v1/interview-bookings/join',
+        expect.any(String),
+      );
+      expect(JSON.stringify(error.mock.calls)).not.toContain('secret.join.token');
+      error.mockRestore();
+    });
   });
 });
