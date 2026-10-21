@@ -66,8 +66,12 @@ export class HttpExceptionFilter implements ExceptionFilter {
       return;
     }
 
+    // 쿼리스트링은 남기지 않는다. 면접 입장 링크처럼 토큰을 쿼리로 받는 공개 경로가 있어,
+    // 처리 중 DB 오류 하나로 유효한 토큰이 로그에 그대로 남는다.
+    const [path] = (request.url ?? '').split('?');
+
     this.logger.error(
-      `Unhandled exception on ${request.method} ${request.url}`,
+      `Unhandled exception on ${request.method} ${path}`,
       exception instanceof Error ? exception.stack : String(exception),
     );
 
