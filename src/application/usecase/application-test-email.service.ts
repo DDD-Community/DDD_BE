@@ -1,9 +1,8 @@
-import { HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 
 import { CohortService } from '../../cohort/application/cohort.service';
 import type { CohortAnnouncementInfo } from '../../cohort/domain/cohort-announcement-info';
 import { toCohortAnnouncementInfo } from '../../cohort/domain/cohort-announcement-info';
-import { AppException } from '../../common/exception/app.exception';
 import { maskEmail } from '../../common/util/mask-email';
 import { NotificationService } from '../../notification/application/notification.service';
 import type { AnnouncementStatus } from '../domain/application.status';
@@ -48,10 +47,8 @@ export class ApplicationTestEmailService {
   }): Promise<void> {
     const cohort = await this.cohortService.findCohortById({ id: cohortId });
     // 예약 링크와 "지원 파트" 줄에 쓸 파트. 열린 파트를 우선하고, 없으면 아무 파트나 쓴다.
-    const part = cohort.parts?.find((p) => p.isOpen) ?? cohort.parts?.[0];
-    if (!part) {
-      throw new AppException('COHORT_PART_NOT_FOUND', HttpStatus.BAD_REQUEST);
-    }
+    // 파트를 아직 안 만든 기수도 미리 보기는 할 수 있어야 한다 — 메일은 파트가 없으면 그 줄을 뺀다.
+    const part = cohort.parts?.find((p) => p.isOpen) ?? cohort.parts?.[0] ?? null;
 
     const announcement = toCohortAnnouncementInfo({ name: cohort.name, process: cohort.process });
     const interviewEndDate = cohort.process?.interviewEndDate;
@@ -61,7 +58,7 @@ export class ApplicationTestEmailService {
         ? this.emailEventHandler.renderSubmittedEmail({
             email: to,
             name: TEST_APPLICANT_NAME,
-            partName: part.partName,
+            partName: part?.partName ?? null,
             submittedAt: new Date(),
             cohort: announcement,
           })
@@ -91,7 +88,7 @@ export class ApplicationTestEmailService {
     status: AnnouncementStatus;
     to: string;
     cohortId: number;
-    part: { id: number; partName: string };
+    part: { id: number; partName: string } | null;
     interviewEndDate: string | null;
     announcement: CohortAnnouncementInfo;
   }): RenderedStatusEmailTemplate {
@@ -102,8 +99,8 @@ export class ApplicationTestEmailService {
         newStatus: status,
         applicationFormId: TEST_APPLICATION_FORM_ID,
         cohortId,
-        cohortPartId: part.id,
-        partName: part.partName,
+        cohortPartId: part?.id ?? 0,
+        partName: part?.partName ?? null,
         interviewEndDate,
         cohort: announcement,
       },

@@ -1,6 +1,3 @@
-import { HttpStatus } from '@nestjs/common';
-
-import { AppException } from '../../common/exception/app.exception';
 import { ApplicationStatus } from '../domain/application.status';
 import { TestEmailType } from '../domain/test-email.type';
 import { ApplicationTestEmailService } from './application-test-email.service';
@@ -98,13 +95,16 @@ describe('ApplicationTestEmailService', () => {
     );
   });
 
-  it('파트가 하나도 없으면 보내지 않고 예외를 던진다', async () => {
+  it('파트가 없는 기수도 파트 줄 없이 만들어 보낸다', async () => {
     cohortService.findCohortById.mockResolvedValue({ ...cohort, parts: [] });
 
-    await expect(
-      service.sendTestEmail({ cohortId: 15, type: TestEmailType.면접합격, to: 'a@b.com' }),
-    ).rejects.toThrow(new AppException('COHORT_PART_NOT_FOUND', HttpStatus.BAD_REQUEST));
-    expect(notificationService.sendEmail).not.toHaveBeenCalled();
+    await service.sendTestEmail({ cohortId: 15, type: TestEmailType.면접합격, to: 'a@b.com' });
+
+    expect(emailEventHandler.renderStatusEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ cohortPartId: 0, partName: null }),
+      ApplicationStatus.면접합격,
+    );
+    expect(notificationService.sendEmail).toHaveBeenCalledTimes(1);
   });
 
   it('발송 실패는 삼키지 않고 호출자에게 올린다', async () => {
