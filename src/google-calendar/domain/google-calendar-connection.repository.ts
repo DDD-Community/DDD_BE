@@ -12,6 +12,10 @@ export class GoogleCalendarConnectionRepository {
     return this.writeRepository.findOne({ userId });
   }
 
+  async findByUserIds({ userIds }: { userIds: number[] }) {
+    return this.writeRepository.findMany({ userIds });
+  }
+
   async saveConnection({ connection }: { connection: GoogleCalendarConnection }) {
     return this.writeRepository.save({ connection });
   }

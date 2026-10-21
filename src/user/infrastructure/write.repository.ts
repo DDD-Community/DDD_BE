@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { DataSource, Repository, SelectQueryBuilder } from 'typeorm';
+import { DataSource, In, Repository, SelectQueryBuilder } from 'typeorm';
 
 import { User } from '../domain/user.entity';
 import type { UserFindCondition, UserSavePatch, UserUpdatePatch } from './write.repository.type';
@@ -30,6 +30,16 @@ export class WriteRepository {
       where,
       relations: includeRoles ? { userRoles: true } : undefined,
       withDeleted,
+    });
+  }
+
+  async findActiveWithRoles({ ids }: { ids?: number[] }): Promise<User[]> {
+    if (ids && ids.length === 0) {
+      return [];
+    }
+    return this.repository.find({
+      where: ids ? { id: In(ids) } : {},
+      relations: { userRoles: true },
     });
   }
 

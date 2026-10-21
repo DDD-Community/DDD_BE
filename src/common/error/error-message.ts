@@ -13,6 +13,7 @@ export const ErrorMessage = {
   GOOGLE_CALENDAR_RECONNECT_REQUIRED: 'Google Calendar를 다시 연결해 주세요.',
   GOOGLE_CALENDAR_REQUEST_FAILED: 'Google Calendar 요청에 실패했습니다.',
   GOOGLE_CALENDAR_TEST_EVENT_ONLY: '테스트로 생성한 일정만 삭제할 수 있습니다.',
+  GOOGLE_CALENDAR_EVENT_ID_CONFLICT: '이미 삭제된 일정의 ID 입니다.',
   BOOTSTRAP_TOKEN_NOT_CONFIGURED: '부트스트랩 토큰이 서버에 설정되지 않았습니다.',
   BOOTSTRAP_TOKEN_EXPIRED: '부트스트랩 토큰이 만료되어 이 엔드포인트는 봉인되었습니다.',
   BOOTSTRAP_TOKEN_INVALID: '부트스트랩 토큰이 일치하지 않습니다.',
@@ -46,6 +47,10 @@ export const ErrorMessage = {
   EVALUATION_NOT_FOUND: '평가 정보를 찾을 수 없습니다.',
 
   INTERVIEW_SLOT_NOT_FOUND: '면접 슬롯을 찾을 수 없습니다.',
+  INTERVIEW_INTERVIEWER_INVALID: '면접관으로 지정할 수 없는 사용자입니다.',
+  INTERVIEW_INTERVIEWERS_REQUIRED: '예약이 있는 슬롯은 면접관을 모두 뺄 수 없습니다.',
+  INTERVIEW_HOST_TIME_CONFLICT: '해당 면접관이 같은 시간대의 다른 면접을 진행합니다.',
+  INTERVIEW_SLOT_MEETING_NOT_READY: '면접 회의가 준비되지 않아 예약할 수 없습니다.',
   INTERVIEW_SLOT_ALREADY_RESERVED: '이미 예약된 면접 슬롯입니다.',
   INTERVIEW_SLOTS_NOT_READY: '해당 파트의 면접 슬롯이 준비되지 않아 서류합격 처리할 수 없습니다.',
   INVALID_INTERVIEW_SLOT_RANGE: '면접 슬롯의 종료 시간은 시작 시간보다 늦어야 합니다.',

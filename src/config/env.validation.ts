@@ -1,5 +1,6 @@
 import { plainToInstance } from 'class-transformer';
 import {
+  IsEmail,
   IsIn,
   IsNotEmpty,
   IsNumber,
@@ -134,6 +135,11 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   OPS_ALERT_EMAIL?: string;
+
+  @ValidateIf((env: EnvironmentVariables) => env.INTERVIEW_MEETING_OBSERVER_EMAIL !== '')
+  @IsOptional()
+  @IsEmail()
+  INTERVIEW_MEETING_OBSERVER_EMAIL?: string;
 
   @IsString()
   @IsOptional()

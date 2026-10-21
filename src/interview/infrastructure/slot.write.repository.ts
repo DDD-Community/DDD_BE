@@ -1,24 +1,78 @@
 import { Injectable } from '@nestjs/common';
-import { DataSource, FindOptionsWhere, Repository } from 'typeorm';
+import {
+  DataSource,
+  FindOptionsWhere,
+  In,
+  IsNull,
+  LessThan,
+  MoreThan,
+  Not,
+  Repository,
+} from 'typeorm';
 
 import { filterDefinedFields } from '../../common/util/object-utils';
 import { InterviewSlot } from '../domain/interview-slot.entity';
+import { InterviewSlotMeetingStatus } from '../domain/interview-slot-meeting.status';
 import type { SlotFilter, SlotUpdatePatch } from './write.repository.type';
 
 @Injectable()
 export class SlotWriteRepository {
   private readonly repository: Repository<InterviewSlot>;
+  private readonly dataSource: DataSource;
 
   constructor(dataSource: DataSource) {
+    this.dataSource = dataSource;
     this.repository = dataSource.getRepository(InterviewSlot);
+  }
+
+  async withMeetingLock({
+    slotId,
+    work,
+  }: {
+    slotId: number;
+    work: () => Promise<void>;
+  }): Promise<void> {
+    const runner = this.dataSource.createQueryRunner();
+    let locked = false;
+    try {
+      await runner.connect();
+      const rows = (await runner.query('SELECT pg_try_advisory_lock($1, $2) AS locked', [
+        7101,
+        slotId,
+      ])) as Array<{ locked: boolean }>;
+      locked = rows[0]?.locked === true;
+      if (locked) {
+        await work();
+      }
+    } finally {
+      try {
+        if (locked) {
+          await runner.query('SELECT pg_advisory_unlock($1, $2)', [7101, slotId]);
+        }
+      } finally {
+        await runner.release();
+      }
+    }
+  }
+
+  async acquireHostTimeLock({ hostUserId }: { hostUserId: number }): Promise<void> {
+    await this.repository.manager.query('SELECT pg_advisory_xact_lock($1, $2)', [7102, hostUserId]);
   }
 
   async save({ slot }: { slot: InterviewSlot }): Promise<InterviewSlot> {
     return this.repository.save(slot);
   }
 
-  async findOne({ where, relations }: { where: SlotFilter; relations?: string[] }) {
-    return this.repository.findOne({ where: this.buildWhere(where), relations });
+  async findOne({
+    where,
+    relations,
+    withDeleted = false,
+  }: {
+    where: SlotFilter;
+    relations?: string[];
+    withDeleted?: boolean;
+  }) {
+    return this.repository.findOne({ where: this.buildWhere(where), relations, withDeleted });
   }
 
   async findMany({ where = {}, relations }: { where?: SlotFilter; relations?: string[] } = {}) {
@@ -39,6 +93,91 @@ export class SlotWriteRepository {
 
   async softDelete({ id }: { id: number }): Promise<void> {
     await this.repository.softDelete(id);
+  }
+
+  async updateMeetingState({
+    slotId,
+    patch,
+    revision,
+    bumpRevision = false,
+  }: {
+    slotId: number;
+    revision?: number;
+    bumpRevision?: boolean;
+    patch: Partial<
+      Pick<
+        InterviewSlot,
+        | 'meetingStatus'
+        | 'calendarOwnerUserId'
+        | 'calendarEventId'
+        | 'staleCalendarEventId'
+        | 'staleCalendarOwnerUserId'
+        | 'meetUrl'
+        | 'meetingGeneration'
+        | 'meetingRetryCount'
+        | 'meetingSyncedAt'
+        | 'meetingLastError'
+      >
+    >;
+  }): Promise<boolean> {
+    const query = this.repository
+      .createQueryBuilder()
+      .update(InterviewSlot)
+      .set({
+        ...patch,
+        ...(bumpRevision ? { meetingRevision: () => '"meetingRevision" + 1' } : {}),
+      })
+      .where('id = :slotId', { slotId });
+    if (revision !== undefined) {
+      query.andWhere('"meetingRevision" = :revision', { revision });
+    }
+    const result = await query.execute();
+    return (result.affected ?? 0) > 0;
+  }
+
+  /** 지운(또는 정리를 포기한) 옛 일정 기록을 비운다. 그사이 다른 값으로 바뀌었으면 건드리지 않는다 */
+  async clearStaleMeetingEvent({ slotId, eventId }: { slotId: number; eventId: string }) {
+    await this.repository
+      .createQueryBuilder()
+      .update(InterviewSlot)
+      .set({ staleCalendarEventId: null, staleCalendarOwnerUserId: null })
+      .where('id = :slotId', { slotId })
+      .andWhere('"staleCalendarEventId" = :eventId', { eventId })
+      .execute();
+  }
+
+  async findRetryCandidates({
+    now,
+    limit,
+  }: {
+    now: Date;
+    limit: number;
+  }): Promise<InterviewSlot[]> {
+    return this.repository.find({
+      withDeleted: true,
+      where: [
+        {
+          deletedAt: IsNull(),
+          meetingStatus: In([
+            InterviewSlotMeetingStatus.PENDING,
+            InterviewSlotMeetingStatus.FAILED,
+            InterviewSlotMeetingStatus.OUT_OF_SYNC,
+          ]),
+          endAt: MoreThan(now),
+          meetingRetryCount: LessThan(10),
+        },
+        {
+          deletedAt: Not(IsNull()),
+          calendarEventId: Not(IsNull()),
+          meetingStatus: InterviewSlotMeetingStatus.OUT_OF_SYNC,
+          meetingRetryCount: LessThan(10),
+        },
+        // 주인 교체 뒤 지우지 못한 옛 일정. 상태와 무관하게 지울 때까지 다시 시도한다.
+        { staleCalendarEventId: Not(IsNull()) },
+      ],
+      order: { startAt: 'ASC' },
+      take: limit,
+    });
   }
 
   // QueryBuilder 는 soft delete 필터를 자동 적용하지 않으므로 deletedAt 조건을 명시한다.

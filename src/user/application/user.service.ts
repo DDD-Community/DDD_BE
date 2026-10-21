@@ -17,6 +17,14 @@ type UserCursorPage = {
 
 const SYSTEM_ADMIN_ID = 0;
 
+export type ActiveUserWithRoles = {
+  id: number;
+  email: string;
+  firstName: string;
+  lastName: string | null;
+  roles: UserRole[];
+};
+
 @Injectable()
 export class UserService {
   constructor(
@@ -80,6 +88,32 @@ export class UserService {
 
   async findById({ id }: { id: number }) {
     return this.userRepository.findById({ id });
+  }
+
+  async findActiveUsersWithRoles({ ids }: { ids: number[] }): Promise<ActiveUserWithRoles[]> {
+    const users = await this.userRepository.findActiveWithRoles({ ids });
+    return users.map((user) => ({
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName ?? null,
+      roles: this.extractActiveRoles(user.userRoles),
+    }));
+  }
+
+  async findActiveUsersByRoles({ roles }: { roles: UserRole[] }): Promise<ActiveUserWithRoles[]> {
+    const users = await this.userRepository.findActiveWithRoles({});
+    return users
+      .filter((user) =>
+        this.extractActiveRoles(user.userRoles).some((role) => roles.includes(role)),
+      )
+      .map((user) => ({
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName ?? null,
+        roles: this.extractActiveRoles(user.userRoles),
+      }));
   }
 
   async findUsersByCursor({

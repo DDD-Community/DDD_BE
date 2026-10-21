@@ -13,8 +13,12 @@ import { InterviewService } from '../src/interview/application/interview.service
 import { InterviewRepository } from '../src/interview/domain/interview.repository';
 import { InterviewReservation } from '../src/interview/domain/interview-reservation.entity';
 import { InterviewSlot } from '../src/interview/domain/interview-slot.entity';
+import { InterviewSlotInterviewer } from '../src/interview/domain/interview-slot-interviewer.entity';
+import { InterviewerWriteRepository } from '../src/interview/infrastructure/interviewer.write.repository';
 import { ReservationWriteRepository } from '../src/interview/infrastructure/reservation.write.repository';
 import { SlotWriteRepository } from '../src/interview/infrastructure/slot.write.repository';
+import { User } from '../src/user/domain/user.entity';
+import { UserRoleEntity } from '../src/user/domain/user-role.entity';
 
 // 개발자의 실제 DB 를 건드리지 않도록 전용 스키마에 테이블을 만들고 끝나면 통째로 지운다.
 const TEST_SCHEMA = 'interview_lock_test';
@@ -50,7 +54,16 @@ describe('면접 예약 동시성 (실 DB 통합)', () => {
       database: process.env.DB_NAME,
       // 잠금 검증에 필요한 최소 엔티티 그래프.
       // applicationFormId 는 FK 가 없어 application_forms 픽스처가 필요 없다.
-      entities: [Cohort, CohortPart, InterviewSlot, InterviewReservation],
+      // 슬롯이 면접관 관계(interviewers → users)를 가지므로 그 엔티티도 메타데이터에 있어야 한다.
+      entities: [
+        Cohort,
+        CohortPart,
+        InterviewSlot,
+        InterviewReservation,
+        InterviewSlotInterviewer,
+        User,
+        UserRoleEntity,
+      ],
       schema: TEST_SCHEMA,
       synchronize: false,
       // 연결 실패를 훅 타임아웃(30초)까지 끌지 않고 즉시 드러낸다.
@@ -71,6 +84,7 @@ describe('면접 예약 동시성 (실 DB 통합)', () => {
     const interviewRepository = new InterviewRepository(
       new SlotWriteRepository(dataSource),
       new ReservationWriteRepository(dataSource),
+      new InterviewerWriteRepository(dataSource),
     );
 
     service = new InterviewService(
@@ -88,6 +102,10 @@ describe('면접 예약 동시성 (실 DB 통합)', () => {
             user: { email: 'applicant@example.com' },
           }),
       } as never,
+      // 면접관이 없는 슬롯(기존 방식)의 잠금만 검증하므로 면접관·회의 협력자는 쓰이지 않는다.
+      {} as never,
+      {} as never,
+      {} as never,
     );
   });
 
