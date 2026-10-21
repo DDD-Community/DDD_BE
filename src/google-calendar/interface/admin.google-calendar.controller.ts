@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Logger,
   Param,
   Post,
   Query,
@@ -53,6 +54,7 @@ const NONCE_MAX_AGE_MS = 10 * 60 * 1000;
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 @Roles(UserRole.계정관리, UserRole.운영자, UserRole.면접관)
 export class AdminGoogleCalendarController {
+  private readonly logger = new Logger(AdminGoogleCalendarController.name);
   private readonly cookieOptions: CookieOptions;
   private readonly clientRedirectUrl: string;
 
@@ -115,8 +117,12 @@ export class AdminGoogleCalendarController {
       if (!result.connected) {
         reason = result.reason;
       }
-    } catch {
-      reason = 'exchange_failed';
+    } catch (error) {
+      // 저장 등 예상 밖 예외. 사유를 숨기면 운영에서 원인을 찾을 수 없어 종류와 메시지 앞부분을 남긴다.
+      this.logger.error(
+        `Google Calendar 연결 콜백 처리 중 예외: userId=${user.id}, ${error instanceof Error ? `${error.name}: ${error.message.slice(0, 300)}` : String(error).slice(0, 300)}`,
+      );
+      reason = 'internal_error';
     } finally {
       // 콜백 성공 여부와 무관하게 nonce 를 지워 같은 state 의 재사용을 막는다.
       response.clearCookie(NONCE_COOKIE, this.cookieOptions);

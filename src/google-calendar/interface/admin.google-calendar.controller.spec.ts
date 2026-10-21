@@ -53,6 +53,6 @@ describe('AdminGoogleCalendarController callback', () => {
     callback.mockRejectedValue(new Error('database unavailable'));
     await controller.callback(user, {}, 'nonce', response as never);
     expect(response.clearCookie).toHaveBeenCalledTimes(1);
-    expect(response.redirect.mock.calls[0][1]).toContain('reason=exchange_failed');
+    expect(response.redirect.mock.calls[0][1]).toContain('reason=internal_error');
   });
 });

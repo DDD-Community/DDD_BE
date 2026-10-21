@@ -7,7 +7,10 @@ import { GoogleCalendarConnectionRepository } from '../domain/google-calendar-co
 import { GoogleCalendarConnectionStatus } from '../domain/google-calendar-connection.status';
 import { GoogleOAuthCalendarClient } from '../infrastructure/google-oauth-calendar.client';
 import { createCalendarConnectState } from './google-calendar-connect.state';
-import { GoogleCalendarConnectionService } from './google-calendar-connection.service';
+import {
+  describeGoogleError,
+  GoogleCalendarConnectionService,
+} from './google-calendar-connection.service';
 
 describe('GoogleCalendarConnectionService', () => {
   const jwtService = new JwtService({ secret: 'test-secret' });
@@ -104,7 +107,7 @@ describe('GoogleCalendarConnectionService', () => {
     ['invalid_state', { state: 'invalid' }],
     ['invalid_state', { userId: 8 }],
     ['invalid_state', { nonce: 'wrong' }],
-    ['exchange_failed', { code: undefined }],
+    ['missing_code', { code: undefined }],
   ])('%s 콜백은 저장하지 않는다', async (reason, patch) => {
     const result = await service.callback({ ...stateInput(), ...patch });
     expect(result).toEqual({ connected: false, reason });
@@ -120,7 +123,7 @@ describe('GoogleCalendarConnectionService', () => {
     expect(repository.saveConnection).not.toHaveBeenCalled();
   });
 
-  it('id_token이 없거나 검증에 실패하면 저장하지 않는다', async () => {
+  it('id_token 이 없으면 missing_id_token, 검증 실패면 verify_failed 로 구분한다', async () => {
     client.exchangeCode.mockResolvedValueOnce({
       refreshToken: 'token',
       scope: 'https://www.googleapis.com/auth/calendar.events',
@@ -128,13 +131,13 @@ describe('GoogleCalendarConnectionService', () => {
     });
     expect(await service.callback(stateInput())).toEqual({
       connected: false,
-      reason: 'exchange_failed',
+      reason: 'missing_id_token',
     });
 
     client.verifyIdToken.mockRejectedValueOnce(new Error('invalid ID token'));
     expect(await service.callback(stateInput())).toEqual({
       connected: false,
-      reason: 'exchange_failed',
+      reason: 'verify_failed',
     });
     expect(repository.saveConnection).not.toHaveBeenCalled();
   });
@@ -303,5 +306,22 @@ describe('GoogleCalendarConnectionService', () => {
       errorCode: 'GOOGLE_CALENDAR_TEST_EVENT_ONLY',
     });
     expect(client.deleteEvent).not.toHaveBeenCalled();
+  });
+
+  describe('describeGoogleError', () => {
+    it('Google 공개 오류 코드와 상태만 남기고 요청 설정은 싣지 않는다', () => {
+      const detail = describeGoogleError({
+        name: 'GaxiosError',
+        config: { data: 'code=secret-code&client_secret=secret' },
+        response: {
+          status: 400,
+          data: { error: 'redirect_uri_mismatch', error_description: 'Bad Request' },
+        },
+      });
+      expect(detail).toBe(
+        'name=GaxiosError status=400 google_error=redirect_uri_mismatch description=Bad Request',
+      );
+      expect(detail).not.toContain('secret');
+    });
   });
 });

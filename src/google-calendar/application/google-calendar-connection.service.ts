@@ -20,7 +20,10 @@ import {
 export type CalendarCallbackReason =
   | 'denied'
   | 'invalid_state'
+  | 'missing_code'
   | 'exchange_failed'
+  | 'missing_id_token'
+  | 'verify_failed'
   | 'account_mismatch'
   | 'no_refresh_token'
   | 'scope_missing';
@@ -44,6 +47,34 @@ export type TestMeetingResult = {
 };
 
 const CALENDAR_EVENTS_SCOPE = 'https://www.googleapis.com/auth/calendar.events';
+
+/**
+ * Google 오류에서 공개 코드만 뽑는다(예: invalid_grant, redirect_uri_mismatch).
+ * 응답 본문 전체나 요청 설정에는 code·토큰이 섞일 수 있어 싣지 않는다.
+ */
+export const describeGoogleError = (error: unknown): string => {
+  if (typeof error !== 'object' || error === null) {
+    return `error=${String(error).slice(0, 100)}`;
+  }
+  const record = error as {
+    name?: unknown;
+    status?: unknown;
+    response?: { status?: unknown; data?: { error?: unknown; error_description?: unknown } };
+  };
+  const parts = [`name=${typeof record.name === 'string' ? record.name : 'unknown'}`];
+  const status = record.response?.status ?? record.status;
+  if (typeof status === 'number') {
+    parts.push(`status=${status}`);
+  }
+  const data = record.response?.data;
+  if (typeof data?.error === 'string') {
+    parts.push(`google_error=${data.error}`);
+  }
+  if (typeof data?.error_description === 'string') {
+    parts.push(`description=${data.error_description.slice(0, 200)}`);
+  }
+  return parts.join(' ');
+};
 
 @Injectable()
 export class GoogleCalendarConnectionService {
@@ -80,7 +111,7 @@ export class GoogleCalendarConnectionService {
     error?: string;
   }): Promise<CalendarCallbackResult> {
     if (error) {
-      return { connected: false, reason: 'denied' };
+      return this.fail({ userId, reason: 'denied', detail: `google_error=${error}` });
     }
     const validState = verifyCalendarConnectState({
       jwtService: this.jwtService,
@@ -89,34 +120,57 @@ export class GoogleCalendarConnectionService {
       userId,
     });
     if (!validState) {
-      return { connected: false, reason: 'invalid_state' };
+      return this.fail({
+        userId,
+        reason: 'invalid_state',
+        detail: `state=${state ? 'present' : 'missing'} nonce=${nonce ? 'present' : 'missing'}`,
+      });
     }
     if (!code) {
-      return { connected: false, reason: 'exchange_failed' };
+      return this.fail({ userId, reason: 'missing_code' });
     }
 
     let tokens: GoogleCalendarTokens;
-    let account: GoogleCalendarAccount;
     try {
       tokens = await this.client.exchangeCode({ code });
-      if (!tokens.idToken) {
-        return { connected: false, reason: 'exchange_failed' };
-      }
+    } catch (exchangeError) {
+      return this.fail({
+        userId,
+        reason: 'exchange_failed',
+        detail: describeGoogleError(exchangeError),
+      });
+    }
+    if (!tokens.idToken) {
+      return this.fail({
+        userId,
+        reason: 'missing_id_token',
+        detail: `scope=${tokens.scope ?? 'none'} refresh=${tokens.refreshToken ? 'present' : 'missing'}`,
+      });
+    }
+    let account: GoogleCalendarAccount;
+    try {
       account = await this.client.verifyIdToken({ idToken: tokens.idToken });
-    } catch {
-      this.logger.warn('Google Calendar OAuth 코드 교환 또는 ID 토큰 검증 실패');
-      return { connected: false, reason: 'exchange_failed' };
+    } catch (verifyError) {
+      return this.fail({
+        userId,
+        reason: 'verify_failed',
+        detail: describeGoogleError(verifyError),
+      });
     }
 
     const user = await this.userService.findById({ id: userId });
     if (!user || account.sub !== user.sub) {
-      return { connected: false, reason: 'account_mismatch' };
+      return this.fail({ userId, reason: 'account_mismatch' });
     }
     if (!tokens.refreshToken) {
-      return { connected: false, reason: 'no_refresh_token' };
+      return this.fail({ userId, reason: 'no_refresh_token' });
     }
     if (!tokens.scope?.split(' ').includes(CALENDAR_EVENTS_SCOPE)) {
-      return { connected: false, reason: 'scope_missing' };
+      return this.fail({
+        userId,
+        reason: 'scope_missing',
+        detail: `scope=${tokens.scope ?? 'none'}`,
+      });
     }
 
     const previous = await this.repository.findByUserId({ userId });
@@ -145,6 +199,25 @@ export class GoogleCalendarConnectionService {
       await this.revokeBestEffort({ token: oldToken });
     }
     return { connected: true };
+  }
+
+  /**
+   * 콜백 실패는 사용자에게 사유 코드로만 돌아가 서버에는 흔적이 없었다.
+   * 어느 단계에서 왜 막혔는지 남긴다. 토큰·code 값은 절대 싣지 않는다.
+   */
+  private fail({
+    userId,
+    reason,
+    detail,
+  }: {
+    userId: number;
+    reason: CalendarCallbackReason;
+    detail?: string;
+  }): CalendarCallbackResult {
+    this.logger.warn(
+      `Google Calendar 연결 실패: userId=${userId}, reason=${reason}${detail ? `, ${detail}` : ''}`,
+    );
+    return { connected: false, reason };
   }
 
   async status({ userId }: { userId: number }): Promise<CalendarConnectionStatusResult> {
