@@ -162,6 +162,25 @@ describe('GoogleCalendarConnectionService', () => {
     expect(repository.saveConnection).not.toHaveBeenCalled();
   });
 
+  it('INVALID 연결을 재연결하면 ACTIVE 로 되돌리고, 이미 무효인 옛 토큰은 폐기하지 않는다', async () => {
+    repository.findByUserId.mockResolvedValue(
+      Object.assign(connection(), {
+        status: GoogleCalendarConnectionStatus.INVALID,
+        lastErrorAt: new Date(),
+        lastError: 'invalid_grant',
+      }),
+    );
+
+    expect(await service.callback(stateInput())).toEqual({ connected: true });
+
+    const saved = repository.saveConnection.mock.calls[0][0].connection as GoogleCalendarConnection;
+    expect(saved.status).toBe(GoogleCalendarConnectionStatus.ACTIVE);
+    expect(saved.refreshToken).toBe('new-refresh-token');
+    expect(saved.lastError).toBeNull();
+    expect(saved.lastErrorAt).toBeNull();
+    expect(client.revokeToken).not.toHaveBeenCalled();
+  });
+
   it('revoke 실패가 토큰 교체를 취소하지 않는다', async () => {
     repository.findByUserId.mockResolvedValue(connection());
     client.revokeToken.mockRejectedValue(new Error('network'));

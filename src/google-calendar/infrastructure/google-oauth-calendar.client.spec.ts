@@ -34,4 +34,25 @@ describe('GoogleOAuthCalendarClient authorization URL', () => {
     expect(url.searchParams.get('login_hint')).toBe('user@example.com');
     expect(url.searchParams.get('state')).toBe('signed-state');
   });
+
+  it('별도 콜백 URL 이 있으면 그 값을 그대로 쓴다', () => {
+    const values: Record<string, string> = {
+      GOOGLE_CLIENT_ID: 'client-id',
+      GOOGLE_CLIENT_SECRET: 'client-secret',
+      GOOGLE_CALLBACK_URL: 'https://api.example.com/api/v1/auth/google/callback',
+      GOOGLE_CALENDAR_CONNECT_CALLBACK_URL: 'https://admin.example.com/custom/calendar/callback',
+    };
+    const config = {
+      get: jest.fn().mockImplementation((key: string) => values[key]),
+      getOrThrow: jest.fn().mockImplementation((key: string) => values[key]),
+    } as unknown as ConfigService;
+    const client = new GoogleOAuthCalendarClient(config);
+
+    const url = new URL(
+      client.buildAuthorizationUrl({ state: 'signed-state', email: 'user@example.com' }),
+    );
+    expect(url.searchParams.get('redirect_uri')).toBe(
+      'https://admin.example.com/custom/calendar/callback',
+    );
+  });
 });

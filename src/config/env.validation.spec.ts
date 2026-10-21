@@ -21,6 +21,34 @@ const createValidConfig = (): Record<string, unknown> => ({
 });
 
 describe('env validation', () => {
+  describe('Google Calendar 연동 콜백 설정', () => {
+    it('미설정이면 통과한다 (로그인 콜백 origin 에서 만든다)', () => {
+      expect(() => validate(createValidConfig())).not.toThrow();
+    });
+
+    it('배포에서 빈 문자열로 전달되어도 통과한다', () => {
+      expect(() =>
+        validate({ ...createValidConfig(), GOOGLE_CALENDAR_CONNECT_CALLBACK_URL: '' }),
+      ).not.toThrow();
+    });
+
+    it('프로토콜 있는 URL 이면 통과한다', () => {
+      expect(() =>
+        validate({
+          ...createValidConfig(),
+          GOOGLE_CALENDAR_CONNECT_CALLBACK_URL:
+            'https://admin.dddstudy.kr/api/v1/admin/google-calendar/callback',
+        }),
+      ).not.toThrow();
+    });
+
+    it('URL 이 아니면 앱 시작 전에 실패한다', () => {
+      expect(() =>
+        validate({ ...createValidConfig(), GOOGLE_CALENDAR_CONNECT_CALLBACK_URL: 'not-a-url' }),
+      ).toThrow();
+    });
+  });
+
   describe('출석 서버 설정', () => {
     it('두 설정이 없어도 앱 설정 검증을 통과한다', () => {
       expect(() => validate(createValidConfig())).not.toThrow();
