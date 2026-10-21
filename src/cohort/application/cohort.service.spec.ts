@@ -483,6 +483,23 @@ describe('CohortService', () => {
       });
     });
 
+    it('process 에 null 을 보내면 병합하지 않고 통째로 비운다', async () => {
+      mockCohortRepository.findById.mockResolvedValue({
+        id: 1,
+        status: CohortStatus.RECRUITING,
+        recruitStartAt: new Date('2020-03-01T00:00:00.000Z'),
+        recruitEndAt: new Date('2020-03-15T00:00:00.000Z'),
+        process: { participationFee: 160000 },
+      });
+
+      await cohortService.updateCohort({
+        id: 1,
+        data: { process: null as unknown as Record<string, unknown> },
+      });
+
+      expect(mockCohortRepository.update).toHaveBeenCalledWith({ id: 1, process: null });
+    });
+
     it('기존 process 가 없으면 보낸 값이 그대로 저장된다', async () => {
       mockCohortRepository.findById.mockResolvedValue({
         id: 1,

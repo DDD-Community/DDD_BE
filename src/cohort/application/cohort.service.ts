@@ -249,7 +249,8 @@ export class CohortService {
     await this.cohortRepository.update({
       id,
       ...rest,
-      process: rest.process === undefined ? undefined : mergeProcess(found.process, rest.process),
+      // undefined 는 손대지 않음, null 은 통째로 비움 — 둘 다 병합 대상이 아니다.
+      process: rest.process == null ? rest.process : mergeProcess(found.process, rest.process),
     });
 
     if (!statusChanged || status === undefined) {
