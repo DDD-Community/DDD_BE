@@ -27,6 +27,7 @@ import { ApiResponse } from '../../common/response/api-response';
 import { ApiDoc } from '../../common/swagger/api-doc.decorator';
 import { UserRole } from '../../user/domain/user.role';
 import { GoogleCalendarConnectionService } from '../application/google-calendar-connection.service';
+import { describeUnexpectedError } from '../application/google-calendar-error-log';
 import { AdminGoogleCalendarSwagger } from './admin.google-calendar.swagger';
 import {
   GoogleCalendarCallbackQueryDto,
@@ -118,9 +119,9 @@ export class AdminGoogleCalendarController {
         reason = result.reason;
       }
     } catch (error) {
-      // 저장 등 예상 밖 예외. 사유를 숨기면 운영에서 원인을 찾을 수 없어 종류와 메시지 앞부분을 남긴다.
+      // 저장 등 예상 밖 예외. 메시지에는 무엇이 섞일지 모르므로 형식이 정해진 식별자만 남긴다.
       this.logger.error(
-        `Google Calendar 연결 콜백 처리 중 예외: userId=${user.id}, ${error instanceof Error ? `${error.name}: ${error.message.slice(0, 300)}` : String(error).slice(0, 300)}`,
+        `Google Calendar 연결 콜백 처리 중 예외: userId=${user.id}, ${describeUnexpectedError(error)}`,
       );
       reason = 'internal_error';
     } finally {

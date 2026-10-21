@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import type { JwtUser } from '../../auth/application/auth.type';
@@ -54,5 +55,17 @@ describe('AdminGoogleCalendarController callback', () => {
     await controller.callback(user, {}, 'nonce', response as never);
     expect(response.clearCookie).toHaveBeenCalledTimes(1);
     expect(response.redirect.mock.calls[0][1]).toContain('reason=internal_error');
+  });
+
+  it('예상 밖 예외 로그에 메시지 속 비밀값을 싣지 않는다', async () => {
+    const error = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    callback.mockRejectedValue(new Error('failed with token SECRET_TOKEN'));
+
+    await controller.callback(user, {}, 'nonce', response as never);
+
+    const logged = error.mock.calls.map((call) => String(call[0])).join('\n');
+    expect(logged).toContain('name=Error');
+    expect(logged).not.toContain('SECRET');
+    error.mockRestore();
   });
 });
