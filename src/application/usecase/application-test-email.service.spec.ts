@@ -67,6 +67,21 @@ describe('ApplicationTestEmailService', () => {
     });
   });
 
+  it.each([
+    [TestEmailType.서류합격, ApplicationStatus.서류합격],
+    [TestEmailType.서류불합격, ApplicationStatus.서류불합격],
+    [TestEmailType.면접합격, ApplicationStatus.면접합격],
+    [TestEmailType.최종불합격, ApplicationStatus.최종불합격],
+  ])('%s 테스트 메일은 %s 전형 결과 메일로 만든다', async (type, status) => {
+    await service.sendTestEmail({ cohortId: 15, type, to: 'admin@example.com' });
+
+    expect(emailEventHandler.renderStatusEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ newStatus: status }),
+      status,
+    );
+    expect(emailEventHandler.renderSubmittedEmail).not.toHaveBeenCalled();
+  });
+
   it('접수 안내 메일은 접수 메일 생성 함수를 쓴다', async () => {
     await service.sendTestEmail({
       cohortId: 15,
