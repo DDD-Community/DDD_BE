@@ -1,10 +1,10 @@
 import {
   CommonSwaggerResponses,
   successListResponseSchema,
-  successNullResponseSchema,
   successResponseSchema,
 } from '../../common/swagger/response-schema';
 import {
+  InterviewerCandidateResponseDto,
   InterviewReservationResponseDto,
   InterviewSlotResponseDto,
 } from './dto/interview.response.dto';
@@ -14,6 +14,26 @@ import {
  * 컨트롤러 가독성 보호를 위해 별도 파일로 분리
  */
 export const AdminInterviewSwagger = {
+  interviewerCandidates: {
+    success: {
+      status: 200,
+      description: '면접관 후보 조회 성공',
+      ...successListResponseSchema(InterviewerCandidateResponseDto),
+    },
+    unauthorized: CommonSwaggerResponses.unauthorized('access_token 쿠키가 없거나 만료되었습니다.'),
+  },
+  syncMeeting: {
+    success: {
+      status: 201,
+      description: '면접 회의 동기화 결과',
+      ...successResponseSchema(InterviewSlotResponseDto),
+    },
+    unauthorized: CommonSwaggerResponses.unauthorized('access_token 쿠키가 없거나 만료되었습니다.'),
+    notFound: CommonSwaggerResponses.notFound(
+      '면접 슬롯을 찾을 수 없습니다.',
+      'INTERVIEW_SLOT_NOT_FOUND',
+    ),
+  },
   createSlot: {
     success: {
       status: 201,
@@ -49,7 +69,7 @@ export const AdminInterviewSwagger = {
     success: {
       status: 200,
       description: '면접 슬롯이 수정되었습니다.',
-      ...successNullResponseSchema('면접 슬롯이 수정되었습니다.'),
+      ...successResponseSchema(InterviewSlotResponseDto),
     },
     unauthorized: CommonSwaggerResponses.unauthorized('access_token 쿠키가 없거나 만료되었습니다.'),
     notFound: CommonSwaggerResponses.notFound(

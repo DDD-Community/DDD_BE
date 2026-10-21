@@ -49,6 +49,10 @@ export class UserRepository {
     return this.writeRepository.findOne({ where: { id }, includeRoles: true });
   }
 
+  async findActiveWithRoles({ ids }: { ids?: number[] }) {
+    return this.writeRepository.findActiveWithRoles({ ids });
+  }
+
   async findByRefreshToken({ hash }: { hash: string }) {
     return this.writeRepository.findOne({
       where: { refreshToken: hash },

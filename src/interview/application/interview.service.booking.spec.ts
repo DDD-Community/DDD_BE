@@ -4,13 +4,17 @@ import { QueryFailedError } from 'typeorm';
 
 import { ApplicationStatus } from '../../application/domain/application.status';
 import { ApplicationService } from '../../application/usecase/application.service';
+import { GoogleCalendarConnectionService } from '../../google-calendar/application/google-calendar-connection.service';
 import { NotificationService } from '../../notification/application/notification.service';
+import { UserService } from '../../user/application/user.service';
 import { InterviewRepository } from '../domain/interview.repository';
 import { InterviewReservation } from '../domain/interview-reservation.entity';
 import { InterviewSlot } from '../domain/interview-slot.entity';
+import { InterviewSlotMeetingStatus } from '../domain/interview-slot-meeting.status';
 import { GoogleCalendarClient } from '../infrastructure/google-calendar.client';
 import { BookingSlotResponseDto } from '../interface/dto/interview-booking.response.dto';
 import { InterviewService } from './interview.service';
+import { InterviewMeetingService } from './interview-meeting.service';
 
 jest.mock('typeorm-transactional', () => ({
   Transactional: () => (_target: unknown, _key: string, descriptor: PropertyDescriptor) =>
@@ -75,6 +79,9 @@ describe('InterviewService (지원자 예약)', () => {
         { provide: NotificationService, useValue: mockNotificationService },
         { provide: ConfigService, useValue: mockConfigService },
         { provide: ApplicationService, useValue: mockApplicationService },
+        { provide: UserService, useValue: {} },
+        { provide: InterviewMeetingService, useValue: {} },
+        { provide: GoogleCalendarConnectionService, useValue: {} },
       ],
     }).compile();
 
@@ -102,6 +109,36 @@ describe('InterviewService (지원자 예약)', () => {
   };
 
   describe('createReservationByApplicant', () => {
+    it('PENDING 회의 슬롯은 잠금 조회 후 409로 거절한다', async () => {
+      mockRepository.findSlotByIdForUpdate.mockResolvedValue(
+        makeSlot({ meetingStatus: InterviewSlotMeetingStatus.PENDING }),
+      );
+
+      await expect(service.createReservationByApplicant({ input })).rejects.toMatchObject({
+        errorCode: 'INTERVIEW_SLOT_MEETING_NOT_READY',
+      });
+      expect(mockRepository.saveReservation).not.toHaveBeenCalled();
+    });
+
+    it('Meet 모드 예약은 개별 캘린더 이벤트 없이 확정 메일만 보낸다', async () => {
+      mockRepository.findSlotByIdForUpdate.mockResolvedValue(
+        makeSlot({ meetingStatus: InterviewSlotMeetingStatus.READY }),
+      );
+      mockRepository.findReservationByApplicationFormId.mockResolvedValue(null);
+      mockRepository.countActiveReservationsBySlotId.mockResolvedValue(0);
+      mockRepository.saveReservation.mockImplementation(
+        ({ reservation }: { reservation: InterviewReservation }) =>
+          Promise.resolve(Object.assign(reservation, { id: 55 })),
+      );
+
+      await service.createReservationByApplicant({ input });
+      await flushPostCommitTasks(service);
+
+      expect(mockCalendarClient.createEvent).not.toHaveBeenCalled();
+      expect(mockNotificationService.sendEmail).toHaveBeenCalledWith(
+        expect.objectContaining({ to: 'applicant@example.com' }),
+      );
+    });
     it('열린 슬롯을 잠그고 예약을 생성한다', async () => {
       mockRepository.findSlotByIdForUpdate.mockResolvedValue(makeSlot());
       mockRepository.findReservationByApplicationFormId.mockResolvedValue(null);
@@ -339,6 +376,15 @@ describe('InterviewService (지원자 예약)', () => {
   });
 
   describe('findOpenSlotsForBooking', () => {
+    it('PENDING/FAILED 회의 슬롯을 제외하고 OUT_OF_SYNC는 표시한다', async () => {
+      const pending = makeSlot({ id: 1, meetingStatus: InterviewSlotMeetingStatus.PENDING });
+      const failed = makeSlot({ id: 2, meetingStatus: InterviewSlotMeetingStatus.FAILED });
+      const stale = makeSlot({ id: 3, meetingStatus: InterviewSlotMeetingStatus.OUT_OF_SYNC });
+      mockRepository.findSlots.mockResolvedValue([pending, failed, stale]);
+      expect(await service.findOpenSlotsForBooking({ cohortPartId: 52 })).toEqual([
+        { slot: stale, remainingSeats: 2 },
+      ]);
+    });
     it('시작 전 슬롯만 잔여석과 함께 반환한다 (정원 찬 슬롯은 0 으로 포함)', async () => {
       const open = makeSlot({ id: 1, reservations: [] });
       const full = makeSlot({

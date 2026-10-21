@@ -107,6 +107,82 @@ export class GoogleOAuthCalendarClient {
     return response.data;
   }
 
+  async insertEvent({
+    refreshToken,
+    eventId,
+    summary,
+    description,
+    startAt,
+    endAt,
+    attendeeEmails,
+  }: {
+    refreshToken: string;
+    eventId: string;
+    summary: string;
+    description: string;
+    startAt: Date;
+    endAt: Date;
+    attendeeEmails: string[];
+  }): Promise<calendar_v3.Schema$Event> {
+    const calendar = this.createCalendar({ refreshToken });
+    const response = await calendar.events.insert({
+      calendarId: 'primary',
+      conferenceDataVersion: 1,
+      sendUpdates: 'all',
+      requestBody: {
+        id: eventId,
+        summary,
+        description,
+        location: 'Google Meet',
+        start: { dateTime: startAt.toISOString(), timeZone: 'Asia/Seoul' },
+        end: { dateTime: endAt.toISOString(), timeZone: 'Asia/Seoul' },
+        attendees: attendeeEmails.map((email) => ({ email })),
+        conferenceData: {
+          createRequest: {
+            requestId: eventId,
+            conferenceSolutionKey: { type: 'hangoutsMeet' },
+          },
+        },
+        extendedProperties: { private: { dddInterviewSlotMeeting: 'true' } },
+      },
+    });
+    return response.data;
+  }
+
+  async patchEvent({
+    refreshToken,
+    eventId,
+    summary,
+    description,
+    startAt,
+    endAt,
+    attendeeEmails,
+  }: {
+    refreshToken: string;
+    eventId: string;
+    summary?: string;
+    description?: string;
+    startAt?: Date;
+    endAt?: Date;
+    attendeeEmails?: string[];
+  }): Promise<calendar_v3.Schema$Event> {
+    const calendar = this.createCalendar({ refreshToken });
+    const response = await calendar.events.patch({
+      calendarId: 'primary',
+      eventId,
+      sendUpdates: 'all',
+      requestBody: {
+        summary,
+        description,
+        location: 'Google Meet',
+        start: startAt ? { dateTime: startAt.toISOString(), timeZone: 'Asia/Seoul' } : undefined,
+        end: endAt ? { dateTime: endAt.toISOString(), timeZone: 'Asia/Seoul' } : undefined,
+        attendees: attendeeEmails?.map((email) => ({ email })),
+      },
+    });
+    return response.data;
+  }
+
   async getEvent({ refreshToken, eventId }: { refreshToken: string; eventId: string }) {
     const calendar = this.createCalendar({ refreshToken });
     const response = await calendar.events.get({ calendarId: 'primary', eventId });

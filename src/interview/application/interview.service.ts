@@ -10,6 +10,8 @@ import { toCohortAnnouncementInfo } from '../../cohort/domain/cohort-announcemen
 import { AppException } from '../../common/exception/app.exception';
 import { hasDefinedValues } from '../../common/util/object-utils';
 import { isPostgresUniqueViolation } from '../../common/util/postgres-error';
+import { GoogleCalendarConnectionService } from '../../google-calendar/application/google-calendar-connection.service';
+import { GoogleCalendarConnectionStatus } from '../../google-calendar/domain/google-calendar-connection.status';
 import { NotificationService } from '../../notification/application/notification.service';
 import type { EmailBlock, EmailInfoRow } from '../../notification/util/build-email';
 import { buildEmail, escapeHtml, toEmailSubject } from '../../notification/util/build-email';
@@ -19,6 +21,8 @@ import {
   formatKoreanDateTime,
   formatKoreanDeadline,
 } from '../../notification/util/format-korean-date';
+import { UserService } from '../../user/application/user.service';
+import { UserRole } from '../../user/domain/user.role';
 import { InterviewRepository } from '../domain/interview.repository';
 import type {
   ApplicantReservationCreateInput,
@@ -28,7 +32,12 @@ import type {
 } from '../domain/interview.type';
 import { InterviewReservation } from '../domain/interview-reservation.entity';
 import { InterviewSlot } from '../domain/interview-slot.entity';
+import {
+  InterviewSlotMeetingStatus,
+  isMeetingBookable,
+} from '../domain/interview-slot-meeting.status';
 import { GoogleCalendarClient } from '../infrastructure/google-calendar.client';
+import { InterviewMeetingService } from './interview-meeting.service';
 
 const ONLINE_INTERVIEW = '온라인 (Google Meet)';
 
@@ -51,13 +60,73 @@ export class InterviewService {
     private readonly configService: ConfigService,
     @Inject(forwardRef(() => ApplicationService))
     private readonly applicationService: ApplicationService,
+    private readonly userService: UserService,
+    private readonly interviewMeetingService: InterviewMeetingService,
+    private readonly calendarConnectionService: GoogleCalendarConnectionService,
   ) {}
+
+  async createSlotWithMeeting({
+    input,
+  }: {
+    input: InterviewSlotCreateInput;
+  }): Promise<InterviewSlot> {
+    const slot = await this.createSlot({ input });
+    if (input.interviewerUserIds?.length) {
+      await this.interviewMeetingService.syncSlotMeeting({ slotId: slot.id });
+      return this.findSlotById({ id: slot.id });
+    }
+    return slot;
+  }
+
+  async updateSlotWithMeeting({
+    id,
+    patch,
+  }: {
+    id: number;
+    patch: InterviewSlotUpdatePatch;
+  }): Promise<InterviewSlot> {
+    await this.updateSlot({ id, patch });
+    const slot = await this.findSlotById({ id });
+    if (
+      slot.meetingStatus !== InterviewSlotMeetingStatus.NONE ||
+      patch.interviewerUserIds !== undefined
+    ) {
+      await this.interviewMeetingService.syncSlotMeeting({ slotId: id });
+      return this.findSlotById({ id });
+    }
+    return slot;
+  }
+
+  async deleteSlotWithMeeting({ id }: { id: number }): Promise<void> {
+    const slot = await this.findSlotById({ id });
+    await this.deleteSlot({ id });
+    await this.interviewMeetingService.removeSlotMeeting({ slot });
+  }
 
   @Transactional()
   async createSlot({ input }: { input: InterviewSlotCreateInput }): Promise<InterviewSlot> {
     this.validateSlotRange({ startAt: input.startAt, endAt: input.endAt });
+    if (input.interviewerUserIds?.length) {
+      await this.validateInterviewers({
+        userIds: input.interviewerUserIds,
+        startAt: input.startAt,
+        endAt: input.endAt,
+      });
+    }
     const slot = InterviewSlot.create(input);
-    return this.interviewRepository.saveSlot({ slot });
+    const saved = await this.interviewRepository.saveSlot({ slot });
+    if (input.interviewerUserIds?.length) {
+      await this.interviewRepository.replaceSlotInterviewers({
+        slotId: saved.id,
+        userIds: input.interviewerUserIds,
+      });
+      await this.interviewRepository.updateMeetingState({
+        slotId: saved.id,
+        patch: { meetingStatus: InterviewSlotMeetingStatus.PENDING },
+        bumpRevision: true,
+      });
+    }
+    return saved;
   }
 
   async findSlotById({ id }: { id: number }): Promise<InterviewSlot> {
@@ -75,6 +144,42 @@ export class InterviewService {
     return this.interviewRepository.findSlots({ where: { cohortId, cohortPartId } });
   }
 
+  async findInterviewerCandidates(): Promise<
+    Array<{
+      userId: number;
+      name: string;
+      email: string;
+      roles: UserRole[];
+      calendarConnected: boolean;
+      calendarEmail: string | null;
+    }>
+  > {
+    const users = await this.userService.findActiveUsersByRoles({
+      roles: [UserRole.면접관, UserRole.운영자, UserRole.계정관리],
+    });
+    const summaries = await this.calendarConnectionService.findConnectionSummaries({
+      userIds: users.map((user) => user.id),
+    });
+    return users.map((user) => {
+      const connection = summaries.get(user.id);
+      return {
+        userId: user.id,
+        name: `${user.lastName ?? ''}${user.firstName}`,
+        email: user.email,
+        roles: user.roles,
+        calendarConnected: connection?.status === GoogleCalendarConnectionStatus.ACTIVE,
+        calendarEmail: connection?.googleEmail ?? null,
+      };
+    });
+  }
+
+  async findSlotConnectionSummaries({ slots }: { slots: InterviewSlot[] }) {
+    const userIds = [
+      ...new Set(slots.flatMap((slot) => (slot.interviewers ?? []).map((row) => row.userId))),
+    ];
+    return this.calendarConnectionService.findConnectionSummaries({ userIds });
+  }
+
   @Transactional()
   async updateSlot({ id, patch }: { id: number; patch: InterviewSlotUpdatePatch }): Promise<void> {
     const slot = await this.interviewRepository.findSlotById({ id });
@@ -86,11 +191,77 @@ export class InterviewService {
     const nextEndAt = patch.endAt ?? slot.endAt;
     this.validateSlotRange({ startAt: nextStartAt, endAt: nextEndAt });
 
+    const currentIds = [...(slot.interviewers ?? [])]
+      .sort((a, b) => a.position - b.position)
+      .map((row) => row.userId);
+    const nextIds = patch.interviewerUserIds ?? currentIds;
+    const listChanged =
+      patch.interviewerUserIds !== undefined &&
+      (nextIds.length !== currentIds.length ||
+        nextIds.some((userId, index) => userId !== currentIds[index]));
+    if (listChanged && nextIds.length === 0) {
+      const reservationCount = await this.interviewRepository.countActiveReservationsBySlotId({
+        slotId: id,
+      });
+      if (reservationCount > 0) {
+        throw new AppException('INTERVIEW_INTERVIEWERS_REQUIRED', HttpStatus.CONFLICT);
+      }
+    }
+    if (
+      nextIds.length > 0 &&
+      (listChanged || patch.startAt !== undefined || patch.endAt !== undefined)
+    ) {
+      await this.validateInterviewers({
+        userIds: nextIds,
+        startAt: nextStartAt,
+        endAt: nextEndAt,
+        excludeSlotId: id,
+      });
+    }
+
     if (!hasDefinedValues(patch)) {
       return;
     }
 
-    await this.interviewRepository.updateSlot({ id, patch });
+    const slotPatch = {
+      startAt: patch.startAt,
+      endAt: patch.endAt,
+      capacity: patch.capacity,
+      location: patch.location,
+      description: patch.description,
+    };
+    await this.interviewRepository.updateSlot({ id, patch: slotPatch });
+    if (listChanged) {
+      await this.interviewRepository.replaceSlotInterviewers({ slotId: id, userIds: nextIds });
+      await this.interviewRepository.updateMeetingState({
+        slotId: id,
+        bumpRevision: true,
+        patch: {
+          meetingStatus:
+            nextIds.length === 0
+              ? InterviewSlotMeetingStatus.OUT_OF_SYNC
+              : slot.calendarEventId
+                ? InterviewSlotMeetingStatus.OUT_OF_SYNC
+                : InterviewSlotMeetingStatus.PENDING,
+          meetingRetryCount: 0,
+        },
+      });
+    } else if (
+      nextIds.length > 0 &&
+      [patch.startAt, patch.endAt, patch.description, patch.location, patch.capacity].some(
+        (value) => value !== undefined,
+      )
+    ) {
+      await this.interviewRepository.updateMeetingState({
+        slotId: id,
+        bumpRevision: true,
+        patch: {
+          meetingStatus: slot.calendarEventId
+            ? InterviewSlotMeetingStatus.OUT_OF_SYNC
+            : InterviewSlotMeetingStatus.PENDING,
+        },
+      });
+    }
 
     const calendarRelevantChanged =
       patch.startAt !== undefined ||
@@ -131,7 +302,15 @@ export class InterviewService {
     if (!slot) {
       throw new AppException('INTERVIEW_SLOT_NOT_FOUND', HttpStatus.NOT_FOUND);
     }
+
     await this.interviewRepository.deleteSlot({ id });
+    if (slot.calendarEventId) {
+      await this.interviewRepository.updateMeetingState({
+        slotId: id,
+        bumpRevision: true,
+        patch: { meetingStatus: InterviewSlotMeetingStatus.OUT_OF_SYNC, meetingRetryCount: 0 },
+      });
+    }
   }
 
   async hasSlotsForCohortPart({ cohortPartId }: { cohortPartId: number }): Promise<boolean> {
@@ -149,6 +328,10 @@ export class InterviewService {
     const slot = await this.interviewRepository.findSlotByIdForUpdate({ id: input.slotId });
     if (!slot) {
       throw new AppException('INTERVIEW_SLOT_NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+
+    if (!isMeetingBookable(slot.meetingStatus ?? InterviewSlotMeetingStatus.NONE)) {
+      throw new AppException('INTERVIEW_SLOT_MEETING_NOT_READY', HttpStatus.CONFLICT);
     }
 
     const currentCount = await this.interviewRepository.countActiveReservationsBySlotId({
@@ -201,7 +384,11 @@ export class InterviewService {
     const slots = await this.interviewRepository.findSlots({ where: { cohortPartId } });
     const now = new Date();
     return slots
-      .filter((slot) => slot.startAt > now)
+      .filter(
+        (slot) =>
+          slot.startAt > now &&
+          isMeetingBookable(slot.meetingStatus ?? InterviewSlotMeetingStatus.NONE),
+      )
       .map((slot) => ({
         slot,
         remainingSeats: Math.max(0, slot.capacity - (slot.reservations?.length ?? 0)),
@@ -251,6 +438,9 @@ export class InterviewService {
     if (!slot || slot.cohortPartId !== input.cohortPartId) {
       // 타 직군 슬롯은 존재 자체를 숨긴다
       throw new AppException('INTERVIEW_SLOT_NOT_FOUND', HttpStatus.NOT_FOUND);
+    }
+    if (!isMeetingBookable(slot.meetingStatus ?? InterviewSlotMeetingStatus.NONE)) {
+      throw new AppException('INTERVIEW_SLOT_MEETING_NOT_READY', HttpStatus.CONFLICT);
     }
     if (slot.startAt <= new Date()) {
       throw new AppException('INTERVIEW_SLOT_CLOSED', HttpStatus.BAD_REQUEST);
@@ -334,21 +524,23 @@ export class InterviewService {
     applicantEmail: string;
     slot: InterviewSlot;
   }): Promise<void> {
-    try {
-      const eventId = await this.googleCalendarClient.createEvent({
-        summary: `[DDD] 면접 - ${applicantName}`,
-        startAt: slot.startAt,
-        endAt: slot.endAt,
-        location: slot.location,
-        description: slot.description,
-      });
-      await this.persistReservationCalendarEvent({ reservationId, eventId });
-    } catch (error) {
-      this.logger.error('구글 캘린더 이벤트 생성 실패 (예약은 저장됨)', error);
-      await this.notifyOpsCalendarFailure({
-        context: { operation: 'create', reservationId, slotId: slot.id },
-        error,
-      });
+    if (slot.meetingStatus === InterviewSlotMeetingStatus.NONE || !slot.meetingStatus) {
+      try {
+        const eventId = await this.googleCalendarClient.createEvent({
+          summary: `[DDD] 면접 - ${applicantName}`,
+          startAt: slot.startAt,
+          endAt: slot.endAt,
+          location: slot.location,
+          description: slot.description,
+        });
+        await this.persistReservationCalendarEvent({ reservationId, eventId });
+      } catch (error) {
+        this.logger.error('구글 캘린더 이벤트 생성 실패 (예약은 저장됨)', error);
+        await this.notifyOpsCalendarFailure({
+          context: { operation: 'create', reservationId, slotId: slot.id },
+          error,
+        });
+      }
     }
 
     // 잠금 조회한 슬롯에는 관계가 없다. 메일 문구에 쓸 기수 정보를 여기서 채운다.
@@ -505,6 +697,40 @@ export class InterviewService {
   private validateSlotRange({ startAt, endAt }: { startAt: Date; endAt: Date }): void {
     if (endAt.getTime() <= startAt.getTime()) {
       throw new AppException('INVALID_INTERVIEW_SLOT_RANGE', HttpStatus.BAD_REQUEST);
+    }
+  }
+
+  private async validateInterviewers({
+    userIds,
+    startAt,
+    endAt,
+    excludeSlotId,
+  }: {
+    userIds: number[];
+    startAt: Date;
+    endAt: Date;
+    excludeSlotId?: number;
+  }): Promise<void> {
+    if (new Set(userIds).size !== userIds.length || userIds.length > 10) {
+      throw new AppException('INTERVIEW_INTERVIEWER_INVALID', HttpStatus.BAD_REQUEST);
+    }
+    const users = await this.userService.findActiveUsersWithRoles({ ids: userIds });
+    const allowed = [UserRole.면접관, UserRole.운영자, UserRole.계정관리];
+    if (
+      users.length !== userIds.length ||
+      users.some((user) => !user.roles.some((role) => allowed.includes(role)))
+    ) {
+      throw new AppException('INTERVIEW_INTERVIEWER_INVALID', HttpStatus.BAD_REQUEST);
+    }
+    await this.interviewRepository.acquireHostTimeLock({ hostUserId: userIds[0] });
+    const conflict = await this.interviewRepository.hasHostTimeConflict({
+      hostUserId: userIds[0],
+      startAt,
+      endAt,
+      excludeSlotId,
+    });
+    if (conflict) {
+      throw new AppException('INTERVIEW_HOST_TIME_CONFLICT', HttpStatus.CONFLICT);
     }
   }
 

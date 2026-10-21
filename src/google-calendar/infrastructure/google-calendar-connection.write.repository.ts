@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 
 import { GoogleCalendarConnection } from '../domain/google-calendar-connection.entity';
 
@@ -13,6 +13,13 @@ export class GoogleCalendarConnectionWriteRepository {
 
   async findOne({ userId }: { userId: number }) {
     return this.repository.findOne({ where: { userId } });
+  }
+
+  async findMany({ userIds }: { userIds: number[] }): Promise<GoogleCalendarConnection[]> {
+    if (userIds.length === 0) {
+      return [];
+    }
+    return this.repository.find({ where: { userId: In(userIds) } });
   }
 
   async save({ connection }: { connection: GoogleCalendarConnection }) {

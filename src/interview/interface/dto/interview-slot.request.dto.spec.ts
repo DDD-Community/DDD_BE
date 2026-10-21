@@ -100,3 +100,28 @@ describe('UpdateInterviewSlotRequestDto - location', () => {
     expect(errors.length).toBeGreaterThan(0);
   });
 });
+
+describe('면접관 ID 입력', () => {
+  it('중복·0·10명 초과·배열이 아닌 값을 거부한다', async () => {
+    for (const interviewerUserIds of [
+      [1, 1],
+      [0],
+      Array.from({ length: 11 }, (_, index) => index + 1),
+      '1',
+    ]) {
+      const { errors } = await runValidation({
+        metatype: CreateInterviewSlotRequestDto,
+        value: { ...validBase, location: '서울', interviewerUserIds },
+      });
+      expect(errors.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('수정에서 빈 배열은 허용해 면접관을 제거할 수 있다', async () => {
+    const { errors } = await runValidation({
+      metatype: UpdateInterviewSlotRequestDto,
+      value: { interviewerUserIds: [] },
+    });
+    expect(errors).toEqual([]);
+  });
+});

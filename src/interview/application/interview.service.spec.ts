@@ -5,12 +5,17 @@ import { QueryFailedError } from 'typeorm';
 
 import { ApplicationService } from '../../application/usecase/application.service';
 import { AppException } from '../../common/exception/app.exception';
+import { GoogleCalendarConnectionService } from '../../google-calendar/application/google-calendar-connection.service';
 import { NotificationService } from '../../notification/application/notification.service';
+import { UserService } from '../../user/application/user.service';
+import { UserRole } from '../../user/domain/user.role';
 import { InterviewRepository } from '../domain/interview.repository';
 import type { InterviewReservation } from '../domain/interview-reservation.entity';
 import type { InterviewSlot } from '../domain/interview-slot.entity';
+import { InterviewSlotMeetingStatus } from '../domain/interview-slot-meeting.status';
 import { GoogleCalendarClient } from '../infrastructure/google-calendar.client';
 import { InterviewService } from './interview.service';
+import { InterviewMeetingService } from './interview-meeting.service';
 
 jest.mock('typeorm-transactional', () => ({
   Transactional: () => (_target: unknown, _key: string, descriptor: PropertyDescriptor) =>
@@ -43,6 +48,19 @@ const mockInterviewRepository = {
   findReservations: jest.fn(),
   countActiveReservationsBySlotId: jest.fn(),
   deleteReservation: jest.fn(),
+  replaceSlotInterviewers: jest.fn(),
+  hasHostTimeConflict: jest.fn(),
+  acquireHostTimeLock: jest.fn(),
+  updateMeetingState: jest.fn(),
+};
+
+const mockUserService = {
+  findActiveUsersWithRoles: jest.fn(),
+};
+
+const mockMeetingService = {
+  syncSlotMeeting: jest.fn(),
+  removeSlotMeeting: jest.fn(),
 };
 
 const mockGoogleCalendarClient = {
@@ -97,6 +115,12 @@ describe('InterviewService', () => {
         { provide: NotificationService, useValue: mockNotificationService },
         { provide: ConfigService, useValue: mockConfigService },
         { provide: ApplicationService, useValue: {} },
+        { provide: UserService, useValue: mockUserService },
+        { provide: InterviewMeetingService, useValue: mockMeetingService },
+        {
+          provide: GoogleCalendarConnectionService,
+          useValue: { findConnectionSummaries: jest.fn() },
+        },
       ],
     }).compile();
 
@@ -106,6 +130,68 @@ describe('InterviewService', () => {
   });
 
   describe('createSlot', () => {
+    const input = {
+      cohortId: 10,
+      cohortPartId: 20,
+      startAt: new Date('2026-11-01T10:00:00Z'),
+      endAt: new Date('2026-11-01T10:30:00Z'),
+      capacity: 1,
+      location: '서울',
+      interviewerUserIds: [11, 12],
+    };
+
+    it('면접관 역할이 없는 사용자와 중복 ID를 거절한다', async () => {
+      mockUserService.findActiveUsersWithRoles.mockResolvedValue([
+        { id: 11, roles: [UserRole.면접관] },
+        { id: 12, roles: [UserRole.면접자] },
+      ]);
+      await expect(service.createSlot({ input })).rejects.toMatchObject({
+        errorCode: 'INTERVIEW_INTERVIEWER_INVALID',
+      });
+      await expect(
+        service.createSlot({ input: { ...input, interviewerUserIds: [11, 11] } }),
+      ).rejects.toMatchObject({ errorCode: 'INTERVIEW_INTERVIEWER_INVALID' });
+      expect(mockInterviewRepository.saveSlot).not.toHaveBeenCalled();
+    });
+
+    it('호스트 시간이 겹치면 저장하지 않는다', async () => {
+      mockUserService.findActiveUsersWithRoles.mockResolvedValue([
+        { id: 11, roles: [UserRole.면접관] },
+        { id: 12, roles: [UserRole.운영자] },
+      ]);
+      mockInterviewRepository.hasHostTimeConflict.mockResolvedValue(true);
+      await expect(service.createSlot({ input })).rejects.toMatchObject({
+        errorCode: 'INTERVIEW_HOST_TIME_CONFLICT',
+      });
+      expect(mockInterviewRepository.saveSlot).not.toHaveBeenCalled();
+    });
+
+    it('면접관이 있는 생성은 트랜잭션 저장 후 회의를 동기화하고 슬롯을 다시 조회한다', async () => {
+      mockUserService.findActiveUsersWithRoles.mockResolvedValue([
+        { id: 11, roles: [UserRole.면접관] },
+        { id: 12, roles: [UserRole.운영자] },
+      ]);
+      mockInterviewRepository.hasHostTimeConflict.mockResolvedValue(false);
+      mockInterviewRepository.saveSlot.mockResolvedValue(buildSlot({ id: 7 }));
+      mockInterviewRepository.findSlotById.mockResolvedValue(
+        buildSlot({ id: 7, meetingStatus: InterviewSlotMeetingStatus.READY }),
+      );
+
+      const result = await service.createSlotWithMeeting({ input });
+
+      expect(mockInterviewRepository.replaceSlotInterviewers).toHaveBeenCalledWith({
+        slotId: 7,
+        userIds: [11, 12],
+      });
+      expect(mockInterviewRepository.updateMeetingState).toHaveBeenCalledWith({
+        slotId: 7,
+        patch: { meetingStatus: InterviewSlotMeetingStatus.PENDING },
+        bumpRevision: true,
+      });
+      expect(mockMeetingService.syncSlotMeeting).toHaveBeenCalledWith({ slotId: 7 });
+      expect(result.meetingStatus).toBe(InterviewSlotMeetingStatus.READY);
+    });
+
     it('endAt이 startAt보다 이르면 INVALID_INTERVIEW_SLOT_RANGE 예외를 던진다', async () => {
       // Given
       const input = {
@@ -122,6 +208,108 @@ describe('InterviewService', () => {
         new AppException('INVALID_INTERVIEW_SLOT_RANGE', HttpStatus.BAD_REQUEST),
       );
     });
+  });
+
+  it('관리자 예약도 PENDING 회의 슬롯은 거절한다', async () => {
+    mockInterviewRepository.findSlotByIdForUpdate.mockResolvedValue(
+      buildSlot({ meetingStatus: InterviewSlotMeetingStatus.PENDING }),
+    );
+    await expect(
+      service.createReservation({
+        input: {
+          slotId: 1,
+          applicationFormId: 500,
+          applicantName: '지원자',
+          applicantEmail: 'applicant@example.com',
+        },
+      }),
+    ).rejects.toMatchObject({ errorCode: 'INTERVIEW_SLOT_MEETING_NOT_READY' });
+    expect(mockInterviewRepository.saveReservation).not.toHaveBeenCalled();
+  });
+
+  it('면접관 제거는 목록을 비우고 회의 삭제 동기화를 실행한다', async () => {
+    const slot = buildSlot({
+      meetingStatus: InterviewSlotMeetingStatus.READY,
+      calendarEventId: 'event-id',
+      interviewers: [{ userId: 11, position: 0, isHost: true }] as InterviewSlot['interviewers'],
+    });
+    mockInterviewRepository.findSlotById.mockResolvedValue(slot);
+
+    await service.updateSlotWithMeeting({ id: 1, patch: { interviewerUserIds: [] } });
+
+    expect(mockInterviewRepository.replaceSlotInterviewers).toHaveBeenCalledWith({
+      slotId: 1,
+      userIds: [],
+    });
+    expect(mockInterviewRepository.updateMeetingState).toHaveBeenCalledWith({
+      slotId: 1,
+      bumpRevision: true,
+      patch: expect.objectContaining({ meetingStatus: InterviewSlotMeetingStatus.OUT_OF_SYNC }),
+    });
+    expect(mockMeetingService.syncSlotMeeting).toHaveBeenCalledWith({ slotId: 1 });
+  });
+
+  it('예약이 있는 슬롯의 면접관 전원 제거는 409로 막는다', async () => {
+    const slot = buildSlot({
+      interviewers: [{ userId: 11, position: 0, isHost: true }] as InterviewSlot['interviewers'],
+    });
+    mockInterviewRepository.findSlotById.mockResolvedValue(slot);
+    mockInterviewRepository.countActiveReservationsBySlotId.mockResolvedValue(1);
+
+    await expect(
+      service.updateSlot({ id: 1, patch: { interviewerUserIds: [] } }),
+    ).rejects.toMatchObject({ errorCode: 'INTERVIEW_INTERVIEWERS_REQUIRED', status: 409 });
+    expect(mockInterviewRepository.replaceSlotInterviewers).not.toHaveBeenCalled();
+    expect(mockInterviewRepository.updateSlot).not.toHaveBeenCalled();
+  });
+
+  it('호스트 시간 잠금은 중복 검사보다 먼저 획득한다', async () => {
+    const order: string[] = [];
+    mockUserService.findActiveUsersWithRoles.mockResolvedValue([
+      { id: 11, roles: [UserRole.면접관] },
+      { id: 12, roles: [UserRole.운영자] },
+    ]);
+    mockInterviewRepository.acquireHostTimeLock.mockImplementation(() => {
+      order.push('lock');
+      return Promise.resolve();
+    });
+    mockInterviewRepository.hasHostTimeConflict.mockImplementation(() => {
+      order.push('check');
+      return Promise.resolve(false);
+    });
+    mockInterviewRepository.saveSlot.mockResolvedValue(buildSlot());
+
+    await service.createSlot({
+      input: {
+        cohortId: 10,
+        cohortPartId: 20,
+        startAt: new Date('2026-05-01T10:00:00Z'),
+        endAt: new Date('2026-05-01T10:30:00Z'),
+        capacity: 1,
+        location: '서울',
+        interviewerUserIds: [11, 12],
+      },
+    });
+    expect(order).toEqual(['lock', 'check']);
+  });
+
+  it('삭제는 soft-delete 이후 회의 제거를 호출한다', async () => {
+    const slot = buildSlot({ meetingStatus: InterviewSlotMeetingStatus.READY });
+    mockInterviewRepository.findSlotById.mockResolvedValue(slot);
+    const order: string[] = [];
+    mockInterviewRepository.deleteSlot.mockImplementation(() => {
+      order.push('delete-slot');
+      return Promise.resolve();
+    });
+    mockMeetingService.removeSlotMeeting.mockImplementation(() => {
+      order.push('remove-meeting');
+      return Promise.resolve();
+    });
+
+    await service.deleteSlotWithMeeting({ id: 1 });
+
+    expect(order).toEqual(['delete-slot', 'remove-meeting']);
+    expect(mockMeetingService.removeSlotMeeting).toHaveBeenCalledWith({ slot });
   });
 
   describe('createReservation', () => {

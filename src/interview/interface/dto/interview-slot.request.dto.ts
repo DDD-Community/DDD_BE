@@ -1,6 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsDate, IsInt, IsNotEmpty, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import {
+  ArrayMaxSize,
+  ArrayUnique,
+  IsArray,
+  IsDate,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 export class CreateInterviewSlotRequestDto {
   @ApiProperty({ description: '기수 ID', example: 1 })
@@ -44,6 +55,19 @@ export class CreateInterviewSlotRequestDto {
   @IsString()
   @IsOptional()
   description?: string;
+
+  @ApiPropertyOptional({
+    description: '순서대로 면접관 사용자 ID. 첫 사용자가 회의 호스트입니다.',
+    type: [Number],
+    maxItems: 10,
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ArrayUnique()
+  @IsInt({ each: true })
+  @Min(1, { each: true })
+  interviewerUserIds?: number[];
 }
 
 export class UpdateInterviewSlotRequestDto {
@@ -80,6 +104,19 @@ export class UpdateInterviewSlotRequestDto {
   @IsString()
   @IsOptional()
   description?: string;
+
+  @ApiPropertyOptional({
+    description: '면접관 사용자 ID. 빈 배열은 기존 면접관을 제거합니다.',
+    type: [Number],
+    maxItems: 10,
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ArrayUnique()
+  @IsInt({ each: true })
+  @Min(1, { each: true })
+  interviewerUserIds?: number[];
 }
 
 export class InterviewSlotListQueryDto {

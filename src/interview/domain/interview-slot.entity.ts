@@ -5,6 +5,8 @@ import { CohortPart } from '../../cohort/domain/cohort-part.entity';
 import { BaseEntity } from '../../common/core/base.entity';
 import type { InterviewSlotCreateInput, InterviewSlotUpdatePatch } from './interview.type';
 import { InterviewReservation } from './interview-reservation.entity';
+import { InterviewSlotInterviewer } from './interview-slot-interviewer.entity';
+import { InterviewSlotMeetingStatus } from './interview-slot-meeting.status';
 
 // NOT NULL 은 빈 문자열을 막지 못한다. 앱 검증을 우회한 경로(수동 SQL 등)까지 막는 백스톱이다.
 // 표현식은 Postgres 가 되돌려주는 정규화 형태로 적는다. 다르게 쓰면 CI 의 엔티티-마이그레이션
@@ -41,6 +43,40 @@ export class InterviewSlot extends BaseEntity {
 
   @Column({ type: 'text', nullable: true })
   description?: string;
+
+  @Column({
+    type: 'enum',
+    enum: InterviewSlotMeetingStatus,
+    default: InterviewSlotMeetingStatus.NONE,
+  })
+  meetingStatus: InterviewSlotMeetingStatus;
+
+  @Column({ type: 'int', nullable: true })
+  calendarOwnerUserId: number | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  calendarEventId: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  meetUrl: string | null;
+
+  @Column({ default: 0 })
+  meetingGeneration: number;
+
+  @Column({ default: 0 })
+  meetingRevision: number;
+
+  @Column({ default: 0 })
+  meetingRetryCount: number;
+
+  @Column({ type: 'timestamp', nullable: true })
+  meetingSyncedAt: Date | null;
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  meetingLastError: string | null;
+
+  @OneToMany(() => InterviewSlotInterviewer, (interviewer) => interviewer.slot)
+  interviewers: InterviewSlotInterviewer[];
 
   @OneToMany(() => InterviewReservation, (reservation) => reservation.slot)
   reservations: InterviewReservation[];

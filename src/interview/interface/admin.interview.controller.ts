@@ -22,8 +22,10 @@ import { ApiResponse } from '../../common/response/api-response';
 import { ApiDoc } from '../../common/swagger/api-doc.decorator';
 import { UserRole } from '../../user/domain/user.role';
 import { InterviewService } from '../application/interview.service';
+import { InterviewMeetingService } from '../application/interview-meeting.service';
 import { AdminInterviewSwagger } from './admin.interview.swagger';
 import {
+  InterviewerCandidateResponseDto,
   InterviewReservationResponseDto,
   InterviewSlotResponseDto,
 } from './dto/interview.response.dto';
@@ -35,7 +37,11 @@ import {
 } from './dto/interview-slot.request.dto';
 
 @ApiTags('Admin - Interview')
-@ApiExtraModels(InterviewSlotResponseDto, InterviewReservationResponseDto)
+@ApiExtraModels(
+  InterviewSlotResponseDto,
+  InterviewReservationResponseDto,
+  InterviewerCandidateResponseDto,
+)
 @Controller({ path: 'admin/interview-slots', version: '1' })
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 @Roles(UserRole.계정관리, UserRole.운영자)
@@ -43,6 +49,7 @@ export class AdminInterviewController {
   constructor(
     private readonly interviewService: InterviewService,
     private readonly applicationService: ApplicationService,
+    private readonly interviewMeetingService: InterviewMeetingService,
   ) {}
 
   @ApiDoc({
@@ -57,7 +64,7 @@ export class AdminInterviewController {
   })
   @Post()
   async createSlot(@Body() body: CreateInterviewSlotRequestDto) {
-    const slot = await this.interviewService.createSlot({
+    const slot = await this.interviewService.createSlotWithMeeting({
       input: {
         cohortId: body.cohortId,
         cohortPartId: body.cohortPartId,
@@ -66,9 +73,11 @@ export class AdminInterviewController {
         capacity: body.capacity ?? 1,
         location: body.location,
         description: body.description,
+        interviewerUserIds: body.interviewerUserIds,
       },
     });
-    return ApiResponse.ok(InterviewSlotResponseDto.from(slot));
+    const summaries = await this.interviewService.findSlotConnectionSummaries({ slots: [slot] });
+    return ApiResponse.ok(InterviewSlotResponseDto.from(slot, summaries));
   }
 
   @ApiDoc({
@@ -87,7 +96,23 @@ export class AdminInterviewController {
       cohortId: query.cohortId,
       cohortPartId: query.cohortPartId,
     });
-    return ApiResponse.ok(slots.map((slot) => InterviewSlotResponseDto.from(slot)));
+    const summaries = await this.interviewService.findSlotConnectionSummaries({ slots });
+    return ApiResponse.ok(slots.map((slot) => InterviewSlotResponseDto.from(slot, summaries)));
+  }
+
+  @ApiDoc({
+    summary: '면접관 후보 조회',
+    operationId: 'interview_listInterviewerCandidates',
+    auth: true,
+    responses: [
+      AdminInterviewSwagger.interviewerCandidates.success,
+      AdminInterviewSwagger.interviewerCandidates.unauthorized,
+    ],
+  })
+  @Get('interviewer-candidates')
+  async findInterviewerCandidates() {
+    const candidates = await this.interviewService.findInterviewerCandidates();
+    return ApiResponse.ok(candidates);
   }
 
   @ApiDoc({
@@ -103,7 +128,27 @@ export class AdminInterviewController {
   @Get(':id')
   async findSlotById(@Param('id', ParseIntPipe) id: number) {
     const slot = await this.interviewService.findSlotById({ id });
-    return ApiResponse.ok(InterviewSlotResponseDto.from(slot));
+    const summaries = await this.interviewService.findSlotConnectionSummaries({ slots: [slot] });
+    return ApiResponse.ok(InterviewSlotResponseDto.from(slot, summaries));
+  }
+
+  @ApiDoc({
+    summary: '면접 슬롯 회의 수동 동기화',
+    operationId: 'interview_syncSlotMeeting',
+    auth: true,
+    responses: [
+      AdminInterviewSwagger.syncMeeting.success,
+      AdminInterviewSwagger.syncMeeting.unauthorized,
+      AdminInterviewSwagger.syncMeeting.notFound,
+    ],
+  })
+  @Post(':id/meeting/sync')
+  async syncSlotMeeting(@Param('id', ParseIntPipe) id: number) {
+    await this.interviewService.findSlotById({ id });
+    await this.interviewMeetingService.syncSlotMeeting({ slotId: id });
+    const slot = await this.interviewService.findSlotById({ id });
+    const summaries = await this.interviewService.findSlotConnectionSummaries({ slots: [slot] });
+    return ApiResponse.ok(InterviewSlotResponseDto.from(slot, summaries));
   }
 
   @ApiDoc({
@@ -121,7 +166,7 @@ export class AdminInterviewController {
     @Param('id', ParseIntPipe) id: number,
     @Body() body: UpdateInterviewSlotRequestDto,
   ) {
-    await this.interviewService.updateSlot({
+    const slot = await this.interviewService.updateSlotWithMeeting({
       id,
       patch: {
         startAt: body.startAt,
@@ -129,9 +174,11 @@ export class AdminInterviewController {
         capacity: body.capacity,
         location: body.location,
         description: body.description,
+        interviewerUserIds: body.interviewerUserIds,
       },
     });
-    return ApiResponse.ok(null, '면접 슬롯이 수정되었습니다.');
+    const summaries = await this.interviewService.findSlotConnectionSummaries({ slots: [slot] });
+    return ApiResponse.ok(InterviewSlotResponseDto.from(slot, summaries));
   }
 
   @ApiDoc({
@@ -147,7 +194,7 @@ export class AdminInterviewController {
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   async deleteSlot(@Param('id', ParseIntPipe) id: number) {
-    await this.interviewService.deleteSlot({ id });
+    await this.interviewService.deleteSlotWithMeeting({ id });
   }
 
   @ApiDoc({

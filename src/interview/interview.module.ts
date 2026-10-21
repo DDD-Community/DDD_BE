@@ -5,13 +5,19 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { ApplicationModule } from '../application/application.module';
 import { RolesGuard } from '../common/guard/roles.guard';
+import { GoogleCalendarModule } from '../google-calendar/google-calendar.module';
 import { NotificationModule } from '../notification/notification.module';
+import { UserModule } from '../user/user.module';
 import { InterviewService } from './application/interview.service';
 import { InterviewBookingTokenService } from './application/interview-booking-token.service';
+import { InterviewMeetingService } from './application/interview-meeting.service';
 import { InterviewRepository } from './domain/interview.repository';
 import { InterviewReservation } from './domain/interview-reservation.entity';
 import { InterviewSlot } from './domain/interview-slot.entity';
+import { InterviewSlotInterviewer } from './domain/interview-slot-interviewer.entity';
 import { GoogleCalendarClient } from './infrastructure/google-calendar.client';
+import { InterviewMeetingScheduler } from './infrastructure/interview-meeting.scheduler';
+import { InterviewerWriteRepository } from './infrastructure/interviewer.write.repository';
 import { ReservationWriteRepository } from './infrastructure/reservation.write.repository';
 import { SlotWriteRepository } from './infrastructure/slot.write.repository';
 import { AdminInterviewController } from './interface/admin.interview.controller';
@@ -20,9 +26,11 @@ import { PublicInterviewBookingController } from './interface/public.interview-b
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([InterviewSlot, InterviewReservation]),
+    TypeOrmModule.forFeature([InterviewSlot, InterviewReservation, InterviewSlotInterviewer]),
     forwardRef(() => ApplicationModule),
     NotificationModule,
+    GoogleCalendarModule,
+    UserModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
@@ -34,8 +42,11 @@ import { PublicInterviewBookingController } from './interface/public.interview-b
   controllers: [AdminInterviewController, PublicInterviewBookingController],
   providers: [
     InterviewService,
+    InterviewMeetingService,
+    InterviewMeetingScheduler,
     InterviewRepository,
     SlotWriteRepository,
+    InterviewerWriteRepository,
     ReservationWriteRepository,
     GoogleCalendarClient,
     RolesGuard,

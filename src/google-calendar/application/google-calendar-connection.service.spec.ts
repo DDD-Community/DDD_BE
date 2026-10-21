@@ -15,6 +15,7 @@ describe('GoogleCalendarConnectionService', () => {
   const user = { id: 7, email: 'interviewer@example.com', sub: 'google-sub' } as User;
   let repository: {
     findByUserId: jest.Mock;
+    findByUserIds: jest.Mock;
     saveConnection: jest.Mock;
     disconnect: jest.Mock;
     recordError: jest.Mock;
@@ -25,6 +26,8 @@ describe('GoogleCalendarConnectionService', () => {
     verifyIdToken: jest.Mock;
     revokeToken: jest.Mock;
     insertTestEvent: jest.Mock;
+    insertEvent: jest.Mock;
+    patchEvent: jest.Mock;
     getEvent: jest.Mock;
     deleteEvent: jest.Mock;
   };
@@ -47,6 +50,7 @@ describe('GoogleCalendarConnectionService', () => {
   beforeEach(() => {
     repository = {
       findByUserId: jest.fn().mockResolvedValue(null),
+      findByUserIds: jest.fn().mockResolvedValue([]),
       saveConnection: jest.fn().mockImplementation(({ connection }) => Promise.resolve(connection)),
       disconnect: jest.fn().mockResolvedValue(undefined),
       recordError: jest.fn().mockResolvedValue(undefined),
@@ -63,6 +67,8 @@ describe('GoogleCalendarConnectionService', () => {
       verifyIdToken: jest.fn().mockResolvedValue({ sub: user.sub, email: user.email }),
       revokeToken: jest.fn().mockResolvedValue(undefined),
       insertTestEvent: jest.fn(),
+      insertEvent: jest.fn(),
+      patchEvent: jest.fn(),
       getEvent: jest.fn(),
       deleteEvent: jest.fn(),
     };
@@ -73,6 +79,83 @@ describe('GoogleCalendarConnectionService', () => {
       userService,
       jwtService,
     );
+  });
+
+  it('409 로 찾은 일정이 취소(삭제)된 일정이면 재사용하지 않고 ID 충돌로 알린다', async () => {
+    repository.findByUserId.mockResolvedValue(connection());
+    client.insertEvent.mockRejectedValue({ code: 409 });
+    client.getEvent.mockResolvedValue({
+      id: 'ddd-event',
+      status: 'cancelled',
+      hangoutLink: 'https://meet.google.com/dead',
+    });
+
+    await expect(
+      service.createMeetingEvent({
+        ownerUserId: user.id,
+        eventId: 'ddd-event',
+        summary: '면접',
+        description: '설명',
+        startAt: new Date('2026-11-01T00:00:00Z'),
+        endAt: new Date('2026-11-01T01:00:00Z'),
+        attendeeEmails: [],
+      }),
+    ).rejects.toMatchObject({ errorCode: 'GOOGLE_CALENDAR_EVENT_ID_CONFLICT' });
+    // 연결 문제가 아니므로 연결 오류로 기록하지 않는다.
+    expect(repository.recordError).not.toHaveBeenCalled();
+  });
+
+  it('중복 이벤트 409는 기존 이벤트를 조회해 성공으로 처리한다', async () => {
+    repository.findByUserId.mockResolvedValue(connection());
+    client.insertEvent.mockRejectedValue({ code: 409 });
+    client.getEvent.mockResolvedValue({
+      id: 'ddd-event',
+      hangoutLink: 'https://meet.google.com/abc',
+    });
+    client.patchEvent.mockResolvedValue({
+      id: 'ddd-event',
+      hangoutLink: 'https://meet.google.com/patched',
+    });
+
+    const result = await service.createMeetingEvent({
+      ownerUserId: user.id,
+      eventId: 'ddd-event',
+      summary: '면접',
+      description: '설명',
+      startAt: new Date('2026-11-01T00:00:00Z'),
+      endAt: new Date('2026-11-01T01:00:00Z'),
+      attendeeEmails: ['guest@example.com'],
+    });
+
+    expect(result).toEqual({
+      eventId: 'ddd-event',
+      meetUrl: 'https://meet.google.com/patched',
+      conferenceStatus: null,
+    });
+    expect(client.getEvent).toHaveBeenCalledWith({
+      refreshToken: 'old-refresh-token',
+      eventId: 'ddd-event',
+    });
+    expect(client.patchEvent).toHaveBeenCalledWith({
+      refreshToken: 'old-refresh-token',
+      eventId: 'ddd-event',
+      summary: '면접',
+      description: '설명',
+      startAt: new Date('2026-11-01T00:00:00Z'),
+      endAt: new Date('2026-11-01T01:00:00Z'),
+      attendeeEmails: ['guest@example.com'],
+    });
+    expect(repository.recordError).not.toHaveBeenCalled();
+  });
+
+  it('삭제 404는 이미 삭제된 것으로 처리한다', async () => {
+    repository.findByUserId.mockResolvedValue(connection());
+    client.deleteEvent.mockRejectedValue({ code: 404 });
+
+    await expect(
+      service.deleteMeetingEvent({ ownerUserId: user.id, eventId: 'ddd-event' }),
+    ).resolves.toBeUndefined();
+    expect(repository.recordError).not.toHaveBeenCalled();
   });
 
   it('connect는 사용자 이메일로 URL을 만들고 nonce의 해시만 state에 넣는다', async () => {

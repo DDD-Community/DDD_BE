@@ -18,6 +18,30 @@ import {
 } from './google-calendar-connect.state';
 import { describeGoogleError } from './google-calendar-error-log';
 
+type MeetingEventResult = {
+  eventId: string;
+  meetUrl: string | null;
+  conferenceStatus: string | null;
+};
+
+const googleStatus = (error: unknown): number | null => {
+  if (typeof error !== 'object' || error === null) {
+    return null;
+  }
+  const candidate = error as {
+    code?: number | string;
+    status?: number;
+    response?: { status?: number };
+  };
+  for (const status of [candidate.code, candidate.status, candidate.response?.status]) {
+    const parsed = Number(status);
+    if (Number.isInteger(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return null;
+};
+
 export type CalendarCallbackReason =
   | 'denied'
   | 'invalid_state'
@@ -279,6 +303,189 @@ export class GoogleCalendarConnectionService {
       connection,
       request: () => this.client.deleteEvent({ refreshToken: connection.refreshToken, eventId }),
     });
+  }
+
+  async findConnectionSummaries({
+    userIds,
+  }: {
+    userIds: number[];
+  }): Promise<Map<number, { status: GoogleCalendarConnectionStatus; googleEmail: string }>> {
+    const connections = await this.repository.findByUserIds({ userIds });
+    return new Map(
+      connections.map((connection) => [
+        connection.userId,
+        {
+          status: connection.status,
+          googleEmail: connection.googleEmail,
+        },
+      ]),
+    );
+  }
+
+  async createMeetingEvent({
+    ownerUserId,
+    eventId,
+    summary,
+    description,
+    startAt,
+    endAt,
+    attendeeEmails,
+  }: {
+    ownerUserId: number;
+    eventId: string;
+    summary: string;
+    description: string;
+    startAt: Date;
+    endAt: Date;
+    attendeeEmails: string[];
+  }): Promise<MeetingEventResult> {
+    const connection = await this.requireActiveConnection({ userId: ownerUserId });
+    let event = await this.callCalendar({
+      connection,
+      request: async () => {
+        try {
+          return await this.client.insertEvent({
+            refreshToken: connection.refreshToken,
+            eventId,
+            summary,
+            description,
+            startAt,
+            endAt,
+            attendeeEmails,
+          });
+        } catch (error) {
+          if (googleStatus(error) !== 409) {
+            throw error;
+          }
+          const found = await this.client.getEvent({
+            refreshToken: connection.refreshToken,
+            eventId,
+          });
+          if (found.status === 'cancelled') {
+            return found;
+          }
+          return await this.client.patchEvent({
+            refreshToken: connection.refreshToken,
+            eventId,
+            summary,
+            description,
+            startAt,
+            endAt,
+            attendeeEmails,
+          });
+        }
+      },
+    });
+    // Google 은 삭제(취소)한 일정의 ID 도 계속 점유한다. 그 일정을 재사용하면 이미 사라진 회의의
+    // 옛 링크로 준비 완료 처리하게 되므로 호출자가 새 ID 로 다시 만들게 한다.
+    // 연결 문제가 아니라서 callCalendar 밖에서 던진다(안에서 던지면 연결 오류로 기록된다).
+    if (event.status === 'cancelled') {
+      throw new AppException('GOOGLE_CALENDAR_EVENT_ID_CONFLICT', HttpStatus.CONFLICT);
+    }
+    for (
+      let attempt = 0;
+      attempt < 3 && event.conferenceData?.createRequest?.status?.statusCode === 'pending';
+      attempt += 1
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      try {
+        event = await this.callCalendar({
+          connection,
+          request: () => this.client.getEvent({ refreshToken: connection.refreshToken, eventId }),
+        });
+      } catch {
+        break;
+      }
+    }
+    return this.toMeetingResult({ eventId, event });
+  }
+
+  async updateMeetingEvent({
+    ownerUserId,
+    eventId,
+    summary,
+    description,
+    startAt,
+    endAt,
+    attendeeEmails,
+  }: {
+    ownerUserId: number;
+    eventId: string;
+    summary?: string;
+    description?: string;
+    startAt?: Date;
+    endAt?: Date;
+    attendeeEmails?: string[];
+  }): Promise<MeetingEventResult> {
+    const connection = await this.requireActiveConnection({ userId: ownerUserId });
+    const event = await this.callCalendar({
+      connection,
+      request: () =>
+        this.client.patchEvent({
+          refreshToken: connection.refreshToken,
+          eventId,
+          summary,
+          description,
+          startAt,
+          endAt,
+          attendeeEmails,
+        }),
+    });
+    return this.toMeetingResult({ eventId, event });
+  }
+
+  async getMeetingEvent({
+    ownerUserId,
+    eventId,
+  }: {
+    ownerUserId: number;
+    eventId: string;
+  }): Promise<MeetingEventResult> {
+    const connection = await this.requireActiveConnection({ userId: ownerUserId });
+    const event = await this.callCalendar({
+      connection,
+      request: () => this.client.getEvent({ refreshToken: connection.refreshToken, eventId }),
+    });
+    return this.toMeetingResult({ eventId, event });
+  }
+
+  async deleteMeetingEvent({
+    ownerUserId,
+    eventId,
+  }: {
+    ownerUserId: number;
+    eventId: string;
+  }): Promise<void> {
+    const connection = await this.requireActiveConnection({ userId: ownerUserId });
+    await this.callCalendar({
+      connection,
+      request: async () => {
+        try {
+          await this.client.deleteEvent({ refreshToken: connection.refreshToken, eventId });
+        } catch (error) {
+          if (googleStatus(error) !== 404 && googleStatus(error) !== 410) {
+            throw error;
+          }
+        }
+      },
+    });
+  }
+
+  private toMeetingResult({
+    eventId,
+    event,
+  }: {
+    eventId: string;
+    event: Awaited<ReturnType<GoogleOAuthCalendarClient['getEvent']>>;
+  }): MeetingEventResult {
+    const videoEntry = event.conferenceData?.entryPoints?.find(
+      (entry) => entry.entryPointType === 'video',
+    );
+    return {
+      eventId: event.id ?? eventId,
+      meetUrl: event.hangoutLink ?? videoEntry?.uri ?? null,
+      conferenceStatus: event.conferenceData?.createRequest?.status?.statusCode ?? null,
+    };
   }
 
   private async requireActiveConnection({
