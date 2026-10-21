@@ -48,11 +48,18 @@ export class InterviewJoinService {
     }
 
     if (slot.meetingStatus !== InterviewSlotMeetingStatus.NONE && slot.meetingStatus) {
-      if (this.isMeetUrl(slot.meetUrl)) {
-        return { kind: 'redirect', url: slot.meetUrl! };
+      if (!this.isMeetUrl(slot.meetUrl)) {
+        await this.alertUnavailable({ slotId: slot.id, reason: 'invalid_meet_url' });
+        return { kind: 'unavailable' };
       }
-      await this.alertUnavailable({ slotId: slot.id });
-      return { kind: 'unavailable' };
+      // 상태값(OUT_OF_SYNC)만으로는 막지 않는다. 시간·설명 수정만 실패했다면 회의는 그대로 맞다.
+      // 주인 교체가 실패한 경우에만 meetUrl 이 옛 주인의 회의라, 지금 면접관이 없는 방으로 보내게 된다.
+      const host = slot.interviewers?.find((interviewer) => interviewer.isHost);
+      if (!host || slot.calendarOwnerUserId !== host.userId) {
+        await this.alertUnavailable({ slotId: slot.id, reason: 'host_mismatch' });
+        return { kind: 'unavailable' };
+      }
+      return { kind: 'redirect', url: slot.meetUrl! };
     }
 
     const location = slot.location.trim();
@@ -83,17 +90,23 @@ export class InterviewJoinService {
     }
   }
 
-  private async alertUnavailable({ slotId }: { slotId: number }): Promise<void> {
+  private async alertUnavailable({
+    slotId,
+    reason,
+  }: {
+    slotId: number;
+    reason: 'invalid_meet_url' | 'host_mismatch';
+  }): Promise<void> {
     if (this.alertedSlotIds.has(slotId)) {
       return;
     }
     this.alertedSlotIds.add(slotId);
     const to = this.configService.get<string>('OPS_ALERT_EMAIL');
     if (!to) {
-      this.logger.warn(`면접 입장 링크 사용 불가 (slotId=${slotId}, reason=invalid_meet_url)`);
+      this.logger.warn(`면접 입장 링크 사용 불가 (slotId=${slotId}, reason=${reason})`);
       return;
     }
-    const text = `슬롯 ID: ${slotId}\n사유: invalid_meet_url`;
+    const text = `슬롯 ID: ${slotId}\n사유: ${reason}`;
     try {
       await this.notificationService.sendEmail({
         to,

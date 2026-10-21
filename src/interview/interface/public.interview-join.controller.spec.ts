@@ -1,5 +1,8 @@
-import { Logger } from '@nestjs/common';
+import { HttpStatus, INestApplication, Logger } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import { ThrottlerModule } from '@nestjs/throttler';
 import type { Response } from 'express';
+import request from 'supertest';
 
 import { InterviewJoinService } from '../application/interview-join.service';
 import { PublicInterviewJoinController } from './public.interview-join.controller';
@@ -76,5 +79,43 @@ describe('PublicInterviewJoinController', () => {
     expect(response.send.mock.calls[1][0]).toBe(invalidHtml);
     expect(logger).not.toHaveBeenCalled();
     logger.mockRestore();
+  });
+
+  // 토큰 추측 시도를 막는 선이다. 컨트롤러를 직접 부르면 가드를 거치지 않으므로 HTTP 로 확인한다.
+  describe('요청 제한', () => {
+    let app: INestApplication;
+
+    beforeAll(async () => {
+      const moduleRef = await Test.createTestingModule({
+        // 전역 기본값(10분 10회, app.module.ts)과 다른 값을 둬서 엔드포인트 설정이 이기는지 본다.
+        imports: [ThrottlerModule.forRoot([{ ttl: 10 * 60 * 1000, limit: 10 }])],
+        controllers: [PublicInterviewJoinController],
+        providers: [
+          {
+            provide: InterviewJoinService,
+            useValue: { resolveJoin: jest.fn().mockResolvedValue({ kind: 'ended' }) },
+          },
+        ],
+      }).compile();
+      app = moduleRef.createNestApplication();
+      await app.init();
+    });
+
+    afterAll(async () => {
+      await app.close();
+    });
+
+    it('같은 클라이언트의 분당 31번째 요청은 429로 막는다', async () => {
+      // When
+      const statuses: number[] = [];
+      for (let i = 0; i < 31; i += 1) {
+        const response = await request(app.getHttpServer()).get('/interview-bookings/join?token=t');
+        statuses.push(response.status);
+      }
+
+      // Then
+      expect(statuses.slice(0, 30)).toEqual(Array.from({ length: 30 }, () => HttpStatus.OK));
+      expect(statuses[30]).toBe(HttpStatus.TOO_MANY_REQUESTS);
+    });
   });
 });

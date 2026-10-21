@@ -11,6 +11,11 @@ describe('InterviewJoinService', () => {
     meetingStatus: InterviewSlotMeetingStatus.READY,
     meetUrl: 'https://meet.google.com/abc-defg-hij',
     location: 'private-location',
+    calendarOwnerUserId: 3,
+    interviewers: [
+      { userId: 3, isHost: true },
+      { userId: 4, isHost: false },
+    ],
     deletedAt: null,
   };
   const reservation = { id: 55, slot, deletedAt: null };
@@ -66,8 +71,9 @@ describe('InterviewJoinService', () => {
     });
   });
 
+  // OUT_OF_SYNC 라도 회의 주인이 현재 주인이면 시간·설명 수정만 실패한 것이라 회의는 맞다.
   it.each([InterviewSlotMeetingStatus.READY, InterviewSlotMeetingStatus.OUT_OF_SYNC])(
-    '%s 상태에서 정확히 10분 전이면 Meet으로 보낸다',
+    '%s 상태에서 회의 주인이 현재 주인이면 정확히 10분 전부터 Meet으로 보낸다',
     async (meetingStatus) => {
       repository.findReservationByIdIncludingDeleted.mockResolvedValue({
         ...reservation,
@@ -84,6 +90,27 @@ describe('InterviewJoinService', () => {
       });
     },
   );
+
+  it('주인 교체가 실패해 회의 주인이 현재 주인과 다르면 옛 회의로 보내지 않고 알린다', async () => {
+    // Given: 주인을 3에서 5로 바꿨지만 새 회의 생성이 실패해 meetUrl 은 아직 3의 회의다.
+    repository.findReservationByIdIncludingDeleted.mockResolvedValue({
+      ...reservation,
+      slot: {
+        ...slot,
+        meetingStatus: InterviewSlotMeetingStatus.OUT_OF_SYNC,
+        interviewers: [{ userId: 5, isHost: true }],
+      },
+    });
+
+    // When
+    const result = await createService().resolveJoin({ token: 'token', now: startAt });
+
+    // Then
+    expect(result).toEqual({ kind: 'unavailable' });
+    expect(notifications.sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ text: expect.stringContaining('host_mismatch') }),
+    );
+  });
 
   it.each([null, 'https://evil.example.com/room', 'http://meet.google.com/room'])(
     '유효하지 않은 Meet URL(%s)은 unavailable이고 슬롯당 한 번만 알린다',

@@ -76,10 +76,7 @@ export class InterviewService {
     if (!slot || !slot.meetingStatus || slot.meetingStatus === InterviewSlotMeetingStatus.NONE) {
       return null;
     }
-    return this.joinTokenService.createUrl({
-      reservationId: reservation.id,
-      slotEndAt: slot.endAt,
-    });
+    return this.joinTokenService.createUrl({ reservationId: reservation.id });
   }
 
   async createSlotWithMeeting({
@@ -772,9 +769,7 @@ export class InterviewService {
       const isMeetMode = Boolean(
         slot.meetingStatus && slot.meetingStatus !== InterviewSlotMeetingStatus.NONE,
       );
-      const joinUrl = isMeetMode
-        ? this.joinTokenService.createUrl({ reservationId, slotEndAt: slot.endAt })
-        : null;
+      const joinUrl = isMeetMode ? this.joinTokenService.createUrl({ reservationId }) : null;
       const ics = buildIcsFile({
         uid: `interview-${slot.id}-${applicantEmail}@dddstudy.kr`,
         summary,

@@ -7,7 +7,9 @@ export type InterviewJoinTokenPayload = {
   reservationId: number;
 };
 
-const DAY_SECONDS = 24 * 60 * 60;
+// 만료를 슬롯 시각에 묶지 않는다. 면접을 한참 뒤로 미뤄도 이미 보낸 메일 링크가 살아 있어야 하고,
+// 입장 가능 여부는 누를 때마다 DB 의 현재 슬롯 시각으로 다시 판정한다.
+const TOKEN_LIFETIME_SECONDS = 180 * 24 * 60 * 60;
 
 @Injectable()
 export class InterviewJoinTokenService {
@@ -16,11 +18,9 @@ export class InterviewJoinTokenService {
     private readonly configService: ConfigService,
   ) {}
 
-  issue({ reservationId, slotEndAt }: { reservationId: number; slotEndAt: Date }): string {
-    const expiresAt = slotEndAt.getTime() + 30 * DAY_SECONDS * 1000;
-    const expiresIn = Math.max(DAY_SECONDS, Math.ceil((expiresAt - Date.now()) / 1000));
+  issue({ reservationId }: { reservationId: number }): string {
     const payload: InterviewJoinTokenPayload = { purpose: 'interview_join', reservationId };
-    return this.jwtService.sign(payload, { expiresIn });
+    return this.jwtService.sign(payload, { expiresIn: TOKEN_LIFETIME_SECONDS });
   }
 
   verify({ token }: { token: string }): InterviewJoinTokenPayload | null {
@@ -39,11 +39,12 @@ export class InterviewJoinTokenService {
     }
   }
 
-  createUrl({ reservationId, slotEndAt }: { reservationId: number; slotEndAt: Date }): string {
+  createUrl({ reservationId }: { reservationId: number }): string {
     const configured = this.configService.get<string>('INTERVIEW_JOIN_BASE_URL');
-    const base = configured || this.defaultBaseUrl();
-    const token = this.issue({ reservationId, slotEndAt });
-    return `${base}?token=${encodeURIComponent(token)}`;
+    // 설정값에 쿼리나 fragment 가 있어도 token 이 쿼리 매개변수로 들어가도록 문자열로 잇지 않는다.
+    const url = new URL(configured || this.defaultBaseUrl());
+    url.searchParams.set('token', this.issue({ reservationId }));
+    return url.toString();
   }
 
   private defaultBaseUrl(): string {

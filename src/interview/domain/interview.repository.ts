@@ -143,7 +143,7 @@ export class InterviewRepository {
   async findReservationByIdIncludingDeleted({ id }: { id: number }) {
     return this.reservationWriteRepository.findOne({
       where: { id },
-      relations: ['slot'],
+      relations: ['slot', 'slot.interviewers'],
       withDeleted: true,
     });
   }
