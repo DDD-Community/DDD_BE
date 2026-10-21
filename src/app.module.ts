@@ -20,6 +20,7 @@ import { validate } from './config/env.validation';
 import { createTypeOrmModuleOptions } from './config/typeorm.config';
 import { DiscordModule } from './discord/discord.module';
 import { GoogleModule } from './google/google.module';
+import { GoogleCalendarModule } from './google-calendar/google-calendar.module';
 import { HealthModule } from './health/health.module';
 import { InterviewModule } from './interview/interview.module';
 import { ProjectModule } from './project/project.module';
@@ -44,6 +45,7 @@ const ENV_FILE_PATHS = ['.env.production', '.env.staging', '.env.test', '.env.de
     ThrottlerModule.forRoot([{ ttl: 10 * 60 * 1000, limit: 10 }]),
     HealthModule,
     GoogleModule,
+    GoogleCalendarModule,
     AuditModule,
     CohortModule,
     ApplicationModule,
