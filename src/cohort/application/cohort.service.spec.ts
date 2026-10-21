@@ -455,6 +455,54 @@ describe('CohortService', () => {
       expect(mockCohortRepository.update).toHaveBeenCalledWith({ id: 1, name: '14기(수정)' });
     });
 
+    it('process 는 보낸 키만 바꾸고 기존 키는 남긴다', async () => {
+      mockCohortRepository.findById.mockResolvedValue({
+        id: 1,
+        status: CohortStatus.RECRUITING,
+        recruitStartAt: new Date('2020-03-01T00:00:00.000Z'),
+        recruitEndAt: new Date('2020-03-15T00:00:00.000Z'),
+        process: {
+          documentResultDate: '2026-10-07',
+          participationFee: 160000,
+          bankAccount: '토스뱅크 1002-000-0000',
+        },
+      });
+
+      await cohortService.updateCohort({
+        id: 1,
+        data: { process: { documentResultDate: '2026-10-08', bankAccount: null } },
+      });
+
+      expect(mockCohortRepository.update).toHaveBeenCalledWith({
+        id: 1,
+        process: {
+          documentResultDate: '2026-10-08',
+          participationFee: 160000,
+          bankAccount: null,
+        },
+      });
+    });
+
+    it('기존 process 가 없으면 보낸 값이 그대로 저장된다', async () => {
+      mockCohortRepository.findById.mockResolvedValue({
+        id: 1,
+        status: CohortStatus.RECRUITING,
+        recruitStartAt: new Date('2020-03-01T00:00:00.000Z'),
+        recruitEndAt: new Date('2020-03-15T00:00:00.000Z'),
+        process: null,
+      });
+
+      await cohortService.updateCohort({
+        id: 1,
+        data: { process: { documentResultDate: '2026-10-08' } },
+      });
+
+      expect(mockCohortRepository.update).toHaveBeenCalledWith({
+        id: 1,
+        process: { documentResultDate: '2026-10-08' },
+      });
+    });
+
     it('null 을 보내면 자동 종료 예약을 해제한다', async () => {
       mockCohortRepository.findById.mockResolvedValue({
         id: 1,
