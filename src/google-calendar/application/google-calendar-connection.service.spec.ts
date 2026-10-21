@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 
 import { UserService } from '../../user/application/user.service';
@@ -7,10 +8,7 @@ import { GoogleCalendarConnectionRepository } from '../domain/google-calendar-co
 import { GoogleCalendarConnectionStatus } from '../domain/google-calendar-connection.status';
 import { GoogleOAuthCalendarClient } from '../infrastructure/google-oauth-calendar.client';
 import { createCalendarConnectState } from './google-calendar-connect.state';
-import {
-  describeGoogleError,
-  GoogleCalendarConnectionService,
-} from './google-calendar-connection.service';
+import { GoogleCalendarConnectionService } from './google-calendar-connection.service';
 
 describe('GoogleCalendarConnectionService', () => {
   const jwtService = new JwtService({ secret: 'test-secret' });
@@ -121,6 +119,27 @@ describe('GoogleCalendarConnectionService', () => {
       reason: 'exchange_failed',
     });
     expect(repository.saveConnection).not.toHaveBeenCalled();
+  });
+
+  it('코드 교환 실패 로그에 Google 설명문·요청 설정의 비밀값을 싣지 않는다', async () => {
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    client.exchangeCode.mockRejectedValue({
+      name: 'GaxiosError',
+      config: { data: 'code=SECRET_CODE&client_secret=SECRET_CLIENT' },
+      response: {
+        status: 400,
+        data: { error: 'invalid_grant', error_description: 'bad code SECRET_CODE' },
+      },
+    });
+
+    expect(await service.callback(stateInput())).toEqual({
+      connected: false,
+      reason: 'exchange_failed',
+    });
+    const logged = warn.mock.calls.map((call) => String(call[0])).join('\n');
+    expect(logged).toContain('google_error=invalid_grant');
+    expect(logged).not.toContain('SECRET');
+    warn.mockRestore();
   });
 
   it('id_token 이 없으면 missing_id_token, 검증 실패면 verify_failed 로 구분한다', async () => {
@@ -306,22 +325,5 @@ describe('GoogleCalendarConnectionService', () => {
       errorCode: 'GOOGLE_CALENDAR_TEST_EVENT_ONLY',
     });
     expect(client.deleteEvent).not.toHaveBeenCalled();
-  });
-
-  describe('describeGoogleError', () => {
-    it('Google 공개 오류 코드와 상태만 남기고 요청 설정은 싣지 않는다', () => {
-      const detail = describeGoogleError({
-        name: 'GaxiosError',
-        config: { data: 'code=secret-code&client_secret=secret' },
-        response: {
-          status: 400,
-          data: { error: 'redirect_uri_mismatch', error_description: 'Bad Request' },
-        },
-      });
-      expect(detail).toBe(
-        'name=GaxiosError status=400 google_error=redirect_uri_mismatch description=Bad Request',
-      );
-      expect(detail).not.toContain('secret');
-    });
   });
 });

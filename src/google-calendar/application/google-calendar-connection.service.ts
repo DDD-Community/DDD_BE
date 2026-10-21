@@ -16,6 +16,7 @@ import {
   createCalendarConnectState,
   verifyCalendarConnectState,
 } from './google-calendar-connect.state';
+import { describeGoogleError } from './google-calendar-error-log';
 
 export type CalendarCallbackReason =
   | 'denied'
@@ -47,34 +48,6 @@ export type TestMeetingResult = {
 };
 
 const CALENDAR_EVENTS_SCOPE = 'https://www.googleapis.com/auth/calendar.events';
-
-/**
- * Google 오류에서 공개 코드만 뽑는다(예: invalid_grant, redirect_uri_mismatch).
- * 응답 본문 전체나 요청 설정에는 code·토큰이 섞일 수 있어 싣지 않는다.
- */
-export const describeGoogleError = (error: unknown): string => {
-  if (typeof error !== 'object' || error === null) {
-    return `error=${String(error).slice(0, 100)}`;
-  }
-  const record = error as {
-    name?: unknown;
-    status?: unknown;
-    response?: { status?: unknown; data?: { error?: unknown; error_description?: unknown } };
-  };
-  const parts = [`name=${typeof record.name === 'string' ? record.name : 'unknown'}`];
-  const status = record.response?.status ?? record.status;
-  if (typeof status === 'number') {
-    parts.push(`status=${status}`);
-  }
-  const data = record.response?.data;
-  if (typeof data?.error === 'string') {
-    parts.push(`google_error=${data.error}`);
-  }
-  if (typeof data?.error_description === 'string') {
-    parts.push(`description=${data.error_description.slice(0, 200)}`);
-  }
-  return parts.join(' ');
-};
 
 @Injectable()
 export class GoogleCalendarConnectionService {
