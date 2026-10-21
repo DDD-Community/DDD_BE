@@ -26,6 +26,7 @@ import { ApplicationService } from './usecase/application.service';
 import { ApplicationAnswerValidator } from './usecase/application-answer.validator';
 import { ApplicationAttachmentService } from './usecase/application-attachment.service';
 import { ApplicationQueryService } from './usecase/application-query.service';
+import { ApplicationTestEmailService } from './usecase/application-test-email.service';
 import { ApplicationVerificationService } from './usecase/application-verification.service';
 import { PiiPurgeService } from './usecase/pii-purge.service';
 
@@ -49,6 +50,7 @@ import { PiiPurgeService } from './usecase/pii-purge.service';
     ApplicationAttachmentService,
     ApplicationQueryService,
     ApplicationService,
+    ApplicationTestEmailService,
     ApplicationRepository,
     FormWriteRepository,
     DraftWriteRepository,

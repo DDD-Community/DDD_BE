@@ -2,9 +2,12 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseIntPipe,
   Patch,
+  Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -20,8 +23,10 @@ import { ApiDoc } from '../../common/swagger/api-doc.decorator';
 import { UserRole } from '../../user/domain/user.role';
 import { ApplicationService } from '../usecase/application.service';
 import { ApplicationQueryService } from '../usecase/application-query.service';
+import { ApplicationTestEmailService } from '../usecase/application-test-email.service';
 import {
   ApplicationAdminFilterDto,
+  SendTestEmailRequestDto,
   UpdateApplicationStatusRequestDto,
 } from './dto/application.request.dto';
 import { AdminApplicationFormResponseDto } from './dto/application.response.dto';
@@ -34,7 +39,27 @@ export class AdminApplicationController {
   constructor(
     private readonly applicationService: ApplicationService,
     private readonly applicationQueryService: ApplicationQueryService,
+    private readonly applicationTestEmailService: ApplicationTestEmailService,
   ) {}
+
+  @ApiDoc({
+    summary: '지원자 안내 메일 테스트 발송',
+    description:
+      '기수의 현재 설정값으로 지원자 안내 메일을 실제 양식 그대로 만들어 로그인한 운영진 본인 이메일로 보냅니다. 지원서 상태는 바뀌지 않습니다.',
+    operationId: 'application_sendTestEmail',
+    auth: true,
+  })
+  // 면접관은 메일 양식을 다루지 않는다. 기수 설정을 고치는 권한과 맞춘다.
+  @Roles(UserRole.계정관리, UserRole.운영자)
+  @Post('test-emails')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async sendTestEmail(@AuthUser() user: JwtUser, @Body() body: SendTestEmailRequestDto) {
+    await this.applicationTestEmailService.sendTestEmail({
+      cohortId: body.cohortId,
+      type: body.type,
+      to: user.email,
+    });
+  }
 
   @ApiDoc({
     summary: '어드민 지원서 목록 조회',

@@ -15,6 +15,7 @@ import {
 } from 'class-validator';
 
 import { ApplicationStatus } from '../../domain/application.status';
+import { TestEmailType } from '../../domain/test-email.type';
 
 export class RequestApplicationVerificationRequestDto {
   @ApiProperty({ description: '지원자 이메일', example: 'applicant@example.com' })
@@ -115,4 +116,18 @@ export class ApplicationAdminFilterDto {
   @IsOptional()
   @IsEnum(ApplicationStatus)
   status?: ApplicationStatus;
+}
+
+export class SendTestEmailRequestDto {
+  @ApiProperty({ description: '메일에 넣을 설정값을 읽을 기수 ID', example: 15 })
+  @IsNumber()
+  cohortId: number;
+
+  @ApiProperty({
+    description: '보낼 안내 메일 종류',
+    enum: TestEmailType,
+    example: TestEmailType.면접합격,
+  })
+  @IsEnum(TestEmailType)
+  type: TestEmailType;
 }
