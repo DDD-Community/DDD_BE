@@ -9,6 +9,7 @@ jest.mock('typeorm-transactional', () => ({
   initializeTransactionalContext: jest.fn(),
 }));
 import { AppException } from '../../common/exception/app.exception';
+import { GoogleCalendarConnectionService } from '../../google-calendar/application/google-calendar-connection.service';
 import { UserService } from '../../user/application/user.service';
 import { UserRole } from '../../user/domain/user.role';
 import { GoogleApiClient } from '../infrastructure/google-api.client';
@@ -34,6 +35,10 @@ const mockGoogleApiClient = {
   revokeToken: jest.fn(),
 };
 
+const mockGoogleCalendarConnectionService = {
+  disconnect: jest.fn(),
+};
+
 describe('GoogleAuthService', () => {
   let googleAuthService: GoogleAuthService;
 
@@ -44,6 +49,10 @@ describe('GoogleAuthService', () => {
         { provide: UserService, useValue: mockUserService },
         { provide: AuthService, useValue: mockAuthService },
         { provide: GoogleApiClient, useValue: mockGoogleApiClient },
+        {
+          provide: GoogleCalendarConnectionService,
+          useValue: mockGoogleCalendarConnectionService,
+        },
       ],
     }).compile();
 
@@ -225,6 +234,30 @@ describe('GoogleAuthService', () => {
           id: 1,
           refreshToken: null,
         });
+      });
+
+      it('캘린더 연결도 지운다 — soft delete 라 FK CASCADE 가 걸리지 않는다', async () => {
+        // Given
+        mockUserService.findById.mockResolvedValue({ id: 1, email: 'test@example.com' });
+
+        // When
+        await googleAuthService.withdrawal({ userId: 1 });
+
+        // Then
+        expect(mockGoogleCalendarConnectionService.disconnect).toHaveBeenCalledWith({ userId: 1 });
+        expect(mockUserService.withdraw).toHaveBeenCalledWith({ id: 1 });
+      });
+
+      it('캘린더 연결 정리가 실패해도 탈퇴는 진행한다', async () => {
+        // Given
+        mockUserService.findById.mockResolvedValue({ id: 1, email: 'test@example.com' });
+        mockGoogleCalendarConnectionService.disconnect.mockRejectedValue(new Error('db down'));
+
+        // When
+        await googleAuthService.withdrawal({ userId: 1 });
+
+        // Then
+        expect(mockUserService.withdraw).toHaveBeenCalledWith({ id: 1 });
       });
 
       it('Google revoke 실패 시에도 탈퇴 처리를 계속 진행한다', async () => {

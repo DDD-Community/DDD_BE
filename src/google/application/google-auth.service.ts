@@ -3,6 +3,7 @@ import { Transactional } from 'typeorm-transactional';
 
 import { AuthService } from '../../auth/application/auth.service';
 import { AppException } from '../../common/exception/app.exception';
+import { GoogleCalendarConnectionService } from '../../google-calendar/application/google-calendar-connection.service';
 import { UserService } from '../../user/application/user.service';
 import { GoogleApiClient } from '../infrastructure/google-api.client';
 import type { GoogleLoginResult, GoogleProfile, RefreshResult } from './google.type';
@@ -15,6 +16,7 @@ export class GoogleAuthService {
     private readonly userService: UserService,
     private readonly authService: AuthService,
     private readonly googleApiClient: GoogleApiClient,
+    private readonly googleCalendarConnectionService: GoogleCalendarConnectionService,
   ) {}
 
   @Transactional()
@@ -94,6 +96,17 @@ export class GoogleAuthService {
           error instanceof Error ? error.stack : String(error),
         );
       }
+    }
+
+    // 회원 탈퇴는 soft delete 라 연결 테이블의 FK CASCADE 가 걸리지 않는다.
+    // 캘린더 refresh token 이 탈퇴 회원 이름으로 남지 않게 직접 지운다. 실패해도 탈퇴는 진행한다.
+    try {
+      await this.googleCalendarConnectionService.disconnect({ userId });
+    } catch (error) {
+      this.logger.warn(
+        `Google Calendar connection cleanup failed for userId=${userId}`,
+        error instanceof Error ? error.stack : String(error),
+      );
     }
 
     await this.userService.saveRefreshToken({ id: userId, refreshToken: null });
