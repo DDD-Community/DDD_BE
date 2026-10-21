@@ -98,6 +98,10 @@ export class InterviewRepository {
     return this.slotWriteRepository.updateMeetingState({ slotId, patch, revision, bumpRevision });
   }
 
+  async clearStaleMeetingEvent({ slotId, eventId }: { slotId: number; eventId: string }) {
+    await this.slotWriteRepository.clearStaleMeetingEvent({ slotId, eventId });
+  }
+
   async findMeetingRetryCandidates({
     now,
     limit,

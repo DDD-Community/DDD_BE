@@ -14,6 +14,10 @@ export class InterviewSlotMeeting1786880782446 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TABLE "interview_slots" ADD "calendarEventId" character varying`,
     );
+    await queryRunner.query(
+      `ALTER TABLE "interview_slots" ADD "staleCalendarEventId" character varying`,
+    );
+    await queryRunner.query(`ALTER TABLE "interview_slots" ADD "staleCalendarOwnerUserId" integer`);
     await queryRunner.query(`ALTER TABLE "interview_slots" ADD "meetUrl" character varying`);
     await queryRunner.query(
       `ALTER TABLE "interview_slots" ADD "meetingGeneration" integer NOT NULL DEFAULT '0'`,
@@ -65,6 +69,8 @@ export class InterviewSlotMeeting1786880782446 implements MigrationInterface {
     await queryRunner.query(`ALTER TABLE "interview_slots" DROP COLUMN "meetingRevision"`);
     await queryRunner.query(`ALTER TABLE "interview_slots" DROP COLUMN "meetingGeneration"`);
     await queryRunner.query(`ALTER TABLE "interview_slots" DROP COLUMN "meetUrl"`);
+    await queryRunner.query(`ALTER TABLE "interview_slots" DROP COLUMN "staleCalendarOwnerUserId"`);
+    await queryRunner.query(`ALTER TABLE "interview_slots" DROP COLUMN "staleCalendarEventId"`);
     await queryRunner.query(`ALTER TABLE "interview_slots" DROP COLUMN "calendarEventId"`);
     await queryRunner.query(`ALTER TABLE "interview_slots" DROP COLUMN "calendarOwnerUserId"`);
     await queryRunner.query(`ALTER TABLE "interview_slots" DROP COLUMN "meetingStatus"`);

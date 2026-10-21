@@ -57,6 +57,13 @@ export class InterviewSlot extends BaseEntity {
   @Column({ type: 'varchar', nullable: true })
   calendarEventId: string | null;
 
+  /** 주인 교체 뒤 아직 지우지 못한 옛 일정. 지울 때까지 스케줄러가 다시 시도한다 */
+  @Column({ type: 'varchar', nullable: true })
+  staleCalendarEventId: string | null;
+
+  @Column({ type: 'int', nullable: true })
+  staleCalendarOwnerUserId: number | null;
+
   @Column({ type: 'varchar', nullable: true })
   meetUrl: string | null;
 

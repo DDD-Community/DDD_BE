@@ -84,10 +84,12 @@ describe('SlotWriteRepository meeting locks and retries', () => {
     await target.findRetryCandidates({ now: new Date('2026-11-01'), limit: 20 });
     const options = repository.find.mock.calls[0][0];
     expect(options.withDeleted).toBe(true);
-    expect(options.where).toHaveLength(2);
+    expect(options.where).toHaveLength(3);
     expect(options.where[0].endAt).toBeDefined();
     expect(options.where[1].endAt).toBeUndefined();
     expect(options.where[1].calendarEventId).toBeDefined();
     expect(options.where[1].meetingStatus).toBe('OUT_OF_SYNC');
+    // 주인 교체 뒤 지우지 못한 옛 일정은 상태와 무관하게 다시 시도한다.
+    expect(options.where[2].staleCalendarEventId).toBeDefined();
   });
 });

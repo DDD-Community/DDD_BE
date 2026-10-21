@@ -110,6 +110,8 @@ export class SlotWriteRepository {
         | 'meetingStatus'
         | 'calendarOwnerUserId'
         | 'calendarEventId'
+        | 'staleCalendarEventId'
+        | 'staleCalendarOwnerUserId'
         | 'meetUrl'
         | 'meetingGeneration'
         | 'meetingRetryCount'
@@ -131,6 +133,17 @@ export class SlotWriteRepository {
     }
     const result = await query.execute();
     return (result.affected ?? 0) > 0;
+  }
+
+  /** 지운(또는 정리를 포기한) 옛 일정 기록을 비운다. 그사이 다른 값으로 바뀌었으면 건드리지 않는다 */
+  async clearStaleMeetingEvent({ slotId, eventId }: { slotId: number; eventId: string }) {
+    await this.repository
+      .createQueryBuilder()
+      .update(InterviewSlot)
+      .set({ staleCalendarEventId: null, staleCalendarOwnerUserId: null })
+      .where('id = :slotId', { slotId })
+      .andWhere('"staleCalendarEventId" = :eventId', { eventId })
+      .execute();
   }
 
   async findRetryCandidates({
@@ -159,6 +172,8 @@ export class SlotWriteRepository {
           meetingStatus: InterviewSlotMeetingStatus.OUT_OF_SYNC,
           meetingRetryCount: LessThan(10),
         },
+        // 주인 교체 뒤 지우지 못한 옛 일정. 상태와 무관하게 지울 때까지 다시 시도한다.
+        { staleCalendarEventId: Not(IsNull()) },
       ],
       order: { startAt: 'ASC' },
       take: limit,

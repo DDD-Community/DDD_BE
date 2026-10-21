@@ -105,6 +105,43 @@ describe('GoogleCalendarConnectionService', () => {
     expect(repository.recordError).not.toHaveBeenCalled();
   });
 
+  it('회의 생성 응답이 pending 이면 다시 조회해 Meet 링크를 얻는다', async () => {
+    jest.useFakeTimers();
+    try {
+      repository.findByUserId.mockResolvedValue(connection());
+      client.insertEvent.mockResolvedValue({
+        id: 'ddd-event',
+        conferenceData: { createRequest: { status: { statusCode: 'pending' } } },
+      });
+      client.getEvent.mockResolvedValue({
+        id: 'ddd-event',
+        hangoutLink: 'https://meet.google.com/ready',
+        conferenceData: { createRequest: { status: { statusCode: 'success' } } },
+      });
+
+      const resultPromise = service.createMeetingEvent({
+        ownerUserId: user.id,
+        eventId: 'ddd-event',
+        summary: '면접',
+        description: '설명',
+        startAt: new Date('2026-11-01T00:00:00Z'),
+        endAt: new Date('2026-11-01T01:00:00Z'),
+        attendeeEmails: [],
+      });
+      await jest.advanceTimersByTimeAsync(500);
+      const result = await resultPromise;
+
+      expect(client.getEvent).toHaveBeenCalledTimes(1);
+      expect(result).toEqual({
+        eventId: 'ddd-event',
+        meetUrl: 'https://meet.google.com/ready',
+        conferenceStatus: 'success',
+      });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('중복 이벤트 409는 기존 이벤트를 조회해 성공으로 처리한다', async () => {
     repository.findByUserId.mockResolvedValue(connection());
     client.insertEvent.mockRejectedValue({ code: 409 });

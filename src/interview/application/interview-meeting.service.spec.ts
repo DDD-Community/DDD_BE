@@ -14,6 +14,7 @@ describe('InterviewMeetingService', () => {
     findSlotByIdIncludingDeleted: jest.fn(),
     withSlotMeetingLock: jest.fn(),
     updateMeetingState: jest.fn(),
+    clearStaleMeetingEvent: jest.fn(),
   };
   const calendar = {
     findConnectionSummaries: jest.fn(),
@@ -52,6 +53,12 @@ describe('InterviewMeetingService', () => {
     }) as InterviewSlot;
     repository.findSlotByIdIncludingDeleted.mockImplementation(() => Promise.resolve(slot));
     repository.withSlotMeetingLock.mockImplementation(({ work }) => work());
+    repository.clearStaleMeetingEvent.mockImplementation(({ eventId }) => {
+      if (slot.staleCalendarEventId === eventId) {
+        Object.assign(slot, { staleCalendarEventId: null, staleCalendarOwnerUserId: null });
+      }
+      return Promise.resolve();
+    });
     repository.updateMeetingState.mockImplementation(({ patch }) => {
       Object.assign(slot, patch);
       return Promise.resolve(true);
@@ -222,25 +229,65 @@ describe('InterviewMeetingService', () => {
     expect(calendar.deleteMeetingEvent).not.toHaveBeenCalled();
   });
 
-  it('호스트 변경 후 옛 이벤트 삭제 실패는 새 회의를 유지하고 운영 알림만 보낸다', async () => {
+  it('호스트 변경 후 옛 일정 삭제가 일시적으로 실패하면 지울 일정으로 남겨 다시 시도한다', async () => {
     Object.assign(slot, {
       calendarOwnerUserId: 10,
       calendarEventId: 'old-event',
       meetUrl: 'https://meet.google.com/old',
     });
-    calendar.deleteMeetingEvent.mockRejectedValue(new Error('private detail'));
+    calendar.deleteMeetingEvent.mockRejectedValueOnce(new Error('private detail'));
 
     await service.syncSlotMeeting({ slotId: slot.id });
 
     expect(slot.calendarEventId).toBe('new-event');
     expect(slot.meetingStatus).toBe(InterviewSlotMeetingStatus.READY);
-    expect(notification.sendEmail).toHaveBeenCalledWith(
-      expect.objectContaining({
-        to: 'ops@example.com',
-        text: expect.stringContaining('사유: request_failed'),
-      }),
+    // 옛 일정의 주인과 ID 를 잃지 않는다.
+    expect(slot.staleCalendarEventId).toBe('old-event');
+    expect(slot.staleCalendarOwnerUserId).toBe(10);
+    expect(notification.sendEmail).not.toHaveBeenCalled();
+
+    // 다음 동기화가 옛 일정을 지우고 기록을 비운다.
+    await service.syncSlotMeeting({ slotId: slot.id });
+    expect(calendar.deleteMeetingEvent).toHaveBeenLastCalledWith({
+      ownerUserId: 10,
+      eventId: 'old-event',
+    });
+    expect(slot.staleCalendarEventId).toBeNull();
+  });
+
+  it('옛 주인 연결이 끊겨 지울 수 없으면 기록을 비우고 수동 정리를 알린다', async () => {
+    Object.assign(slot, {
+      staleCalendarEventId: 'orphan-event',
+      staleCalendarOwnerUserId: 10,
+      calendarOwnerUserId: 11,
+      calendarEventId: 'current-event',
+      meetUrl: 'https://meet.google.com/current',
+    });
+    calendar.deleteMeetingEvent.mockRejectedValueOnce(
+      new AppException('GOOGLE_CALENDAR_NOT_CONNECTED', 400),
     );
-    expect(notification.sendEmail.mock.calls[0][0].text).not.toContain('private detail');
+
+    await service.syncSlotMeeting({ slotId: slot.id });
+
+    expect(slot.staleCalendarEventId).toBeNull();
+    const text = notification.sendEmail.mock.calls[0][0].text as string;
+    expect(text).toContain('수동 정리 필요');
+    expect(text).toContain('orphan-event');
+    expect(text).not.toContain('private');
+  });
+
+  it('Meet 이 아직 없으면 재시도 횟수를 올린다 (0 으로 되돌리지 않음)', async () => {
+    Object.assign(slot, { meetingRetryCount: 3 });
+    calendar.createMeetingEvent.mockResolvedValue({
+      eventId: 'pending-event',
+      meetUrl: null,
+      conferenceStatus: 'pending',
+    });
+
+    await service.syncSlotMeeting({ slotId: slot.id });
+
+    expect(slot.meetingStatus).toBe(InterviewSlotMeetingStatus.PENDING);
+    expect(slot.meetingRetryCount).toBe(4);
   });
 
   it('면접관 제거 시 기존 이벤트를 삭제하고 NONE으로 전환한다', async () => {

@@ -36,6 +36,11 @@ export class InterviewMeetingService {
     if (!slot) {
       return;
     }
+    await this.cleanupStaleEvent({
+      slot,
+      eventId: slot.staleCalendarEventId,
+      ownerUserId: slot.staleCalendarOwnerUserId,
+    });
     if (slot.deletedAt) {
       if (slot.calendarEventId) {
         await this.clearMeeting({ slot });
@@ -138,15 +143,18 @@ export class InterviewMeetingService {
           });
           return;
         }
+        // 옛 일정은 포인터를 바꾸는 같은 쓰기에서 '지워야 할 일정' 으로 남긴다.
+        // 삭제가 실패해도 주인과 ID 를 잃지 않고 스케줄러가 다시 지운다.
         const swapped = await this.recordSuccess({
           slot,
           eventId: event.eventId,
           ownerUserId: host.userId,
           meetUrl: event.meetUrl,
           generation,
+          stale: { eventId: oldEventId, ownerUserId: oldOwnerUserId },
         });
         if (swapped) {
-          await this.deleteBestEffort({ slot, ownerUserId: oldOwnerUserId, eventId: oldEventId });
+          await this.cleanupStaleEvent({ slot, eventId: oldEventId, ownerUserId: oldOwnerUserId });
         }
         return;
       }
@@ -279,12 +287,14 @@ export class InterviewMeetingService {
     ownerUserId,
     meetUrl,
     generation,
+    stale,
   }: {
     slot: InterviewSlot;
     eventId: string;
     ownerUserId: number;
     meetUrl: string | null;
     generation?: number;
+    stale?: { eventId: string | null; ownerUserId: number | null };
   }): Promise<boolean> {
     return this.interviewRepository.updateMeetingState({
       slotId: slot.id,
@@ -292,13 +302,18 @@ export class InterviewMeetingService {
       patch: {
         calendarEventId: eventId,
         calendarOwnerUserId: ownerUserId,
+        ...(stale
+          ? { staleCalendarEventId: stale.eventId, staleCalendarOwnerUserId: stale.ownerUserId }
+          : {}),
         meetUrl,
         meetingGeneration: generation ?? slot.meetingGeneration,
         meetingStatus: meetUrl
           ? InterviewSlotMeetingStatus.READY
           : InterviewSlotMeetingStatus.PENDING,
         meetingLastError: meetUrl ? null : 'conference_pending',
-        meetingRetryCount: 0,
+        // Meet 이 아직 없으면 성공으로 치지 않는다. 0 으로 되돌리면 오래 지연되는 슬롯이
+        // 시작 시각순 상위 20개 자리를 계속 차지해 뒤 슬롯의 동기화를 막는다.
+        meetingRetryCount: meetUrl ? 0 : slot.meetingRetryCount + 1,
         meetingSyncedAt: new Date(),
       },
     });
@@ -328,6 +343,37 @@ export class InterviewMeetingService {
     });
     if (written && previousStatus !== status) {
       await this.alertOps({ slot, hostUserId, reason });
+    }
+  }
+
+  /**
+   * 주인 교체 뒤 남은 옛 일정을 지운다. 일시적 실패는 기록을 남겨 다음 동기화에서 다시 지운다.
+   * 옛 주인이 연결을 끊었거나 토큰이 무효면 우리가 지울 방법이 없으므로, 기록을 비우고
+   * 수동 정리가 필요하다고 운영진에게 알린다(매분 같은 실패를 반복하지 않게).
+   */
+  private async cleanupStaleEvent({
+    slot,
+    eventId,
+    ownerUserId,
+  }: {
+    slot: InterviewSlot;
+    eventId: string | null;
+    ownerUserId: number | null;
+  }): Promise<void> {
+    if (!eventId || !ownerUserId) {
+      return;
+    }
+    try {
+      await this.calendarService.deleteMeetingEvent({ ownerUserId, eventId });
+      await this.interviewRepository.clearStaleMeetingEvent({ slotId: slot.id, eventId });
+    } catch (error) {
+      const reason = this.failureReason(error);
+      if (reason === 'request_failed') {
+        this.logger.warn(`옛 회의 일정 삭제 실패, 다음 동기화에서 다시 시도 (slotId=${slot.id})`);
+        return;
+      }
+      await this.interviewRepository.clearStaleMeetingEvent({ slotId: slot.id, eventId });
+      await this.alertOps({ slot, hostUserId: ownerUserId, reason, manualCleanupEventId: eventId });
     }
   }
 
@@ -378,16 +424,19 @@ export class InterviewMeetingService {
     slot,
     hostUserId,
     reason,
+    manualCleanupEventId,
   }: {
     slot: InterviewSlot;
     hostUserId: number | null;
     reason: MeetingFailureReason;
+    /** 우리가 지우지 못해 사람이 직접 지워야 하는 옛 일정 ID */
+    manualCleanupEventId?: string;
   }): Promise<void> {
     const to = this.configService.get<string>('OPS_ALERT_EMAIL');
     if (!to) {
       return;
     }
-    const text = `슬롯 ID: ${slot.id}\n기수/파트: ${slot.cohort?.name ?? ''} / ${slot.cohortPart?.partName ?? ''}\n호스트 사용자 ID: ${hostUserId ?? '없음'}\n사유: ${reason}`;
+    const text = `슬롯 ID: ${slot.id}\n기수/파트: ${slot.cohort?.name ?? ''} / ${slot.cohortPart?.partName ?? ''}\n호스트 사용자 ID: ${hostUserId ?? '없음'}\n사유: ${reason}${manualCleanupEventId ? `\n수동 정리 필요: 옛 주인(사용자 ID ${hostUserId ?? '없음'}) 캘린더의 일정 ${manualCleanupEventId}` : ''}`;
     try {
       await this.notificationService.sendEmail({
         to,

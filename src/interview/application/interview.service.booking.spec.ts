@@ -376,13 +376,17 @@ describe('InterviewService (지원자 예약)', () => {
   });
 
   describe('findOpenSlotsForBooking', () => {
-    it('PENDING/FAILED 회의 슬롯을 제외하고 OUT_OF_SYNC는 표시한다', async () => {
+    it('회의가 준비된(READY) 슬롯과 기존 방식(NONE) 슬롯만 보여 준다', async () => {
       const pending = makeSlot({ id: 1, meetingStatus: InterviewSlotMeetingStatus.PENDING });
       const failed = makeSlot({ id: 2, meetingStatus: InterviewSlotMeetingStatus.FAILED });
-      const stale = makeSlot({ id: 3, meetingStatus: InterviewSlotMeetingStatus.OUT_OF_SYNC });
-      mockRepository.findSlots.mockResolvedValue([pending, failed, stale]);
+      // 주인 교체·시간 변경 반영이 실패한 상태라 이전 주인의 회의나 틀린 시각 일정이 남아 있다.
+      const outOfSync = makeSlot({ id: 3, meetingStatus: InterviewSlotMeetingStatus.OUT_OF_SYNC });
+      const ready = makeSlot({ id: 4, meetingStatus: InterviewSlotMeetingStatus.READY });
+      const legacy = makeSlot({ id: 5, meetingStatus: InterviewSlotMeetingStatus.NONE });
+      mockRepository.findSlots.mockResolvedValue([pending, failed, outOfSync, ready, legacy]);
       expect(await service.findOpenSlotsForBooking({ cohortPartId: 52 })).toEqual([
-        { slot: stale, remainingSeats: 2 },
+        { slot: ready, remainingSeats: 2 },
+        { slot: legacy, remainingSeats: 2 },
       ]);
     });
     it('시작 전 슬롯만 잔여석과 함께 반환한다 (정원 찬 슬롯은 0 으로 포함)', async () => {
