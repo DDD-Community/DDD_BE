@@ -156,6 +156,44 @@ describe('출석 투표 CSV', () => {
       },
     });
     expect(feedback.content).toContain('질문,예/아니오,예,1,\r\n질문,예/아니오,아니오,1,');
+    const mixed = createAttendanceVoteCsv({
+      voteId: 1,
+      kind: 'feedback',
+      data: {
+        feedbackResults: {
+          voteId: 1,
+          totalResponses: 2,
+          questions: [
+            {
+              questionId: 'm',
+              title: '객관',
+              type: 'MULTI_SELECT',
+              order: 1,
+              options: [
+                { optionId: 'a', label: '가', count: 2 },
+                { optionId: 'b', label: '나', count: 0 },
+              ],
+              trueCount: null,
+              falseCount: null,
+              textAnswers: null,
+            },
+            {
+              questionId: 't',
+              title: '주관',
+              type: 'LONG_TEXT',
+              order: 2,
+              options: null,
+              trueCount: null,
+              falseCount: null,
+              textAnswers: ['좋아요', '=위험'],
+            },
+          ],
+        },
+      },
+    });
+    expect(mixed.content).toBe(
+      "﻿질문,유형,선택지,응답 수,텍스트 응답\r\n객관,객관식,가,2,\r\n객관,객관식,나,0,\r\n주관,주관식,,,좋아요\r\n주관,주관식,,,'=위험",
+    );
     const noTemplate = createAttendanceVoteCsv({
       voteId: 1,
       kind: 'responses',

@@ -13,6 +13,7 @@ describe('출석 관리자 서비스', () => {
     deleteInvitation: jest.fn(),
     createVote: jest.fn(),
     updateVote: jest.fn(),
+    getVote: jest.fn(),
     updateVoteText: jest.fn(),
     deleteVote: jest.fn(),
     openVote: jest.fn(),
@@ -35,7 +36,18 @@ describe('출석 관리자 서비스', () => {
     client.createInvitation.mockResolvedValue({ id: 3, code: 'ABCD', type: 'MEMBER' });
     client.createVote.mockResolvedValue({ voteId: 10, title: '투표' });
     client.updateVote.mockResolvedValue({ voteId: 10, title: '투표' });
-    client.updateVoteText.mockResolvedValue({ voteId: 10, title: '투표' });
+    client.getVote.mockResolvedValue({
+      voteId: 10,
+      title: '투표',
+      teamVoteTemplate: null,
+      feedbackTemplate: { title: '오타' },
+    });
+    client.updateVoteText.mockResolvedValue({
+      voteId: 10,
+      title: '투표',
+      teamVoteTemplate: null,
+      feedbackTemplate: { title: '수정' },
+    });
     client.openVote.mockResolvedValue({ voteId: 10, title: '투표' });
     client.closeVote.mockResolvedValue({ voteId: 10, title: '투표' });
   });
@@ -122,7 +134,8 @@ describe('출석 관리자 서비스', () => {
       entityId: 10,
       action: AuditAction.UPDATE,
       field: 'text',
-      toValue: '투표',
+      fromValue: '{"title":"투표","teamVoteTemplate":null,"feedbackTemplate":{"title":"오타"}}',
+      toValue: '{"title":"투표","teamVoteTemplate":null,"feedbackTemplate":{"title":"수정"}}',
       adminId: 9,
     });
     expect(audit.recordAction).toHaveBeenNthCalledWith(4, {

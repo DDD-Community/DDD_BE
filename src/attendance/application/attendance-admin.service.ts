@@ -22,6 +22,12 @@ import { createAttendanceCsv, summarizeAttendanceBoard } from '../domain/attenda
 import { AttendanceVoteExportData, createAttendanceVoteCsv } from '../domain/attendance-vote-csv';
 import { AttendanceApiClient } from '../infrastructure/attendance-api.client';
 
+const toVoteTextSnapshot = ({
+  title,
+  teamVoteTemplate,
+  feedbackTemplate,
+}: AttendanceVoteDetail): string => JSON.stringify({ title, teamVoteTemplate, feedbackTemplate });
+
 @Injectable()
 export class AttendanceAdminService {
   private readonly logger = new Logger(AttendanceAdminService.name);
@@ -241,13 +247,16 @@ export class AttendanceAdminService {
     body: AttendanceVoteUpsert;
     adminId: number;
   }): Promise<AttendanceVoteDetail> {
+    // 진행 중 투표의 문구 변경은 복원할 수 있도록 제목·템플릿 전체를 전후로 남긴다.
+    const before = await this.client.getVote({ voteId });
     const vote = await this.client.updateVoteText({ voteId, body });
     await this.recordAction({
       entityType: 'attendance_vote',
       entityId: voteId,
       action: AuditAction.UPDATE,
       field: 'text',
-      toValue: vote.title,
+      fromValue: toVoteTextSnapshot(before),
+      toValue: toVoteTextSnapshot(vote),
       adminId,
     });
     return vote;
