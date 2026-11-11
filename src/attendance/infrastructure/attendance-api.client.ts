@@ -12,9 +12,17 @@ import {
   AttendanceScheduleSyncResponse,
   AttendanceScheduleWithCount,
   AttendanceTeam,
+  AttendanceVoteDetail,
+  AttendanceVoteFeedbackResults,
+  AttendanceVoteNonResponders,
+  AttendanceVoteParticipation,
+  AttendanceVoteResponses,
+  AttendanceVoteSummary,
+  AttendanceVoteTeamResults,
+  AttendanceVoteUpsert,
 } from '../domain/attendance.type';
 
-type RequestMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
+type RequestMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 type RequestOptions = { path: string; method?: RequestMethod; body?: object };
 type UpstreamError = { code?: unknown };
 export type AttendanceConflictCode =
@@ -24,7 +32,15 @@ export type AttendanceConflictCode =
   | 'ATTENDANCE_TEAM_DUPLICATED'
   | 'ATTENDANCE_INVITATION_DUPLICATED'
   | 'ATTENDANCE_SCHEDULE_DATE_CONFLICT'
+  | 'ATTENDANCE_VOTE_NOT_DRAFT'
+  | 'ATTENDANCE_VOTE_NOT_OPEN'
+  | 'ATTENDANCE_VOTE_INVALID_STATUS'
+  | 'ATTENDANCE_VOTE_ALREADY_OPEN'
   | 'ATTENDANCE_CONFLICT';
+
+export type AttendanceVoteBadRequestCode =
+  | 'ATTENDANCE_VOTE_TEMPLATE_INVALID'
+  | 'ATTENDANCE_VOTE_TEMPLATE_STRUCTURE_CHANGED';
 
 export type {
   AttendanceScheduleSyncItem,
@@ -142,6 +158,80 @@ export class AttendanceApiClient {
     return this.request<AttendanceBoard>({ path: `/generations/${generationId}/attendance-board` });
   }
 
+  async getVotes({ generationId }: { generationId: number }): Promise<AttendanceVoteSummary[]> {
+    return this.request({ path: `/generations/${generationId}/votes` });
+  }
+
+  async createVote({
+    generationId,
+    body,
+  }: {
+    generationId: number;
+    body: AttendanceVoteUpsert;
+  }): Promise<AttendanceVoteDetail> {
+    return this.request({ path: `/generations/${generationId}/votes`, method: 'POST', body });
+  }
+
+  async getVote({ voteId }: { voteId: number }): Promise<AttendanceVoteDetail> {
+    return this.request({ path: `/votes/${voteId}` });
+  }
+
+  async updateVote({
+    voteId,
+    body,
+  }: {
+    voteId: number;
+    body: AttendanceVoteUpsert;
+  }): Promise<AttendanceVoteDetail> {
+    return this.request({ path: `/votes/${voteId}`, method: 'PUT', body });
+  }
+
+  async updateVoteText({
+    voteId,
+    body,
+  }: {
+    voteId: number;
+    body: AttendanceVoteUpsert;
+  }): Promise<AttendanceVoteDetail> {
+    return this.request({ path: `/votes/${voteId}/text`, method: 'PUT', body });
+  }
+
+  async deleteVote({ voteId }: { voteId: number }): Promise<void> {
+    await this.request<void>({ path: `/votes/${voteId}`, method: 'DELETE' });
+  }
+
+  async openVote({ voteId }: { voteId: number }): Promise<AttendanceVoteDetail> {
+    return this.request({ path: `/votes/${voteId}/open`, method: 'PATCH' });
+  }
+
+  async closeVote({ voteId }: { voteId: number }): Promise<AttendanceVoteDetail> {
+    return this.request({ path: `/votes/${voteId}/close`, method: 'PATCH' });
+  }
+
+  async getVoteParticipation({ voteId }: { voteId: number }): Promise<AttendanceVoteParticipation> {
+    return this.request({ path: `/votes/${voteId}/participation` });
+  }
+
+  async getVoteNonResponders({ voteId }: { voteId: number }): Promise<AttendanceVoteNonResponders> {
+    return this.request({ path: `/votes/${voteId}/non-responders` });
+  }
+
+  async getVoteTeamResults({ voteId }: { voteId: number }): Promise<AttendanceVoteTeamResults> {
+    return this.request({ path: `/votes/${voteId}/team-vote/results` });
+  }
+
+  async getVoteFeedbackResults({
+    voteId,
+  }: {
+    voteId: number;
+  }): Promise<AttendanceVoteFeedbackResults> {
+    return this.request({ path: `/votes/${voteId}/feedback/results` });
+  }
+
+  async getVoteResponses({ voteId }: { voteId: number }): Promise<AttendanceVoteResponses> {
+    return this.request({ path: `/votes/${voteId}/responses` });
+  }
+
   private async request<T>({ path, method = 'GET', body }: RequestOptions): Promise<T> {
     if (!this.baseUrl || !this.apiKey || this.apiKey.length < ATTENDANCE_API_KEY_MIN_LENGTH) {
       throw new AppException('ATTENDANCE_NOT_CONFIGURED', HttpStatus.SERVICE_UNAVAILABLE);
@@ -199,7 +289,12 @@ export class AttendanceApiClient {
     );
 
     if (response.status === 400) {
-      throw new AppException('ATTENDANCE_BAD_REQUEST', HttpStatus.BAD_REQUEST);
+      const conflictCode = this.readVoteStatusConflict(errorBody);
+      if (conflictCode) {
+        throw new AppException(conflictCode, HttpStatus.CONFLICT);
+      }
+      const mapped = this.readBadRequest(errorBody);
+      throw new AppException(mapped.code, HttpStatus.BAD_REQUEST, mapped.message);
     }
     if (response.status === 404) {
       throw new AppException('ATTENDANCE_NOT_FOUND', HttpStatus.NOT_FOUND);
@@ -209,6 +304,38 @@ export class AttendanceApiClient {
       throw new AppException(code, HttpStatus.CONFLICT);
     }
     throw new AppException('ATTENDANCE_UPSTREAM_ERROR', HttpStatus.BAD_GATEWAY);
+  }
+
+  private readBadRequest(body: string): {
+    code: 'ATTENDANCE_BAD_REQUEST' | AttendanceVoteBadRequestCode;
+    message?: string;
+  } {
+    const fallback = { code: 'ATTENDANCE_BAD_REQUEST' as const };
+    try {
+      const parsed = JSON.parse(body) as UpstreamError & { message?: unknown };
+      if (typeof parsed.code !== 'string') {
+        return fallback;
+      }
+      if (parsed.code === 'VALIDATION_ERROR') {
+        return { ...fallback, message: this.safeMessage(parsed.message) };
+      }
+      if (
+        parsed.code === 'VOTE_TEMPLATE_INVALID' ||
+        parsed.code === 'VOTE_TEMPLATE_STRUCTURE_CHANGED'
+      ) {
+        return { code: `ATTENDANCE_${parsed.code}`, message: this.safeMessage(parsed.message) };
+      }
+    } catch {
+      return fallback;
+    }
+    return fallback;
+  }
+
+  private safeMessage(message: unknown): string | undefined {
+    if (typeof message !== 'string' || !message.trim()) {
+      return undefined;
+    }
+    return this.redact(message.trim()).slice(0, 300);
   }
 
   private readConflictCode(body: string): AttendanceConflictCode {
@@ -223,6 +350,18 @@ export class AttendanceApiClient {
       return 'ATTENDANCE_CONFLICT';
     }
     return 'ATTENDANCE_CONFLICT';
+  }
+
+  private readVoteStatusConflict(body: string): AttendanceConflictCode | undefined {
+    try {
+      const parsed = JSON.parse(body) as UpstreamError;
+      if (typeof parsed.code === 'string' && VOTE_STATUS_CONFLICT_CODES.has(parsed.code)) {
+        return `ATTENDANCE_${parsed.code}` as AttendanceConflictCode;
+      }
+    } catch {
+      return undefined;
+    }
+    return undefined;
   }
 
   private redact(value: string): string {
@@ -248,4 +387,14 @@ const CONFLICT_CODES = new Set([
   'TEAM_DUPLICATED',
   'INVITATION_DUPLICATED',
   'SCHEDULE_DATE_CONFLICT',
+  'VOTE_NOT_DRAFT',
+  'VOTE_NOT_OPEN',
+  'VOTE_INVALID_STATUS',
+  'VOTE_ALREADY_OPEN',
+]);
+const VOTE_STATUS_CONFLICT_CODES = new Set([
+  'VOTE_NOT_DRAFT',
+  'VOTE_NOT_OPEN',
+  'VOTE_INVALID_STATUS',
+  'VOTE_ALREADY_OPEN',
 ]);

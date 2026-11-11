@@ -9,6 +9,12 @@ import {
   AttendanceGenerationResponseDto,
   AttendanceInvitationResponseDto,
   AttendanceTeamResponseDto,
+  AttendanceVoteDetailResponseDto,
+  AttendanceVoteFeedbackResultsResponseDto,
+  AttendanceVoteNonRespondersResponseDto,
+  AttendanceVoteParticipationResponseDto,
+  AttendanceVoteSummaryResponseDto,
+  AttendanceVoteTeamResultsResponseDto,
 } from './dto/admin-attendance.response.dto';
 
 const unauthorized = CommonSwaggerResponses.unauthorized(
@@ -25,6 +31,10 @@ const conflictCodes = [
   'ATTENDANCE_TEAM_DUPLICATED',
   'ATTENDANCE_INVITATION_DUPLICATED',
   'ATTENDANCE_SCHEDULE_DATE_CONFLICT',
+  'ATTENDANCE_VOTE_NOT_DRAFT',
+  'ATTENDANCE_VOTE_NOT_OPEN',
+  'ATTENDANCE_VOTE_INVALID_STATUS',
+  'ATTENDANCE_VOTE_ALREADY_OPEN',
   'ATTENDANCE_CONFLICT',
 ];
 const conflict = {
@@ -53,6 +63,25 @@ const badRequest = {
   status: 400,
   description: '요청 값이 올바르지 않습니다.',
   ...errorResponseSchema('ATTENDANCE_BAD_REQUEST', '요청 값이 올바르지 않습니다.'),
+};
+const voteBadRequest = {
+  status: 400,
+  description: '투표 요청 값이나 템플릿이 올바르지 않습니다.',
+  schema: {
+    type: 'object',
+    properties: {
+      code: {
+        type: 'string',
+        enum: [
+          'ATTENDANCE_BAD_REQUEST',
+          'ATTENDANCE_VOTE_TEMPLATE_INVALID',
+          'ATTENDANCE_VOTE_TEMPLATE_STRUCTURE_CHANGED',
+        ],
+      },
+      message: { type: 'string' },
+      data: { type: 'object', nullable: true, example: null },
+    },
+  },
 };
 const baseResponses = [unauthorized, notConfigured, upstreamError];
 const requestResponses = [badRequest, ...baseResponses];
@@ -136,5 +165,102 @@ export const AdminAttendanceSwagger = {
       content: { 'text/csv': { schema: { type: 'string', format: 'binary' } } },
     },
     responses: generationResponses,
+  },
+  getVotes: {
+    success: {
+      status: 200,
+      description: '투표 목록 조회 성공.',
+      ...successListResponseSchema(AttendanceVoteSummaryResponseDto),
+    },
+    responses: generationResponses,
+  },
+  createVote: {
+    success: {
+      status: 200,
+      description: '투표 생성 성공.',
+      ...successResponseSchema(AttendanceVoteDetailResponseDto),
+    },
+    responses: [voteBadRequest, ...baseResponses, notFound, conflict],
+  },
+  getVote: {
+    success: {
+      status: 200,
+      description: '투표 상세 조회 성공.',
+      ...successResponseSchema(AttendanceVoteDetailResponseDto),
+    },
+    responses: generationResponses,
+  },
+  updateVote: {
+    success: {
+      status: 200,
+      description: '투표 수정 성공.',
+      ...successResponseSchema(AttendanceVoteDetailResponseDto),
+    },
+    responses: [voteBadRequest, ...baseResponses, notFound, conflict],
+  },
+  deleteVote: {
+    noContent: { status: 204, description: '투표 삭제 성공.' },
+    responses: [voteBadRequest, ...baseResponses, notFound, conflict],
+  },
+  openVote: {
+    success: {
+      status: 200,
+      description: '투표 시작 성공.',
+      ...successResponseSchema(AttendanceVoteDetailResponseDto),
+    },
+    responses: [voteBadRequest, ...baseResponses, notFound, conflict],
+  },
+  closeVote: {
+    success: {
+      status: 200,
+      description: '투표 종료 성공.',
+      ...successResponseSchema(AttendanceVoteDetailResponseDto),
+    },
+    responses: [voteBadRequest, ...baseResponses, notFound, conflict],
+  },
+  getVoteParticipation: {
+    success: {
+      status: 200,
+      description: '투표 참여 현황 조회 성공.',
+      ...successResponseSchema(AttendanceVoteParticipationResponseDto),
+    },
+    responses: generationResponses,
+  },
+  getVoteNonResponders: {
+    success: {
+      status: 200,
+      description: '투표 미응답자 조회 성공.',
+      ...successResponseSchema(AttendanceVoteNonRespondersResponseDto),
+    },
+    responses: generationResponses,
+  },
+  getVoteTeamResults: {
+    success: {
+      status: 200,
+      description: '팀 투표 결과 조회 성공.',
+      ...successResponseSchema(AttendanceVoteTeamResultsResponseDto),
+    },
+    responses: generationResponses,
+  },
+  getVoteFeedbackResults: {
+    success: {
+      status: 200,
+      description: '피드백 결과 조회 성공.',
+      ...successResponseSchema(AttendanceVoteFeedbackResultsResponseDto),
+    },
+    responses: generationResponses,
+  },
+  vote: {
+    success: { status: 200, description: '투표 요청 성공.', schema: { type: 'object' } },
+    noContent: { status: 204, description: '투표 삭제 성공.' },
+    responses: [voteBadRequest, ...baseResponses, notFound, conflict],
+  },
+  exportVote: {
+    success: {
+      status: 200,
+      description: '투표 CSV 내보내기 성공.',
+      content: { 'text/csv': { schema: { type: 'string', format: 'binary' } } },
+    },
+    responses: [voteBadRequest, ...baseResponses, notFound, conflict],
   },
 } as const;

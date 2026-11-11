@@ -1,6 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsIn, IsNotEmpty, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import {
+  IsIn,
+  IsNotEmpty,
+  IsObject,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+} from 'class-validator';
 
 import type { AttendanceInvitationType } from '../../domain/attendance.type';
 import { ATTENDANCE_INVITATION_TYPES } from '../../domain/attendance.type';
@@ -49,4 +57,23 @@ export class CreateAttendanceInvitationRequestDto {
   @IsString()
   @MaxLength(255)
   description?: string;
+}
+
+export class UpsertAttendanceVoteRequestDto {
+  @ApiProperty({ example: '프로젝트 투표', maxLength: 100 })
+  @Transform(trim)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  title: string;
+
+  @ApiPropertyOptional({ type: 'object', additionalProperties: true, nullable: true })
+  @IsOptional()
+  @IsObject()
+  teamVoteTemplate?: Record<string, unknown> | null;
+
+  @ApiPropertyOptional({ type: 'object', additionalProperties: true, nullable: true })
+  @IsOptional()
+  @IsObject()
+  feedbackTemplate?: Record<string, unknown> | null;
 }

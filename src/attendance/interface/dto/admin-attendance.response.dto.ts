@@ -9,9 +9,186 @@ import {
   AttendanceMember,
   AttendanceSchedule,
   AttendanceTeam,
+  AttendanceVoteDetail,
+  AttendanceVoteFeedbackResults,
+  AttendanceVoteNonResponders,
+  AttendanceVoteParticipation,
+  AttendanceVoteSummary,
+  AttendanceVoteTeamResults,
   MemberAttendanceSummary,
   ScheduleAttendanceSummary,
 } from '../../domain/attendance.type';
+
+export class AttendanceVoteSummaryResponseDto {
+  @ApiProperty() voteId: number;
+  @ApiProperty() generationId: number;
+  @ApiProperty() title: string;
+  @ApiProperty({ enum: ['DRAFT', 'OPEN', 'CLOSED'] }) status: AttendanceVoteSummary['status'];
+  @ApiProperty() templateVersion: number;
+  @ApiProperty({ nullable: true }) openedAt: string | null;
+  @ApiProperty({ nullable: true }) closedAt: string | null;
+  @ApiProperty() createdDate: string;
+  @ApiProperty() responseCount: number;
+
+  static from(value: AttendanceVoteSummary): AttendanceVoteSummaryResponseDto {
+    return Object.assign(new AttendanceVoteSummaryResponseDto(), value);
+  }
+}
+
+export class AttendanceVoteDetailResponseDto extends AttendanceVoteSummaryResponseDto {
+  @ApiProperty({ type: 'object', additionalProperties: true, nullable: true })
+  teamVoteTemplate: Record<string, unknown> | null;
+  @ApiProperty({ type: 'object', additionalProperties: true, nullable: true })
+  feedbackTemplate: Record<string, unknown> | null;
+
+  static from(value: AttendanceVoteDetail): AttendanceVoteDetailResponseDto {
+    return Object.assign(new AttendanceVoteDetailResponseDto(), value);
+  }
+}
+
+export class AttendanceVoteParticipationResponseDto {
+  @ApiProperty() voteId: number;
+  @ApiProperty() title: string;
+  @ApiProperty({ enum: ['DRAFT', 'OPEN', 'CLOSED'] }) status: AttendanceVoteParticipation['status'];
+  @ApiProperty() totalMembers: number;
+  @ApiProperty() respondedMembers: number;
+  @ApiProperty() participationRate: number;
+
+  static from(value: AttendanceVoteParticipation): AttendanceVoteParticipationResponseDto {
+    return Object.assign(new AttendanceVoteParticipationResponseDto(), value);
+  }
+}
+
+export class AttendanceVoteNonResponderMemberResponseDto {
+  @ApiProperty() memberId: number;
+  @ApiProperty({ nullable: true }) name: string | null;
+  @ApiProperty({ nullable: true }) teamName: string | null;
+  @ApiProperty({ enum: ['ATTENDED', 'LATE', 'ABSENT', 'NONE'] })
+  todayAttendanceStatus: AttendanceVoteNonResponders['members'][number]['todayAttendanceStatus'];
+
+  static from(
+    value: AttendanceVoteNonResponders['members'][number],
+  ): AttendanceVoteNonResponderMemberResponseDto {
+    return Object.assign(new AttendanceVoteNonResponderMemberResponseDto(), value);
+  }
+}
+
+export class AttendanceVoteNonRespondersResponseDto {
+  @ApiProperty() totalCount: number;
+  @ApiProperty({ type: () => AttendanceVoteNonResponderMemberResponseDto, isArray: true })
+  members: AttendanceVoteNonResponderMemberResponseDto[];
+
+  static from(value: AttendanceVoteNonResponders): AttendanceVoteNonRespondersResponseDto {
+    const dto = new AttendanceVoteNonRespondersResponseDto();
+    dto.totalCount = value.totalCount;
+    dto.members = value.members.map((member) =>
+      AttendanceVoteNonResponderMemberResponseDto.from(member),
+    );
+    return dto;
+  }
+}
+
+export class AttendanceVoteTeamResultTeamResponseDto {
+  @ApiProperty() rank: number;
+  @ApiProperty() teamId: number;
+  @ApiProperty({ nullable: true }) name: string | null;
+  @ApiProperty({ nullable: true }) serviceName: string | null;
+  @ApiProperty() voteCount: number;
+
+  static from(
+    value: AttendanceVoteTeamResults['categories'][number]['teams'][number],
+  ): AttendanceVoteTeamResultTeamResponseDto {
+    return Object.assign(new AttendanceVoteTeamResultTeamResponseDto(), value);
+  }
+}
+
+export class AttendanceVoteTeamResultCategoryResponseDto {
+  @ApiProperty() categoryId: string;
+  @ApiProperty({ nullable: true }) title: string | null;
+  @ApiProperty() order: number;
+  @ApiProperty({ type: () => AttendanceVoteTeamResultTeamResponseDto, isArray: true })
+  teams: AttendanceVoteTeamResultTeamResponseDto[];
+  @ApiProperty({ type: [String] }) reasons: string[];
+
+  static from(
+    value: AttendanceVoteTeamResults['categories'][number],
+  ): AttendanceVoteTeamResultCategoryResponseDto {
+    const dto = new AttendanceVoteTeamResultCategoryResponseDto();
+    dto.categoryId = value.categoryId;
+    dto.title = value.title;
+    dto.order = value.order;
+    dto.teams = value.teams.map((team) => AttendanceVoteTeamResultTeamResponseDto.from(team));
+    dto.reasons = value.reasons;
+    return dto;
+  }
+}
+
+export class AttendanceVoteTeamResultsResponseDto {
+  @ApiProperty() voteId: number;
+  @ApiProperty({ nullable: true }) title: string | null;
+  @ApiProperty({ enum: ['DRAFT', 'OPEN', 'CLOSED'] }) status: AttendanceVoteTeamResults['status'];
+  @ApiProperty() totalResponses: number;
+  @ApiProperty({ type: () => AttendanceVoteTeamResultCategoryResponseDto, isArray: true })
+  categories: AttendanceVoteTeamResultCategoryResponseDto[];
+
+  static from(value: AttendanceVoteTeamResults): AttendanceVoteTeamResultsResponseDto {
+    const dto = new AttendanceVoteTeamResultsResponseDto();
+    dto.voteId = value.voteId;
+    dto.title = value.title;
+    dto.status = value.status;
+    dto.totalResponses = value.totalResponses;
+    dto.categories = value.categories.map((category) =>
+      AttendanceVoteTeamResultCategoryResponseDto.from(category),
+    );
+    return dto;
+  }
+}
+
+export class AttendanceVoteFeedbackOptionResponseDto {
+  @ApiProperty() optionId: string;
+  @ApiProperty() label: string;
+  @ApiProperty() count: number;
+}
+
+export class AttendanceVoteFeedbackQuestionResponseDto {
+  @ApiProperty() questionId: string;
+  @ApiProperty({ nullable: true }) title: string | null;
+  @ApiProperty({ enum: ['MULTI_SELECT', 'LONG_TEXT', 'BOOLEAN'] })
+  type: AttendanceVoteFeedbackResults['questions'][number]['type'];
+  @ApiProperty() order: number;
+  @ApiProperty({
+    type: () => AttendanceVoteFeedbackOptionResponseDto,
+    isArray: true,
+    nullable: true,
+  })
+  options: AttendanceVoteFeedbackOptionResponseDto[] | null;
+  @ApiProperty({ nullable: true }) trueCount: number | null;
+  @ApiProperty({ nullable: true }) falseCount: number | null;
+  @ApiProperty({ type: [String], nullable: true }) textAnswers: string[] | null;
+
+  static from(
+    value: AttendanceVoteFeedbackResults['questions'][number],
+  ): AttendanceVoteFeedbackQuestionResponseDto {
+    return Object.assign(new AttendanceVoteFeedbackQuestionResponseDto(), value);
+  }
+}
+
+export class AttendanceVoteFeedbackResultsResponseDto {
+  @ApiProperty() voteId: number;
+  @ApiProperty() totalResponses: number;
+  @ApiProperty({ type: () => AttendanceVoteFeedbackQuestionResponseDto, isArray: true })
+  questions: AttendanceVoteFeedbackQuestionResponseDto[];
+
+  static from(value: AttendanceVoteFeedbackResults): AttendanceVoteFeedbackResultsResponseDto {
+    const dto = new AttendanceVoteFeedbackResultsResponseDto();
+    dto.voteId = value.voteId;
+    dto.totalResponses = value.totalResponses;
+    dto.questions = value.questions.map((question) =>
+      AttendanceVoteFeedbackQuestionResponseDto.from(question),
+    );
+    return dto;
+  }
+}
 
 export class AttendanceGenerationResponseDto {
   @ApiProperty({ example: 1 }) id: number;

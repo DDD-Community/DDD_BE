@@ -111,7 +111,7 @@ const MEMBER_STATUS_COUNT_KEY: Record<
   LATE: 'late',
   ABSENT: 'absent',
 };
-const STATUS_LABEL: Record<AttendanceStatus, string> = {
+export const STATUS_LABEL: Record<AttendanceStatus, string> = {
   ATTENDED: '출석',
   LATE: '지각',
   ABSENT: '결석',

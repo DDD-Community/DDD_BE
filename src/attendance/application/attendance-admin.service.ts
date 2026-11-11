@@ -9,8 +9,17 @@ import {
   AttendanceInvitation,
   AttendanceInvitationType,
   AttendanceTeam,
+  AttendanceVoteDetail,
+  AttendanceVoteExportKind,
+  AttendanceVoteFeedbackResults,
+  AttendanceVoteNonResponders,
+  AttendanceVoteParticipation,
+  AttendanceVoteSummary,
+  AttendanceVoteTeamResults,
+  AttendanceVoteUpsert,
 } from '../domain/attendance.type';
 import { createAttendanceCsv, summarizeAttendanceBoard } from '../domain/attendance-board';
+import { AttendanceVoteExportData, createAttendanceVoteCsv } from '../domain/attendance-vote-csv';
 import { AttendanceApiClient } from '../infrastructure/attendance-api.client';
 
 @Injectable()
@@ -159,21 +168,191 @@ export class AttendanceAdminService {
     return createAttendanceCsv({ board, generationId });
   }
 
+  async getVotes({ generationId }: { generationId: number }): Promise<AttendanceVoteSummary[]> {
+    return this.client.getVotes({ generationId });
+  }
+  async getVote({ voteId }: { voteId: number }): Promise<AttendanceVoteDetail> {
+    return this.client.getVote({ voteId });
+  }
+  async getVoteParticipation({ voteId }: { voteId: number }): Promise<AttendanceVoteParticipation> {
+    return this.client.getVoteParticipation({ voteId });
+  }
+  async getVoteNonResponders({ voteId }: { voteId: number }): Promise<AttendanceVoteNonResponders> {
+    return this.client.getVoteNonResponders({ voteId });
+  }
+  async getVoteTeamResults({ voteId }: { voteId: number }): Promise<AttendanceVoteTeamResults> {
+    return this.client.getVoteTeamResults({ voteId });
+  }
+  async getVoteFeedbackResults({
+    voteId,
+  }: {
+    voteId: number;
+  }): Promise<AttendanceVoteFeedbackResults> {
+    return this.client.getVoteFeedbackResults({ voteId });
+  }
+
+  async createVote({
+    generationId,
+    body,
+    adminId,
+  }: {
+    generationId: number;
+    body: AttendanceVoteUpsert;
+    adminId: number;
+  }): Promise<AttendanceVoteDetail> {
+    const vote = await this.client.createVote({ generationId, body });
+    await this.recordAction({
+      entityType: 'attendance_vote',
+      entityId: vote.voteId,
+      action: AuditAction.CREATE,
+      toValue: vote.title,
+      adminId,
+    });
+    return vote;
+  }
+
+  async updateVote({
+    voteId,
+    body,
+    adminId,
+  }: {
+    voteId: number;
+    body: AttendanceVoteUpsert;
+    adminId: number;
+  }): Promise<AttendanceVoteDetail> {
+    const vote = await this.client.updateVote({ voteId, body });
+    await this.recordAction({
+      entityType: 'attendance_vote',
+      entityId: voteId,
+      action: AuditAction.UPDATE,
+      field: 'draft',
+      toValue: vote.title,
+      adminId,
+    });
+    return vote;
+  }
+
+  async updateVoteText({
+    voteId,
+    body,
+    adminId,
+  }: {
+    voteId: number;
+    body: AttendanceVoteUpsert;
+    adminId: number;
+  }): Promise<AttendanceVoteDetail> {
+    const vote = await this.client.updateVoteText({ voteId, body });
+    await this.recordAction({
+      entityType: 'attendance_vote',
+      entityId: voteId,
+      action: AuditAction.UPDATE,
+      field: 'text',
+      toValue: vote.title,
+      adminId,
+    });
+    return vote;
+  }
+
+  async deleteVote({ voteId, adminId }: { voteId: number; adminId: number }): Promise<void> {
+    await this.client.deleteVote({ voteId });
+    await this.recordAction({
+      entityType: 'attendance_vote',
+      entityId: voteId,
+      action: AuditAction.DELETE,
+      adminId,
+    });
+  }
+
+  async openVote({
+    voteId,
+    adminId,
+  }: {
+    voteId: number;
+    adminId: number;
+  }): Promise<AttendanceVoteDetail> {
+    const vote = await this.client.openVote({ voteId });
+    await this.recordAction({
+      entityType: 'attendance_vote',
+      entityId: voteId,
+      action: AuditAction.STATUS_CHANGE,
+      fromValue: 'DRAFT',
+      toValue: 'OPEN',
+      adminId,
+    });
+    return vote;
+  }
+
+  async closeVote({
+    voteId,
+    adminId,
+  }: {
+    voteId: number;
+    adminId: number;
+  }): Promise<AttendanceVoteDetail> {
+    const vote = await this.client.closeVote({ voteId });
+    await this.recordAction({
+      entityType: 'attendance_vote',
+      entityId: voteId,
+      action: AuditAction.STATUS_CHANGE,
+      fromValue: 'OPEN',
+      toValue: 'CLOSED',
+      adminId,
+    });
+    return vote;
+  }
+
+  async exportVote({
+    voteId,
+    kind,
+  }: {
+    voteId: number;
+    kind: AttendanceVoteExportKind;
+  }): Promise<AttendanceCsv> {
+    let data: AttendanceVoteExportData;
+    switch (kind) {
+      case 'team-vote':
+        data = { teamResults: await this.client.getVoteTeamResults({ voteId }) };
+        break;
+      case 'feedback':
+        data = { feedbackResults: await this.client.getVoteFeedbackResults({ voteId }) };
+        break;
+      case 'responses':
+        data = { responses: await this.client.getVoteResponses({ voteId }) };
+        break;
+      case 'non-responders':
+        data = { nonResponders: await this.client.getVoteNonResponders({ voteId }) };
+        break;
+    }
+    return createAttendanceVoteCsv({ voteId, kind, data });
+  }
+
   private async recordAction({
     entityType,
     entityId,
     action,
     toValue,
+    field,
+    fromValue,
     adminId,
   }: {
     entityType: string;
     entityId: number;
     action: AuditAction;
     toValue?: string;
+    field?: string;
+    fromValue?: string;
     adminId: number;
   }): Promise<void> {
     try {
-      await this.auditLogService.recordAction({ entityType, entityId, action, toValue, adminId });
+      await this.auditLogService.recordAction({
+        entityType,
+        entityId,
+        action,
+        ...(field === undefined ? {} : { field }),
+        ...(fromValue === undefined ? {} : { fromValue }),
+        ...(toValue === undefined ? {} : { toValue }),
+        adminId,
+      });
     } catch (error: unknown) {
       this.logger.error(
         `Attendance audit log failed: entityType=${entityType}, entityId=${entityId}, action=${action}`,
