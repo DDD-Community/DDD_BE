@@ -50,7 +50,7 @@ describe('출석 보드', () => {
     expect(result.filename).toBe('attendance-generation-3-20261012.csv');
     expect(result.content).toBe(
       '\uFEFF이름,팀,직군,10/01 오리엔테이션,10/08 정기모임,출석,지각,결석\r\n' +
-        '"\'=SUM(1,1)","""개발,팀""","개발\n직군",출석,\'-,1,0,0\r\n' +
+        '"\'=SUM(1,1)","""개발,팀""","개발\n직군",출석,,1,0,0\r\n' +
         '홍길동,,,지각,결석,0,1,1',
     );
   });

@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { AttendanceApiClient } from './attendance-api.client';
@@ -118,6 +119,31 @@ describe('출석 API 클라이언트', () => {
       });
     },
   );
+
+  it.each([
+    [400, 'warn'],
+    [404, 'warn'],
+    [409, 'warn'],
+    [401, 'error'],
+    [403, 'error'],
+    [500, 'error'],
+  ] as const)('upstream %i 응답은 %s 로그로 남긴다', async (status, level) => {
+    // Given
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const error = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    fetchMock.mockResolvedValue({ ok: false, status, text: () => Promise.resolve('') });
+
+    // When
+    await expect(client.getGenerations()).rejects.toBeDefined();
+
+    // Then
+    expect(level === 'warn' ? warn : error).toHaveBeenCalledWith(
+      expect.stringContaining(`status=${status}`),
+    );
+    expect(level === 'warn' ? error : warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+    error.mockRestore();
+  });
 
   it('네트워크 오류와 시간 초과를 502로 변환한다', async () => {
     // Given

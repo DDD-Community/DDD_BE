@@ -284,9 +284,14 @@ export class AttendanceApiClient {
       );
     }
     const safeBody = this.redact(errorBody).slice(0, 500);
-    this.logger.error(
-      `Attendance upstream error: status=${response.status}, path=${path}, body=${safeBody}`,
-    );
+    const message = `Attendance upstream error: status=${response.status}, path=${path}, body=${safeBody}`;
+    // 400·404·409 는 운영자의 요청 실수(이미 진행 중인 투표 시작 등)라 warn.
+    // 401·403(내부 키 설정 오류)과 5xx(출석앱 장애)는 우리가 고쳐야 하므로 error.
+    if (OPERATOR_ERROR_STATUSES.has(response.status)) {
+      this.logger.warn(message);
+    } else {
+      this.logger.error(message);
+    }
 
     if (response.status === 400) {
       const conflictCode = this.readVoteStatusConflict(errorBody);
@@ -398,3 +403,4 @@ const VOTE_STATUS_CONFLICT_CODES = new Set([
   'VOTE_INVALID_STATUS',
   'VOTE_ALREADY_OPEN',
 ]);
+const OPERATOR_ERROR_STATUSES = new Set([400, 404, 409]);

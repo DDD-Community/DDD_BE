@@ -80,8 +80,7 @@ const getRows = ({
     rows.push([
       member.name ?? '',
       member.teamName ?? '',
-      // NONE 의 '-' 는 수식 방지로 "'-" 가 되므로 빈칸으로 둔다.
-      member.todayAttendanceStatus === 'NONE' ? '' : STATUS_LABEL[member.todayAttendanceStatus],
+      STATUS_LABEL[member.todayAttendanceStatus],
     ]);
   }
   return rows;
