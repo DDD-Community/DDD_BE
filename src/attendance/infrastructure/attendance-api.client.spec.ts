@@ -192,4 +192,132 @@ describe('출석 API 클라이언트', () => {
     });
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it.each([
+    ['목록', () => client.getVotes({ generationId: 5 }), '/generations/5/votes', 'GET', undefined],
+    [
+      '생성',
+      () =>
+        client.createVote({
+          generationId: 5,
+          body: { title: 'T', teamVoteTemplate: { deep: { id: 1 } } },
+        }),
+      '/generations/5/votes',
+      'POST',
+      { title: 'T', teamVoteTemplate: { deep: { id: 1 } } },
+    ],
+    ['상세', () => client.getVote({ voteId: 9 }), '/votes/9', 'GET', undefined],
+    [
+      '수정',
+      () => client.updateVote({ voteId: 9, body: { title: 'T' } }),
+      '/votes/9',
+      'PUT',
+      { title: 'T' },
+    ],
+    [
+      '텍스트 수정',
+      () => client.updateVoteText({ voteId: 9, body: { title: 'T' } }),
+      '/votes/9/text',
+      'PUT',
+      { title: 'T' },
+    ],
+    ['삭제', () => client.deleteVote({ voteId: 9 }), '/votes/9', 'DELETE', undefined],
+    ['시작', () => client.openVote({ voteId: 9 }), '/votes/9/open', 'PATCH', undefined],
+    ['종료', () => client.closeVote({ voteId: 9 }), '/votes/9/close', 'PATCH', undefined],
+    [
+      '참여 현황',
+      () => client.getVoteParticipation({ voteId: 9 }),
+      '/votes/9/participation',
+      'GET',
+      undefined,
+    ],
+    [
+      '미응답자',
+      () => client.getVoteNonResponders({ voteId: 9 }),
+      '/votes/9/non-responders',
+      'GET',
+      undefined,
+    ],
+    [
+      '팀 결과',
+      () => client.getVoteTeamResults({ voteId: 9 }),
+      '/votes/9/team-vote/results',
+      'GET',
+      undefined,
+    ],
+    [
+      '피드백 결과',
+      () => client.getVoteFeedbackResults({ voteId: 9 }),
+      '/votes/9/feedback/results',
+      'GET',
+      undefined,
+    ],
+    [
+      '응답 export',
+      () => client.getVoteResponses({ voteId: 9 }),
+      '/votes/9/responses',
+      'GET',
+      undefined,
+    ],
+  ])('%s 요청을 upstream 계약대로 보낸다', async (_label, call, path, method, body) => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve({}) });
+    await call();
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`https://attendance.example.com/api/internal${path}`);
+    expect(init.method).toBe(method);
+    expect(init.body === undefined ? undefined : JSON.parse(init.body as string)).toEqual(body);
+  });
+
+  it.each([
+    ['VOTE_NOT_DRAFT', 'ATTENDANCE_VOTE_NOT_DRAFT'],
+    ['VOTE_NOT_OPEN', 'ATTENDANCE_VOTE_NOT_OPEN'],
+    ['VOTE_INVALID_STATUS', 'ATTENDANCE_VOTE_INVALID_STATUS'],
+    ['VOTE_ALREADY_OPEN', 'ATTENDANCE_VOTE_ALREADY_OPEN'],
+  ])('%s는 409 상태 충돌로 변환한다', async (code, errorCode) => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 400,
+      text: () => Promise.resolve(JSON.stringify({ code })),
+    });
+    await expect(client.getVote({ voteId: 1 })).rejects.toMatchObject({ errorCode, status: 409 });
+  });
+
+  it.each([
+    ['VOTE_TEMPLATE_INVALID', 'ATTENDANCE_VOTE_TEMPLATE_INVALID'],
+    ['VOTE_TEMPLATE_STRUCTURE_CHANGED', 'ATTENDANCE_VOTE_TEMPLATE_STRUCTURE_CHANGED'],
+    ['VALIDATION_ERROR', 'ATTENDANCE_BAD_REQUEST'],
+  ])('%s 메시지를 정제해 400으로 전달한다', async (code, errorCode) => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 400,
+      text: () => Promise.resolve(JSON.stringify({ code, message: '  upstream detail  ' })),
+    });
+    await expect(client.getVote({ voteId: 1 })).rejects.toMatchObject({
+      errorCode,
+      status: 400,
+      message: 'upstream detail',
+    });
+  });
+
+  it('잘못되거나 지나치게 긴 400 메시지를 안전하게 처리한다', async () => {
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 400, text: () => Promise.resolve('{') });
+    await expect(client.getVote({ voteId: 1 })).rejects.toMatchObject({
+      errorCode: 'ATTENDANCE_BAD_REQUEST',
+    });
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      text: () => Promise.resolve(JSON.stringify({ code: 'VALIDATION_ERROR', message: ' ' })),
+    });
+    await expect(client.getVote({ voteId: 1 })).rejects.toMatchObject({
+      message: '출석 관리 서버에 잘못된 요청을 보냈습니다.',
+    });
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      text: () =>
+        Promise.resolve(JSON.stringify({ code: 'VALIDATION_ERROR', message: 'x'.repeat(301) })),
+    });
+    await expect(client.getVote({ voteId: 1 })).rejects.toMatchObject({ message: 'x'.repeat(300) });
+  });
 });

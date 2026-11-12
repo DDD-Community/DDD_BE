@@ -83,3 +83,141 @@ export type AttendanceBoardResult = AttendanceBoard & {
   scheduleSummaries: ScheduleAttendanceSummary[];
 };
 export type AttendanceCsv = { filename: string; content: string };
+export type AttendanceVoteStatus = 'DRAFT' | 'OPEN' | 'CLOSED';
+export type AttendanceVoteSummary = {
+  voteId: number;
+  generationId: number;
+  title: string;
+  status: AttendanceVoteStatus;
+  templateVersion: number;
+  openedAt: string | null;
+  closedAt: string | null;
+  createdDate: string;
+  responseCount: number;
+};
+export type AttendanceVoteDetail = AttendanceVoteSummary & {
+  teamVoteTemplate: AttendanceTeamVoteTemplate | null;
+  feedbackTemplate: AttendanceFeedbackTemplate | null;
+};
+export type AttendanceTeamVoteTemplate = {
+  title: string;
+  description: string;
+  notice: string;
+  categories: {
+    id: string;
+    order: number;
+    title: string;
+    maxSelectableTeams: number;
+    reasonRequired: boolean;
+    reasonMinLength: number;
+    reasonMaxLength: number;
+    reasonLabel: string;
+  }[];
+};
+export type AttendanceFeedbackQuestion = {
+  id: string;
+  order: number;
+  type: 'MULTI_SELECT' | 'LONG_TEXT' | 'BOOLEAN';
+  title: string;
+  helpText: string | null;
+  required: boolean;
+  maxSelectableOptions: number | null;
+  maxLength: number | null;
+  options: { id: string; label: string }[] | null;
+  followUp: AttendanceFeedbackQuestion | null;
+};
+export type AttendanceFeedbackTemplate = {
+  title: string;
+  description: string;
+  questions: AttendanceFeedbackQuestion[];
+};
+export type AttendanceVoteUpsert = {
+  title: string;
+  teamVoteTemplate?: Record<string, unknown> | null;
+  feedbackTemplate?: Record<string, unknown> | null;
+};
+export type AttendanceVoteParticipation = {
+  voteId: number;
+  title: string;
+  status: AttendanceVoteStatus;
+  totalMembers: number;
+  respondedMembers: number;
+  participationRate: number;
+};
+export type AttendanceVoteNonResponders = {
+  totalCount: number;
+  members: {
+    memberId: number;
+    name: string | null;
+    teamName: string | null;
+    todayAttendanceStatus: AttendanceStatus;
+  }[];
+};
+export type AttendanceVoteTeamResults = {
+  voteId: number;
+  title: string;
+  status: AttendanceVoteStatus;
+  totalResponses: number;
+  categories: {
+    categoryId: string;
+    title: string | null;
+    order: number;
+    teams: {
+      rank: number;
+      teamId: number;
+      name: string | null;
+      serviceName: string | null;
+      voteCount: number;
+    }[];
+    reasons: string[];
+  }[];
+};
+export type AttendanceVoteFeedbackResults = {
+  voteId: number;
+  totalResponses: number;
+  questions: {
+    questionId: string;
+    title: string | null;
+    type: AttendanceFeedbackQuestion['type'];
+    order: number;
+    options: { optionId: string; label: string; count: number }[] | null;
+    trueCount: number | null;
+    falseCount: number | null;
+    textAnswers: string[] | null;
+  }[];
+};
+export type AttendanceVoteResponses = {
+  voteId: number;
+  title: string;
+  templateVersion: number;
+  teamVoteTemplate: AttendanceTeamVoteTemplate | null;
+  feedbackTemplate: AttendanceFeedbackTemplate | null;
+  responses: {
+    responseId: number;
+    memberId: number;
+    memberName: string | null;
+    teamId: number | null;
+    teamName: string | null;
+    templateVersion: number;
+    submittedAt: string;
+    teamVote: {
+      categoryId: string;
+      teamIds: number[];
+      teamNames: (string | null)[];
+      reason: string | null;
+    }[];
+    feedback: {
+      questionId: string;
+      optionIds: string[] | null;
+      textValue: string | null;
+      boolValue: boolean | null;
+    }[];
+  }[];
+};
+export const ATTENDANCE_VOTE_EXPORT_KINDS = [
+  'team-vote',
+  'feedback',
+  'responses',
+  'non-responders',
+] as const;
+export type AttendanceVoteExportKind = (typeof ATTENDANCE_VOTE_EXPORT_KINDS)[number];
