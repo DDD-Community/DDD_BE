@@ -115,5 +115,6 @@ export const STATUS_LABEL: Record<AttendanceStatus, string> = {
   ATTENDED: '출석',
   LATE: '지각',
   ABSENT: '결석',
-  NONE: '-',
+  // 미정은 빈칸. '-' 는 CSV 수식 방지로 "'-" 가 되어 엑셀에 그대로 보인다.
+  NONE: '',
 };

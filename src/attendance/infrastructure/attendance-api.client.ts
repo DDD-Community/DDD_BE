@@ -284,9 +284,14 @@ export class AttendanceApiClient {
       );
     }
     const safeBody = this.redact(errorBody).slice(0, 500);
-    this.logger.error(
-      `Attendance upstream error: status=${response.status}, path=${path}, body=${safeBody}`,
-    );
+    const message = `Attendance upstream error: status=${response.status}, path=${path}, body=${safeBody}`;
+    // 출석앱이 업무 오류 코드와 함께 준 400·404·409 는 운영자 요청 실수(이미 진행 중인 투표 시작 등)라 warn.
+    // 코드 없는 4xx(경로 불일치 등)·401·403(내부 키 설정 오류)·5xx(출석앱 장애)는 우리가 고쳐야 하므로 error.
+    if (OPERATOR_ERROR_STATUSES.has(response.status) && this.hasUpstreamCode(errorBody)) {
+      this.logger.warn(message);
+    } else {
+      this.logger.error(message);
+    }
 
     if (response.status === 400) {
       const conflictCode = this.readVoteStatusConflict(errorBody);
@@ -352,6 +357,14 @@ export class AttendanceApiClient {
     return 'ATTENDANCE_CONFLICT';
   }
 
+  private hasUpstreamCode(body: string): boolean {
+    try {
+      return typeof (JSON.parse(body) as UpstreamError).code === 'string';
+    } catch {
+      return false;
+    }
+  }
+
   private readVoteStatusConflict(body: string): AttendanceConflictCode | undefined {
     try {
       const parsed = JSON.parse(body) as UpstreamError;
@@ -398,3 +411,4 @@ const VOTE_STATUS_CONFLICT_CODES = new Set([
   'VOTE_INVALID_STATUS',
   'VOTE_ALREADY_OPEN',
 ]);
+const OPERATOR_ERROR_STATUSES = new Set([400, 404, 409]);
