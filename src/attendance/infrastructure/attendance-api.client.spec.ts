@@ -121,17 +121,20 @@ describe('출석 API 클라이언트', () => {
   );
 
   it.each([
-    [400, 'warn'],
-    [404, 'warn'],
-    [409, 'warn'],
-    [401, 'error'],
-    [403, 'error'],
-    [500, 'error'],
-  ] as const)('upstream %i 응답은 %s 로그로 남긴다', async (status, level) => {
+    [400, '{"code":"VOTE_TEMPLATE_INVALID"}', 'warn'],
+    [404, '{"code":"VOTE_NOT_FOUND"}', 'warn'],
+    [409, '{"code":"TEAM_IN_USE"}', 'warn'],
+    // 출석앱 업무 코드가 없는 404 는 경로 불일치 같은 우리 쪽 문제다
+    [404, '{"status":404,"error":"Not Found","path":"/api/internal/generations"}', 'error'],
+    [400, '', 'error'],
+    [401, '{"code":"UNAUTHORIZED"}', 'error'],
+    [403, '', 'error'],
+    [500, '{"code":"INTERNAL"}', 'error'],
+  ] as const)('upstream %i %s 응답은 %s 로그로 남긴다', async (status, body, level) => {
     // Given
     const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     const error = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
-    fetchMock.mockResolvedValue({ ok: false, status, text: () => Promise.resolve('') });
+    fetchMock.mockResolvedValue({ ok: false, status, text: () => Promise.resolve(body) });
 
     // When
     await expect(client.getGenerations()).rejects.toBeDefined();
